@@ -22,6 +22,7 @@ library
   other-modules: Data.Tree.AVL.Internal
                , Data.Tree.AVL.Zipper
                , Data.Tree.AVL.Proof
+               , Data.Tree.AVL.Prune
                , Data.Tree.AVL.Insertion
                , Data.Tree.AVL.Deletion
   -- other-extensions:
@@ -34,12 +35,13 @@ library
                      , pretty-tree
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-options:         -Wall -Werror
 
 test-suite avl-tree-sanity
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Main.hs
-  other-modules:       Proof, Insertion
+  other-modules:       Proof, Insertion, Common
   build-depends:       base >= 0.4 && < 5
                      , lens
                      , test-framework

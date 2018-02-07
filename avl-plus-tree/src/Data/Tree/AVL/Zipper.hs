@@ -52,11 +52,11 @@ instance HasRevision (TreeZipper h k v) where
 type Zipped h k v = StateT (TreeZipper h k v) Maybe
 
 runZipped :: Hash h k v => Zipped h k v a -> Mode -> Map h k v -> (a, Map h k v)
-runZipped action mode tree = case mResult of
+runZipped action mode0 tree = case mResult of
     Just it -> it
     Nothing -> error "runZipped: failed"
   where
-    mResult = action' `evalStateT` enter mode tree
+    mResult = action' `evalStateT` enter mode0 tree
 
     action' = do
       res   <- action
@@ -138,22 +138,25 @@ up = do
       [] -> do
           fail "already on top"
 
+      other -> do
+        error $ "up: " ++ show other
+
     return side
 
 exit :: Hash h k v => Zipped h k v (Map h k v)
 exit = uplift
   where
     uplift = do
-        up
+        _ <- up
         uplift
       <|> use locus
 
 enter :: Hash h k v => Mode -> Map h k v -> TreeZipper h k v
-enter mode tree = TreeZipper
+enter mode0 tree = TreeZipper
     { _tzContext  = [JustStarted]
     , _tzHere     = tree
     , _tzKeyRange = (minBound, maxBound)
-    , _tzMode     = mode
+    , _tzMode     = mode0
     , _tzRevision = tree^.revision + 1
     }
 
@@ -168,7 +171,7 @@ descentLeft = do
         locus    .= tree^?!aptLeft
         keyRange .= refine L range (tree^.centerKey)
 
-      other -> do
+      _other -> do
           fail "cant' go down on non-branch"
 
 descentRight :: Hash h k v => Zipped h k v ()
@@ -182,26 +185,22 @@ descentRight = do
         locus    .= tree^?!aptRight
         keyRange .= refine R range (tree^.centerKey)
 
-      other -> do
+      _other -> do
           fail "cant' go down on non-branch"
 
+refine :: Ord key => Side -> (key, key) -> key -> (key, key)
 refine L (l, h) m = (l, min m h)
 refine R (l, h) m = (max m l, h)
 
 correctTilt :: Hash h k v => Map h k v -> Map h k v -> Tilt -> Side -> Zipped h k v Tilt
-correctTilt was became tilt side = do
+correctTilt was became tilt0 side = do
     modus <- use mode
     let
       res = case modus of
-        UpdateMode | deepened  was became -> roll tilt side
-        DeleteMode | shortened was became -> roll tilt (other side)
-        _                                 -> tilt
+        UpdateMode | deepened  was became -> roll tilt0 side
+        DeleteMode | shortened was became -> roll tilt0 (another side)
+        _                                 -> tilt0
 
-    -- Debug.traceShow (tilt, res) $
-    --  Debug.traceShow (height was, height became) $
-    --  Debug.traceShow (modus, deepened was became) $
-    --  Debug.traceShow ("was", was) $
-    --  Debug.traceShow ("became", became) $
     return res
 
 deepened :: Map h k v -> Map h k v -> Bool
@@ -222,10 +221,10 @@ shortened _        _      = False
 
 roll :: Tilt -> Side -> Tilt
 -- | Change tilt depending on grown side.
-roll tilt side =
+roll tilt0 side =
     case side of
-      L -> pred tilt
-      R -> succ tilt
+      L -> pred tilt0
+      R -> succ tilt0
 
 change
     :: Hash h k v
@@ -279,10 +278,11 @@ rebalance = do
 
     replaceWith newTree
 
+separately :: Zipped h k v a -> Zipped h k v a
 separately action = do
-    state  <- get
+    state0 <- get
     result <- action
-    put state
+    put state0
     return result
 
 track :: Show a => String -> a -> Zipped h k v ()
@@ -299,10 +299,11 @@ raiseUntilHaveInRange key = goUp
   where
     goUp = do
         range <- use keyRange
-        unless (key `inside` range) $ do
-            up
+        unless (key `isInside` range) $ do
+            _ <- up
             goUp
-    inside k (l, h) = k >= l && k <= h
+
+    k `isInside` (l, h) = k >= l && k <= h
 
 descentOnto :: Hash h k v => k -> Zipped h k v ()
 descentOnto key = continueDescent

@@ -12,10 +12,10 @@ module Data.Tree.AVL.Internal where
 import Control.Lens hiding (Empty)
 
 import Data.Monoid
-import Data.Tree.Pretty as T
+-- import Data.Tree.Pretty as T
 import Data.Tree        as T
 
-import Debug.Trace      as Debug
+-- import Debug.Trace      as Debug
 
 -- | I decided to isolate all the hash-y things from tree topology
 --   for the sake of it not getting in the way.
@@ -54,13 +54,17 @@ data Map h k v
         , _aptPrevKey  :: k }
     | Empty
         { _aptRevision :: Revision }
+    | Pruned
+        { _aptRevision :: Revision
+        , _aptPayload  :: Payload h k }
 
 type Revision = Integer
 
 data Side = L | R deriving (Eq, Show)
 
-other L = R
-other R = L
+another :: Side -> Side
+another L = R
+another R = L
 
 makeLenses ''Map
 makeLenses ''Payload
@@ -91,49 +95,53 @@ tilt = lens get (\m t -> m & aptTilt .~ t)
     get tree = tree^?aptTilt `orElse` M
 
 infix 1 `orElse`
+orElse :: Maybe a -> a -> a
 Just x `orElse` _ = x
 _      `orElse` x = x
 
 rootHash :: Hash h k v => Getter (Map h k v) h
 rootHash = to $ \tree -> case tree of
   Branch {} -> tree^?!aptPayload.pRootHash
-  Leaf   {} -> tree^?!aptHash
   Empty  {} -> emptyOne
+  Leaf   {} -> tree^?!aptHash
+  Pruned {} -> tree^?!aptPayload.pRootHash
 
 minKey :: Hash h k v => Getter (Map h k v) k
 minKey = to $ \tree -> case tree of
   Branch {} -> tree^?!aptPayload.pMinKey
   Leaf   {} -> tree^?!aptKey
   Empty  {} -> minBound
+  Pruned {} -> tree^?!aptPayload.pMinKey
 
 centerKey :: Hash h k v => Getter (Map h k v) k
 centerKey = to $ \tree -> case tree of
   Branch {} -> tree^?!aptPayload.pCenterKey
   Leaf   {} -> tree^?!aptKey
   Empty  {} -> minBound
+  Pruned {} -> tree^?!aptPayload.pCenterKey
 
-isBadlyBalanced :: Map h k v -> Bool
-isBadlyBalanced = \case
-  branch @ Branch {} ->
-    let left    = branch^?!aptLeft
-        right   = branch^?!aptRight
-        dHeight = branch^.tilt
-    in or
-        [ isBadlyBalanced left
-        , isBadlyBalanced right
-        ,  height right - height left
-        /= fromEnum dHeight - fromEnum M
-        ]
+-- isBadlyBalanced :: Map h k v -> Bool
+-- isBadlyBalanced = \case
+--   branch @ Branch {} ->
+--     let left    = branch^?!aptLeft
+--         right   = branch^?!aptRight
+--         dHeight = branch^.tilt
+--     in or
+--         [ isBadlyBalanced left
+--         , isBadlyBalanced right
+--         ,  height right - height left
+--         /= fromEnum dHeight - fromEnum M
+--         ]
 
-  _ -> False
+--   _ -> False
 
-height :: Map h k v -> Int
--- | Find the length of the longest path to the leaf.
-height tree = case tree of
-  Leaf   {} -> 1
-  Empty  {} -> 0
-  Branch {} ->
-    1 + max (tree^?!aptLeft.to height) (tree^?!aptRight.to height)
+-- height :: Map h k v -> Int
+-- -- | Find the length of the longest path to the leaf.
+-- height tree = case tree of
+--   Leaf   {} -> 1
+--   Empty  {} -> 0
+--   Branch {} ->
+--     1 + max (tree^?!aptLeft.to height) (tree^?!aptRight.to height)
 
 instance Hash h k v => Show (Map h k v) where
     -- show tree = "fromList " ++ show (toList tree)
@@ -160,34 +168,41 @@ instance Hash h k v => Show (Map h k v) where
     show = T.drawTree . pp
       where
         pp = \case
-          b @ (Branch rev pld d l r) ->
-            T.Node (show d <> ":" <> show (height r - height l) <> ":" <> show rev)
+          Branch rev _pld d l r ->
+            T.Node (show d <> ":" {- <> show (height r - height l) -} <> ":" <> show rev)
               [ pp l
               , pp r
               ]
 
           Leaf   { _aptRevision, _aptKey, _aptHash, _aptPrevKey, _aptNextKey } ->
               T.Node (show _aptPrevKey <> " > " <> show _aptKey <> " < " <> show _aptNextKey <> " = " <> show _aptHash) []
-          Empty  {}          -> T.Node "EMPTY" []
+          Empty  {}          -> T.Node "EMPTY"  []
+          Pruned {}          -> T.Node "PRUNED" []
 
 pattern Node :: Tilt -> Map h k v -> Map h k v -> Map h k v
 -- | For clarity of rebalance procedure.
 pattern Node d l r <- Branch _ _ d l r
 
+empty :: Map h k v
+empty = Empty { _aptRevision = 0 }
+
+pruned :: Revision -> Payload h k -> Map h k v
+pruned = Pruned
+
 branch :: Hash h k v => Revision -> Tilt -> Map h k v -> Map h k v -> Map h k v
 -- | Construct a branch from 2 subtrees. Recalculates hash.
-branch rev tilt left right = Branch
+branch rev tilt0 left right = Branch
   { _aptRevision = rev
-  , _aptPayload  = joinPayloads tilt left right
+  , _aptPayload  = joinPayloads tilt0 left right
   , _aptLeft     = left
   , _aptRight    = right
-  , _aptTilt     = tilt
+  , _aptTilt     = tilt0
   }
 
 joinPayloads :: Hash h k v => Tilt -> Map h k v -> Map h k v -> Payload h k
 -- | Construct a payload from 2 subtrees' payloads.
-joinPayloads tilt left right = Payload
-  { _pRootHash   = combine (left^.rootHash, L, tilt, right^.rootHash)
+joinPayloads tilt0 left right = Payload
+  { _pRootHash   = combine (left^.rootHash, L, tilt0, right^.rootHash)
   , _pMinKey     = (left^.minKey) `min` (right^.minKey)
   , _pCenterKey  = right^.minKey
   }
@@ -218,18 +233,18 @@ rehash tree =
         (tree^?!aptPrevKey)
         (tree^?!aptNextKey)
 
-      Empty {} -> tree
+      Empty  {} -> tree
+      Pruned {} -> tree
 
 lessThanCenterKey :: Hash h k v => k -> Map h k v -> Bool
-lessThanCenterKey key map = key < (map^.centerKey)
-
-empty = Empty { _aptRevision = 0 }
+lessThanCenterKey key tree = key < (tree^.centerKey)
 
 toList :: Map h k v -> [(k, v)]
 toList tree = case tree of
-  Empty  {}                    -> []
+  Empty  {} -> []
   Leaf   {} -> [(tree^?!aptKey, tree^?!aptValue)]
   Branch {} -> toList (tree^?!aptLeft) <> toList (tree^?!aptRight)
+  Pruned {} -> []
 
 instance Foldable (Map h k) where
     foldMap f = go
@@ -238,11 +253,16 @@ instance Foldable (Map h k) where
           Empty  {} -> mempty
           Leaf   {} -> f (tree^?!aptValue)
           Branch {} -> go (tree^?!aptLeft) <> go (tree^?!aptRight)
+          Pruned {} -> error "foldMap: Pruned"
 
 pathLengths :: Map h k v -> [Int]
 -- | For testing purposes. Finds lengths of all paths to the leaves.
 pathLengths tree = case tree of
   Empty  {} -> []
   Leaf   {} -> [0]
+  Pruned {} -> error "pathLengths: Pruned"
   Branch {} ->
     map (+ 1) (pathLengths (tree^?!aptLeft) ++ pathLengths (tree^?!aptRight))
+
+olderThan :: Map h k v -> Revision -> Bool
+olderThan tree rev = tree^.revision > rev

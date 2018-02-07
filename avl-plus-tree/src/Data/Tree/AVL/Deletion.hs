@@ -45,19 +45,19 @@ delete' needProof k = do
             then separately trackProof
             else return TrustMe
 
-        tree <- use locus
-        case tree of
+        tree0 <- use locus
+        case tree0 of
           Leaf {} -> do
-            let key  = tree^?!aptKey
-                prev = tree^?!aptPrevKey
-                next = tree^?!aptNextKey
+            let key  = tree0^?!aptKey
+                prev = tree0^?!aptPrevKey
+                next = tree0^?!aptNextKey
 
             if key /= k
             then do
                 return (False, proof)
 
             else do
-                side    <- up
+                side <- up
                 Just newTree <- case side of
                   L -> preuse (locus.aptRight)
                   R -> preuse (locus.aptLeft)
@@ -73,3 +73,7 @@ delete' needProof k = do
                     change (locus.aptPrevKey .= prev)
 
                 return (True, proof)
+
+          other -> do
+            error $ "insert: `goto k` ended in non-terminal node - " ++ show other
+

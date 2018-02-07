@@ -25,7 +25,6 @@ insertWithNoProof k v = snd . runZipped (insert' False k v) UpdateMode
 insert' :: Hash h k v => Bool -> k -> v -> Zipped h k v (Proof h k v)
 insert' needProof k v = do
     goto k
-    rev <- use (locus.revision)
     proof <-
         if needProof
         then separately trackProof
@@ -34,8 +33,8 @@ insert' needProof k v = do
     tree <- use locus
     case tree of
       Empty {} -> do
-        leaf <- makeLeaf k v minBound maxBound
-        replaceWith leaf
+        leaf0 <- makeLeaf k v minBound maxBound
+        replaceWith leaf0
 
       Leaf {} -> do
         let key  = tree^?!aptKey
@@ -46,55 +45,58 @@ insert' needProof k v = do
             change $ do
                 locus.aptValue .= v
         else do
-            if k `inside` (prev, key)
+            if k `isInside` (prev, key)
             then do
-                leaf <- makeLeaf k v prev key
+                leaf0 <- makeLeaf k v prev key
 
-                splitInsertBefore leaf
+                splitInsertBefore leaf0
                 unless (prev == minBound) $ do
                     goto prev
                     change $ do
                         locus.aptNextKey .= k
 
             else do
-                leaf <- makeLeaf k v key next
+                leaf0 <- makeLeaf k v key next
 
-                splitInsertAfter leaf
+                splitInsertAfter leaf0
                 unless (next == maxBound) $ do
                     goto next
                     change $ do
                         locus.aptPrevKey .= k
+      other -> do
+        error $ "insert: `goto k` ended in non-terminal node - " ++ show other
+
     return proof
   where
-    splitInsertBefore leaf = do
+    splitInsertBefore leaf0 = do
         tree <- use locus
         rev  <- newRevision
-        replaceWith (branch rev M leaf tree)
+        replaceWith (branch rev M leaf0 tree)
         descentRight
         change $ do
             locus.aptPrevKey .= k
 
 
-    splitInsertAfter leaf = do
+    splitInsertAfter leaf0 = do
         tree <- use locus
         rev  <- newRevision
-        replaceWith (branch rev M tree leaf)
+        replaceWith (branch rev M tree leaf0)
         descentLeft
         change $ do
             locus.aptNextKey .= k
 
-    makeLeaf k v prev next = do
+    makeLeaf k0 v0 prev next = do
         rev <- newRevision
         return Leaf
             { _aptRevision = rev
-            , _aptValue    = v
-            , _aptKey      = k
-            , _aptHash     = hashOf (k, v, prev, next)
+            , _aptValue    = v0
+            , _aptKey      = k0
+            , _aptHash     = hashOf (k0, v0, prev, next)
             , _aptNextKey  = next
             , _aptPrevKey  = prev
             }
 
-    inside k (l, h) = k >= l && k <= h
+    isInside k0 (l, h) = k0 >= l && k0 <= h
 
 fromList :: Hash h k v
     => [(k, v)]
