@@ -12,7 +12,7 @@ import Common
 
 import qualified Debug.Trace as Debug
 
-import qualified Data.Tree.AVL            as AVLPlus
+import qualified Data.Tree.AVL            as AVL
 
 --
 import           Test.Framework                       (Test, testGroup)
@@ -30,10 +30,12 @@ tests =
         [ testProperty "Generated proofs are verified." $
           \k v list ->
             let
-                tree           = AVLPlus.fromList list :: M
-                hash0          = tree^.AVLPlus.rootHash
-                (proof, tree1) = AVLPlus.insert k v tree
+                tree           = AVL.fromList list :: M
+                hash0          = tree^.AVL.rootHash
+                (proof, tree1) = AVL.insert k v tree
             in
-                AVLPlus.checkProof proof hash0
+              Debug.traceShow ("proof", proof) $
+              Debug.traceShow ("hash0", hash0) $
+                AVL.checkProof hash0 proof
         ]
     ]

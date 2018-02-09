@@ -5,7 +5,7 @@
 {-# language TemplateHaskell #-}
 {-# language NamedFieldPuns #-}
 {-# language PatternSynonyms #-}
-{-# language StrictData #-}
+-- {-# language StrictData #-}
 {-# language FlexibleInstances #-}
 {-# language FlexibleContexts #-}
 {-# language ScopedTypeVariables #-}
@@ -18,6 +18,7 @@ import Control.Lens hiding (Empty)
 
 -- import Data.Monoid
 -- import Data.Proxy
+import Data.Default
 import Data.Fix
 
 -- import Debug.Trace      as Debug
@@ -66,7 +67,14 @@ data MapLayer h k v self
     , _mlMinKey    :: k
     , _mlCenterKey :: k
     }
-    deriving (Show, Functor)
+    deriving (Functor)
+
+instance (Show k, Show v, Show r) => Show (MapLayer h k v r) where
+  show = \case
+    MLBranch _ _ mk ck t l r -> show (mk, ck, t, l, r)
+    MLLeaf   _ _ k v n p     -> show (k, v, p, n)
+    MLEmpty  _ _             -> show ()
+    MLPruned _ _ mk ck       -> show (mk, ck)
 
 type Revision = Integer
 
@@ -160,7 +168,7 @@ class
     , Show v
     , Bounded k
     , Eq h
-    , Monoid h
+    , Default h
     )
       =>
     Hash h k v
@@ -182,7 +190,7 @@ pattern Node :: Tilt -> Map h k v -> Map h k v -> Map h k v
 pattern Node d l r <- Branch _ _ _ _ d l r
 
 empty :: Hash h k v => Map h k v
-empty = Empty 0 mempty
+empty = Empty 0 def
 
 pruned :: Hash h k v => Map h k v -> Map h k v
 pruned tree = case tree of
@@ -197,7 +205,7 @@ branch :: Hash h k v => Revision -> Tilt -> Map h k v -> Map h k v -> Map h k v
 -- | Construct a branch from 2 subtrees. Recalculates hash.
 branch r tilt0 left0 right0 = rehash $ Branch
     r
-    mempty
+    def
     ((left0^.minKey) `min` (right0^.minKey))
     (right0^.minKey)
     tilt0
@@ -205,7 +213,7 @@ branch r tilt0 left0 right0 = rehash $ Branch
     right0
 
 leaf :: Hash h k v => Revision -> k -> v -> k -> k -> Map h k v
-leaf r k v p n = rehash $ Leaf r mempty k v n p
+leaf r k v p n = rehash $ Leaf r def k v n p
 
 lessThanCenterKey :: Hash h k v => k -> Map h k v -> Bool
 lessThanCenterKey key0 tree = key0 < (tree^.centerKey)
@@ -224,23 +232,23 @@ toList tree
   | otherwise
     = error "toList: Pruned"
 
--- instance Foldable (Map h k) where
---     foldMap f = go
---       where
---         go tree = case tree of
---           Empty  {} -> mempty
---           Leaf   {} -> f (tree^?!aptValue)
---           Branch {} -> go (tree^?!aptLeft) <> go (tree^?!aptRight)
---           Pruned {} -> error "foldMap: Pruned"
+size :: Map h k v -> Integer
+size = go
+  where
+    go tree
+      | Just Vacuous <- tree^.vacuous   = 0
+      | Just _       <- tree^.terminal  = 1
+      | Just fork    <- tree^.branching = go (fork^.left) + go (fork^.right)
+      | otherwise                       = error "foldMap: Pruned"
 
--- pathLengths :: Map h k v -> [Int]
--- -- | For testing purposes. Finds lengths of all paths to the leaves.
--- pathLengths tree = case tree of
---   Empty  {} -> []
---   Leaf   {} -> [0]
---   Pruned {} -> error "pathLengths: Pruned"
---   Branch {} ->
---     map (+ 1) (pathLengths (tree^?!aptLeft) ++ pathLengths (tree^?!aptRight))
+pathLengths :: Map h k v -> [Int]
+-- | For testing purposes. Finds lengths of all paths to the leaves.
+pathLengths tree = case tree of
+  Leaf   {} -> [0]
+  Pruned {} -> error "pathLengths: Pruned"
+  _ | Just fork <- tree^.branching ->
+    map (+ 1) (pathLengths (fork^.left) ++ pathLengths (fork^.right))
+  _         -> []
 
 -- olderThan :: Map h k v -> Revision -> Bool
 -- olderThan tree rev = tree^.revision > rev

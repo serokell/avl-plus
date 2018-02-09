@@ -13,13 +13,14 @@ module Common (module Common, module Control.Lens) where
 import Control.Lens hiding (locus, elements, Empty)
 
 import           Data.Bits (xor)
+import           Data.Default
 import           Data.Foldable
 import           Data.Function (on)
 import           Data.List (sortBy, nubBy)
 import           Data.Monoid
 import           Data.Ord (comparing)
 
-import qualified Data.Tree.AVL            as AVLPlus
+import qualified Data.Tree.AVL            as AVL
 
 import           Test.Framework             (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -38,26 +39,18 @@ f .=. g = \a ->
 infixr 5 .=.
 
 data InitialHash
-    = HashOf (StringName, Int, StringName, StringName)
-    | Combine (InitialHash, AVLPlus.Side, AVLPlus.Tilt, InitialHash)
-    | EmptyOne
+  = InitialHash { getInitialHash :: AVL.MapLayer () StringName Int InitialHash }
+  | Default
+    deriving Show
+
+instance Default InitialHash where
+  def = Default
 
 instance Eq InitialHash where
     x == y = show x == show y
 
-instance Show InitialHash where
-    show = \case
-      HashOf   (k, _, p, n)        -> show (p, k, n)
-      Combine (l, AVLPlus.L, t, r) -> "(" <> show l <> " # " <> show t <> " # " <> show r <> ")"
-      Combine (l, AVLPlus.R, t, r) -> "(" <> show r <> " # " <> show t <> " # " <> show l <> ")"
-      EmptyOne                     -> "0"
-
-instance AVLPlus.Combined InitialHash where
-    emptyOne = EmptyOne
-    combine  = Combine
-
-instance AVLPlus.Hash InitialHash StringName Int where
-    hashOf = HashOf
+instance AVL.Hash InitialHash StringName Int where
+    hashOf = InitialHash
 
 -- newtype IntHash = IntHash { getIntHash :: Int }
 --     deriving (Show, Eq, Arbitrary)
@@ -92,18 +85,18 @@ instance Bounded StringName where
 --         IntHash $ 37 * length k + 53 * v + 67 * length p + 91 * length n
 
 instance
-    ( AVLPlus.Hash h k v
+    ( AVL.Hash h k v
     , Arbitrary k
     , Arbitrary v
     , Show h
     )
       =>
-    Arbitrary (AVLPlus.Map h k v)
+    Arbitrary (AVL.Map h k v)
   where
-    arbitrary = AVLPlus.fromList <$> arbitrary
+    arbitrary = AVL.fromList <$> arbitrary
 
 -- Requirement of QuickCheck
 instance Show (a -> b) where
     show _ = "<function>"
 
-type M = AVLPlus.Map InitialHash StringName Int
+type M = AVL.Map InitialHash StringName Int

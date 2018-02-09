@@ -28,6 +28,7 @@ library
   -- other-extensions:
   build-depends:       base >=4.9 && <4.10
                      , containers
+                     , data-default
                      , data-fix
                      , lens
                      , MonadRandom
@@ -44,6 +45,7 @@ test-suite avl-tree-sanity
   main-is:             Main.hs
   other-modules:       Proof, Insertion, Common
   build-depends:       base >= 0.4 && < 5
+                     , data-default
                      , lens
                      , test-framework
                      , test-framework-quickcheck2

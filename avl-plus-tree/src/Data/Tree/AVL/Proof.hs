@@ -14,7 +14,7 @@ import Data.Tree.AVL.Internal
 -- import Data.Tree.AVL.Zipper
 -- import Data.Tree.AVL.Prune
 
-newtype Proof h k v = Proof { getProof :: Map h k v }
+newtype Proof h k v = Proof { getProof :: Map h k v } deriving Show
 
 checkProof :: Hash h k v => h -> Proof h k v -> Bool
 checkProof ideal (Proof proof) = go proof^.rootHash == ideal
