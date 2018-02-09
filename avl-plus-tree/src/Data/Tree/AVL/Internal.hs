@@ -10,13 +10,15 @@
 {-# language FlexibleContexts #-}
 {-# language ScopedTypeVariables #-}
 {-# language RankNTypes #-}
+{-# language DeriveFunctor #-}
 
 module Data.Tree.AVL.Internal where
 
 import Control.Lens hiding (Empty)
 
-import Data.Monoid
-import Data.Proxy
+-- import Data.Monoid
+-- import Data.Proxy
+import Data.Fix
 
 -- import Debug.Trace      as Debug
 
@@ -32,34 +34,124 @@ data Tilt
     | R2  -- UnbalancedRight
     deriving (Eq, Ord, Enum, Show)
 
--- | Implementation of AVL+ tree with data in leaves.
-data Map h k v
-    = Branch
-        { _aptRevision  :: Revision
-        , _aptHash      :: h
-        , _aptMinKey    :: k
-        , _aptCenterKey :: k
-        , _aptTilt      :: Tilt
-        , _aptLeft      :: Map h k v
-        , _aptRight     :: Map h k v }
-    | Leaf
-        { _aptRevision  :: Revision
-        , _aptHash      :: h
-        , _aptKey       :: k
-        , _aptValue     :: v
-        , _aptNextKey   :: k
-        , _aptPrevKey   :: k }
-    | Empty
-        { _aptRevision  :: Revision
-        , _aptHash      :: h
-        }
-    | Pruned
-        { _aptRevision  :: Revision
-        , _aptHash      :: h
-        , _aptMinKey    :: k
-        , _aptCenterKey :: k
-        }
-    deriving Show
+-- | Representation of AVL+ tree with data in leaves.
+
+type Map h k v = Fix (MapLayer h k v)
+
+data MapLayer h k v self
+  = MLBranch
+    { _mlRevision  :: Revision
+    , _mlHash      :: h
+    , _mlMinKey    :: k
+    , _mlCenterKey :: k
+    , _mlTilt      :: Tilt
+    , _mlLeft      :: self
+    , _mlRight     :: self
+    }
+  | MLLeaf
+    { _mlRevision  :: Revision
+    , _mlHash      :: h
+    , _mlKey       :: k
+    , _mlValue     :: v
+    , _mlNextKey   :: k
+    , _mlPrevKey   :: k
+    }
+  | MLEmpty
+    { _mlRevision  :: Revision
+    , _mlHash      :: h
+    }
+  | MLPruned
+    { _mlRevision  :: Revision
+    , _mlHash      :: h
+    , _mlMinKey    :: k
+    , _mlCenterKey :: k
+    }
+    deriving (Show, Functor)
+
+type Revision = Integer
+
+data Side = L | R deriving (Eq, Show)
+
+data Branching h k v = Branching
+  { _left  :: Map h k v
+  , _right :: Map h k v
+  , _tilt  :: Tilt
+  }
+
+data Terminal h k v = Terminal
+  { _key     :: k
+  , _value   :: v
+  , _nextKey :: k
+  , _prevKey :: k
+  }
+
+data Vacuous = Vacuous
+
+makeLenses ''Terminal
+makeLenses ''Branching
+makeLenses ''MapLayer
+makePrisms ''MapLayer
+makePrisms ''Fix
+
+pattern Branch :: Revision -> h -> k -> k -> Tilt -> Map h k v -> Map h k v -> Map h k v
+pattern Leaf   :: Revision -> h -> k -> v -> k -> k -> Map h k v
+pattern Empty  :: Revision -> h -> Map h k v
+pattern Pruned :: Revision -> h -> k -> k -> Map h k v
+
+pattern Branch re hash mKey cKey t l r = Fix (MLBranch re hash mKey cKey t l r)
+pattern Leaf   r  hash key  val  n p   = Fix (MLLeaf   r  hash key  val  n p)
+pattern Empty  r  hash                 = Fix (MLEmpty  r  hash)
+pattern Pruned r  hash mKey cKey       = Fix (MLPruned r  hash mKey cKey)
+
+class HasRevision r where
+  revision :: Lens' r Revision
+
+instance HasRevision (Map h k v) where
+  revision = _Fix . mlRevision
+
+rootHash :: Getter (Map h k v) h
+rootHash = _Fix . to (^.mlHash)
+
+minKey :: Bounded k => Getter (Map h k v) k
+minKey = _Fix . to (\tree -> tree^?mlMinKey `orElse` minBound)
+
+centerKey :: Bounded k => Getter (Map h k v) k
+centerKey = _Fix . to (\tree -> tree^?mlCenterKey `orElse` minBound)
+
+setLeft :: Setter' (Map h k v) (Map h k v)
+setLeft = _Fix.mlLeft
+
+setRight :: Setter' (Map h k v) (Map h k v)
+setRight = _Fix.mlRight
+
+setValue :: Setter' (Map h k v) v
+setValue = _Fix.mlValue
+
+setNextKey :: Setter' (Map h k v) k
+setNextKey = _Fix.mlNextKey
+
+setPrevKey :: Setter' (Map h k v) k
+setPrevKey = _Fix.mlPrevKey
+
+branching :: Getter (Map h k v) (Maybe (Branching h k v))
+branching = to $ \case
+  Branch _ _ _ _ t l r -> Just (Branching l r t)
+  _                    -> Nothing
+
+terminal :: Getter (Map h k v) (Maybe (Terminal h k v))
+terminal = to $ \case
+  Leaf _ _ k v n p -> Just (Terminal k v n p)
+  _                -> Nothing
+
+vacuous :: Getter (Map h k v) (Maybe Vacuous)
+vacuous = to $ \case
+  Empty _ _ -> Just (Vacuous)
+  _         -> Nothing
+
+rehash :: Hash h k v => Map h k v -> Map h k v
+rehash (Fix tree) = Fix $ tree & mlHash .~ hashOf cleaned
+  where
+    cleaned = tree & mlHash .~ () & fmap (^.rootHash)
 
 class
     ( Ord k
@@ -73,116 +165,27 @@ class
       =>
     Hash h k v
   where
-    ofBranch :: (Revision, k, k, Tilt, h, h, Proxy v) -> h
-    ofLeaf   :: (Revision, k, v, k, k) -> h
-
-type Revision = Integer
-
-data Side = L | R deriving (Eq, Show)
+    hashOf :: MapLayer () k v h -> h
 
 another :: Side -> Side
 another L = R
 another R = L
-
-makeLenses ''Map
-
-class HasRevision s where
-    revision :: Lens' s Revision
-
-instance HasRevision (Map h k v) where
-    revision = aptRevision
-
-tilt :: Lens' (Map h k v) Tilt
-tilt = lens get (\m t -> m & aptTilt .~ t)
-  where
-    get tree = tree^?aptTilt `orElse` M
 
 infix 1 `orElse`
 orElse :: Maybe a -> a -> a
 Just x `orElse` _ = x
 _      `orElse` x = x
 
-rootHash :: Hash h k v => Getter (Map h k v) h
-rootHash = aptHash
-
-minKey :: Hash h k v => Getter (Map h k v) k
-minKey = to $ \tree -> case tree of
-  Empty {} -> minBound
-  _other   -> tree^?!aptKey
-
-centerKey :: Hash h k v => Getter (Map h k v) k
-centerKey = to $ \tree -> case tree of
-  Empty {} -> minBound
-  _other   -> tree^?!aptKey
-
--- isBadlyBalanced :: Map h k v -> Bool
--- isBadlyBalanced = \case
---   branch @ Branch {} ->
---     let left    = branch^?!aptLeft
---         right   = branch^?!aptRight
---         dHeight = branch^.tilt
---     in or
---         [ isBadlyBalanced left
---         , isBadlyBalanced right
---         ,  height right - height left
---         /= fromEnum dHeight - fromEnum M
---         ]
-
---   _ -> False
-
--- height :: Map h k v -> Int
--- -- | Find the length of the longest path to the leaf.
--- height tree = case tree of
---   Leaf   {} -> 1
---   Empty  {} -> 0
---   Branch {} ->
---     1 + max (tree^?!aptLeft.to height) (tree^?!aptRight.to height)
-
--- instance Hash h k v => Show (Map h k v) where
---     -- show tree = "fromList " ++ show (toList tree)
-
---     -- Uncomment the following to get structured printing:
-
---     -- show = \case
---     --   thunk @ (Branch rev pld d l r) -> mempty
---     --     <> "{" <> show l
---     --     <> " " <> show d
---     --     <> ":" <> show (height r - height l)
---     --     <> "/" <> show rev
---     --     <> " " <> show r
---     --     <> "}"
---     --
---     --   Leaf { aptKey, aptNextKey, aptPrevKey, aptValue, aptRevision } ->
---     --     ""
---     --     <> "{" <> show aptKey
---     --     <> ":" <> show aptRevision
---     --     <> "}"
---     --
---     --
---     --   Empty  {} -> "-"
---     show = T.drawTree . pp
---       where
---         pp = \case
---           Branch rev _pld d l r ->
---             T.Node (show d <> ":" {- <> show (height r - height l) -} <> ":" <> show rev)
---               [ pp l
---               , pp r
---               ]
-
---           Leaf   { _aptRevision, _aptKey, _aptHash, _aptPrevKey, _aptNextKey } ->
---               T.Node (show _aptPrevKey <> " > " <> show _aptKey <> " < " <> show _aptNextKey <> " = " <> show _aptHash) []
---           Empty  {}          -> T.Node "EMPTY"  []
---           Pruned {}          -> T.Node "PRUNED" []
 
 pattern Node :: Tilt -> Map h k v -> Map h k v -> Map h k v
 -- | For clarity of rebalance procedure.
 pattern Node d l r <- Branch _ _ _ _ d l r
 
 empty :: Hash h k v => Map h k v
-empty = Empty { _aptRevision = 0, _aptHash = mempty }
+empty = Empty 0 mempty
 
-pruneNode :: Hash h k v => Map h k v -> Map h k v
-pruneNode tree = case tree of
+pruned :: Hash h k v => Map h k v -> Map h k v
+pruned tree = case tree of
   Pruned {} -> tree
   _other    -> Pruned
     (tree^.revision)
@@ -190,86 +193,54 @@ pruneNode tree = case tree of
     (tree^.minKey)
     (tree^.centerKey)
 
-branch
-    :: forall h k v
-    .  Hash   h k v
-    => Revision
-    -> Tilt
-    -> Map h k v
-    -> Map h k v
-    -> Map h k v
+branch :: Hash h k v => Revision -> Tilt -> Map h k v -> Map h k v -> Map h k v
 -- | Construct a branch from 2 subtrees. Recalculates hash.
-branch rev tilt0 left right = Branch
-  { _aptRevision  = rev
-  , _aptHash      = ofBranch (rev, mKey, cKey, tilt0, lHash, rHash, Proxy :: Proxy v)
-  , _aptMinKey    = mKey
-  , _aptCenterKey = cKey
-  , _aptLeft      = left
-  , _aptRight     = right
-  , _aptTilt      = tilt0
-  }
-  where
-    mKey  = (left^.minKey) `min` (right^.minKey)
-    cKey  = right^.minKey
-    lHash = left^.rootHash
-    rHash = right^.rootHash
+branch r tilt0 left0 right0 = rehash $ Branch
+    r
+    mempty
+    ((left0^.minKey) `min` (right0^.minKey))
+    (right0^.minKey)
+    tilt0
+    left0
+    right0
 
 leaf :: Hash h k v => Revision -> k -> v -> k -> k -> Map h k v
-leaf r k v p n = Leaf
-    { _aptRevision = r
-    , _aptHash     = ofLeaf (r, k, v, p, n)
-    , _aptKey      = k
-    , _aptValue    = v
-    , _aptNextKey  = n
-    , _aptPrevKey  = p
-    }
-
-rehash :: Hash h k v => Map h k v -> Map h k v
-rehash tree =
-    case tree of
-      Branch {} -> branch
-        (tree^.revision)
-        (tree^.tilt)
-        (tree^?!aptLeft)
-        (tree^?!aptRight)
-
-      Leaf {} -> leaf
-        (tree^.revision)
-        (tree^?!aptKey)
-        (tree^?!aptValue)
-        (tree^?!aptPrevKey)
-        (tree^?!aptNextKey)
-
-      Empty  {} -> tree
-      Pruned {} -> tree
+leaf r k v p n = rehash $ Leaf r mempty k v n p
 
 lessThanCenterKey :: Hash h k v => k -> Map h k v -> Bool
-lessThanCenterKey key tree = key < (tree^.centerKey)
+lessThanCenterKey key0 tree = key0 < (tree^.centerKey)
 
 toList :: Map h k v -> [(k, v)]
-toList tree = case tree of
-  Empty  {}                    -> []
-  Leaf   {_aptKey,  _aptValue} -> [(_aptKey, _aptValue)]
-  Branch {_aptLeft, _aptRight} -> toList _aptLeft <> toList _aptRight
-  Pruned {}                    -> error "toList: Pruned"
+toList tree
+  | Just term <- tree^.terminal
+    = [(term^.key, term^.value)]
 
-instance Foldable (Map h k) where
-    foldMap f = go
-      where
-        go tree = case tree of
-          Empty  {} -> mempty
-          Leaf   {} -> f (tree^?!aptValue)
-          Branch {} -> go (tree^?!aptLeft) <> go (tree^?!aptRight)
-          Pruned {} -> error "foldMap: Pruned"
+  | Just fork <- tree^.branching
+    = toList (fork^.left) ++ toList (fork^.right)
 
-pathLengths :: Map h k v -> [Int]
--- | For testing purposes. Finds lengths of all paths to the leaves.
-pathLengths tree = case tree of
-  Empty  {} -> []
-  Leaf   {} -> [0]
-  Pruned {} -> error "pathLengths: Pruned"
-  Branch {} ->
-    map (+ 1) (pathLengths (tree^?!aptLeft) ++ pathLengths (tree^?!aptRight))
+  | Just Vacuous <- tree^.vacuous
+    = []
 
-olderThan :: Map h k v -> Revision -> Bool
-olderThan tree rev = tree^.revision > rev
+  | otherwise
+    = error "toList: Pruned"
+
+-- instance Foldable (Map h k) where
+--     foldMap f = go
+--       where
+--         go tree = case tree of
+--           Empty  {} -> mempty
+--           Leaf   {} -> f (tree^?!aptValue)
+--           Branch {} -> go (tree^?!aptLeft) <> go (tree^?!aptRight)
+--           Pruned {} -> error "foldMap: Pruned"
+
+-- pathLengths :: Map h k v -> [Int]
+-- -- | For testing purposes. Finds lengths of all paths to the leaves.
+-- pathLengths tree = case tree of
+--   Empty  {} -> []
+--   Leaf   {} -> [0]
+--   Pruned {} -> error "pathLengths: Pruned"
+--   Branch {} ->
+--     map (+ 1) (pathLengths (tree^?!aptLeft) ++ pathLengths (tree^?!aptRight))
+
+-- olderThan :: Map h k v -> Revision -> Bool
+-- olderThan tree rev = tree^.revision > rev

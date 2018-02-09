@@ -11,68 +11,73 @@ import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 delete :: Hash h k v => k -> Map h k v -> ((Bool, Proof h k v), Map h k v)
-delete k = runZipped (delete' True k) DeleteMode
+delete k tree = ((yes, proof), res)
+  where
+    (yes, res, proof) = runZipped (delete' k) DeleteMode tree
 
 deleteWithNoProof
     :: Hash h k v
     => k
     -> Map h k v
     -> Map h k v
-deleteWithNoProof k = snd . runZipped (delete' False k) DeleteMode
+deleteWithNoProof k tree = res
+  where
+    (_yes, res, _proof) = runZipped (delete' k) DeleteMode tree
 
-delete' :: Hash h k v => Bool -> k -> Zipped h k v (Bool, Proof h k v)
-delete' needProof k = do
+delete' :: Hash h k v => k -> Zipped h k v Bool
+delete' k = do
     tree <- use locus
     case tree of
-      Leaf {} -> do
-        if tree^?!aptKey == k
+      leaf0 | Just term <- leaf0^.terminal -> do
+        if term^.key == k
         then do
-            datum <- leafDataForProof
             replaceWith empty
-            return (True, Proof [] datum)
+            return True
 
         else do
-            datum <- leafDataForProof
-            return (False, Proof [] datum)
+            change $ return ()
+            return False
 
       Empty {} -> do
-        return (False, TreeWasEmpty)
+        return False
 
       _ -> do
         goto k
-        proof <-
-            if needProof
-            then separately trackProof
-            else return TrustMe
-
         tree0 <- use locus
         case tree0 of
-          Leaf {} -> do
-            let key  = tree0^?!aptKey
-                prev = tree0^?!aptPrevKey
-                next = tree0^?!aptNextKey
+          leaf1 | Just term <- leaf1^.terminal -> do
+            let key0 = term^.key
+                prev = term^.prevKey
+                next = term^.nextKey
 
-            if key /= k
+            if key0 /= k
             then do
-                return (False, proof)
+                return False
 
             else do
                 side <- up
-                Just newTree <- case side of
-                  L -> preuse (locus.aptRight)
-                  R -> preuse (locus.aptLeft)
+                here <- use locus
+                let
+                  newTree
+                    | Just fork <- here^.branching =
+                      case side of
+                        L -> fork^.right
+                        R -> fork^.left
+
+                    | otherwise =
+                        error "delete: successful `up` ended in non-Branch"
 
                 replaceWith newTree
 
                 unless (prev == minBound) $ do
                     goto prev
-                    change (locus.aptNextKey .= next)
+                    change (locus.setNextKey .= next)
 
                 unless (next == maxBound) $ do
                     goto next
-                    change (locus.aptPrevKey .= prev)
+                    change (locus.setPrevKey .= prev)
 
-                return (True, proof)
+                return True
 
           other -> do
             error $ "insert: `goto k` ended in non-terminal node - " ++ show other

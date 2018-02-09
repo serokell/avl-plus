@@ -12,7 +12,9 @@ import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 insert :: Hash h k v => k -> v -> Map h k v -> (Proof h k v, Map h k v)
-insert k v = runZipped (insert' True k v) UpdateMode
+insert k v tree = (proof, res)
+  where
+    ((), res, proof) = runZipped (insert' k v) UpdateMode tree
 
 insertWithNoProof
     :: Hash h k v
@@ -20,53 +22,50 @@ insertWithNoProof
     -> v
     -> Map h k v
     -> Map h k v
-insertWithNoProof k v = snd . runZipped (insert' False k v) UpdateMode
+insertWithNoProof k v tree = res
+  where
+    ((), res, _) = runZipped (insert' k v) UpdateMode tree
 
-insert' :: Hash h k v => Bool -> k -> v -> Zipped h k v (Proof h k v)
-insert' needProof k v = do
+insert' :: Hash h k v => k -> v -> Zipped h k v ()
+insert' k v = do
     goto k
-    proof <-
-        if needProof
-        then separately trackProof
-        else return TrustMe
-
     tree <- use locus
     case tree of
       Empty {} -> do
         leaf0 <- makeLeaf k v minBound maxBound
         replaceWith leaf0
 
-      Leaf {} -> do
-        let key  = tree^?!aptKey
-            prev = tree^?!aptPrevKey
-            next = tree^?!aptNextKey
+      leaf1 | Just term <- leaf1^.terminal -> do
+        let key0 = term^.key
+            prev = term^.prevKey
+            next = term^.nextKey
 
-        if k == key then do
+        if k == key0 then do
             change $ do
-                locus.aptValue .= v
+                locus.setValue .= v
         else do
-            if k `isInside` (prev, key)
+            if k `isInside` (prev, key0)
             then do
-                leaf0 <- makeLeaf k v prev key
+                leaf0 <- makeLeaf k v prev key0
 
                 splitInsertBefore leaf0
                 unless (prev == minBound) $ do
                     goto prev
                     change $ do
-                        locus.aptNextKey .= k
+                        locus.setNextKey .= k
 
             else do
-                leaf0 <- makeLeaf k v key next
+                leaf0 <- makeLeaf k v key0 next
 
                 splitInsertAfter leaf0
                 unless (next == maxBound) $ do
                     goto next
                     change $ do
-                        locus.aptPrevKey .= k
+                        locus.setPrevKey .= k
       other -> do
         error $ "insert: `goto k` ended in non-terminal node - " ++ show other
 
-    return proof
+    return ()
   where
     splitInsertBefore leaf0 = do
         tree <- use locus
@@ -74,7 +73,7 @@ insert' needProof k v = do
         replaceWith (branch rev M leaf0 tree)
         descentRight
         change $ do
-            locus.aptPrevKey .= k
+            locus.setPrevKey .= k
 
 
     splitInsertAfter leaf0 = do
@@ -83,18 +82,11 @@ insert' needProof k v = do
         replaceWith (branch rev M tree leaf0)
         descentLeft
         change $ do
-            locus.aptNextKey .= k
+            locus.setNextKey .= k
 
     makeLeaf k0 v0 prev next = do
         rev <- newRevision
-        return Leaf
-            { _aptRevision = rev
-            , _aptValue    = v0
-            , _aptKey      = k0
-            , _aptHash     = hashOf (k0, v0, prev, next)
-            , _aptNextKey  = next
-            , _aptPrevKey  = prev
-            }
+        return $ leaf rev k0 v0 prev next
 
     isInside k0 (l, h) = k0 >= l && k0 <= h
 

@@ -22,8 +22,8 @@ checkProof ideal (Proof proof) = go proof^.rootHash == ideal
     go tree = case tree of
       Leaf   {} -> rehash tree
       Branch {} -> tree
-        & aptLeft  %~ go
-        & aptRight %~ go
+        & _Fix.mlLeft  %~ go
+        & _Fix.mlRight %~ go
         & rehash
       _other    -> tree
 

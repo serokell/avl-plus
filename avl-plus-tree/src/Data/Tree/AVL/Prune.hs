@@ -6,18 +6,19 @@ module Data.Tree.AVL.Prune where
 import Control.Lens hiding (Empty)
 
 import Data.Tree.AVL.Internal
+import Data.Tree.AVL.Proof
 
-prune :: Hash h k v => Revision -> Map h k v -> Map h k v
-prune rev = go
+prune :: Hash h k v => Revision -> Map h k v -> Proof h k v
+prune rev = Proof . go
   where
     go tree
       | tree^.revision <= rev =
-        pruneNode tree
+        pruned tree
 
     go tree = case tree of
       Branch {} -> tree
-        & aptLeft  %~ go
-        & aptRight %~ go
+        & _Fix.mlLeft  %~ go
+        & _Fix.mlRight %~ go
 
       other ->
         other

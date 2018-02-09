@@ -7,6 +7,8 @@ module Data.Tree.AVL.Zipper where
 
 import Data.Monoid
 import Data.Tree.AVL.Internal
+import Data.Tree.AVL.Proof
+import Data.Tree.AVL.Prune
 
 import Debug.Trace as Debug
 
@@ -54,9 +56,9 @@ instance HasRevision (TreeZipper h k v) where
 
 type Zipped h k v = StateT (TreeZipper h k v) Maybe
 
-runZipped :: Hash h k v => Zipped h k v a -> Mode -> Map h k v -> (a, Map h k v)
+runZipped :: Hash h k v => Zipped h k v a -> Mode -> Map h k v -> (a, Map h k v, Proof h k v)
 runZipped action mode0 tree = case mResult of
-    Just it -> it
+    Just (a, tree1) -> (a, tree1, prune (tree^.revision) tree1)
     Nothing -> error "runZipped: failed"
   where
     mResult = action' `evalStateT` enter mode0 tree
@@ -87,7 +89,8 @@ up = do
     ctx  <- use context
     rev1 <- use (locus.revision)
     side <- case ctx of
-      WentLeftFrom tree @ Branch {} range rev0 : rest -> do
+      WentLeftFrom tree range rev0 : rest
+        | Just fork <- tree^.branching -> do
           became <- do
               if rev0 == rev1
               then do
@@ -97,8 +100,8 @@ up = do
                   locus %= rehash
                   now   <- use locus
                   rev'  <- newRevision
-                  tilt' <- correctTilt (tree^?!aptLeft) now (tree^?!aptTilt) L
-                  let b = branch rev' tilt' now (tree^?!aptRight)
+                  tilt' <- correctTilt (fork^.left) now (fork^.tilt) L
+                  let b = branch rev' tilt' now (fork^.right)
                   return b
 
           context  .= rest
@@ -109,7 +112,8 @@ up = do
           rebalance
           return L
 
-      WentRightFrom tree @ Branch {} range rev0 : rest -> do
+      WentRightFrom tree range rev0 : rest
+        | Just fork <- tree^.branching -> do
           became <- do
               if rev0 == rev1
               then do
@@ -119,8 +123,8 @@ up = do
                   locus %= rehash
                   now   <- use locus
                   rev'  <- newRevision
-                  tilt' <- correctTilt (tree^?!aptRight) now (tree^?!aptTilt) R
-                  let b = branch rev' tilt' (tree^?!aptLeft) now
+                  tilt' <- correctTilt (fork^.right) now (fork^.tilt) R
+                  let b = branch rev' tilt' (fork^.left) now
                   return b
 
           context  .= rest
@@ -167,28 +171,28 @@ descentLeft = do
     tree  <- use locus
     range <- use keyRange
     case tree of
-      Branch {} -> do
-        let rev = tree^?!aptLeft.revision
-        context  %= (WentLeftFrom tree range rev :)
-        locus    .= tree^?!aptLeft
-        keyRange .= refine L range (tree^.centerKey)
+      _ | Just fork <- tree^.branching -> do
+          let rev   = fork^.left.revision
+          context  %= (WentLeftFrom tree range rev :)
+          locus    .= fork^.left
+          keyRange .= refine L range (tree^.centerKey)
 
-      _other -> do
-          fail "cant' go down on non-branch"
+        | otherwise -> do
+            fail "cant' go down on non-branch"
 
 descentRight :: Hash h k v => Zipped h k v ()
 descentRight = do
     tree  <- use locus
     range <- use keyRange
     case tree of
-      Branch {} -> do
-        let rev = tree^?!aptRight.revision
-        context  %= (WentRightFrom tree range rev :)
-        locus    .= tree^?!aptRight
-        keyRange .= refine R range (tree^.centerKey)
+      _ | Just fork <- tree^.branching -> do
+          let rev = fork^.right.revision
+          context  %= (WentRightFrom tree range rev :)
+          locus    .= fork^.right
+          keyRange .= refine R range (tree^.centerKey)
 
-      _other -> do
-          fail "cant' go down on non-branch"
+        | otherwise -> do
+            fail "cant' go down on non-branch"
 
 refine :: Ord key => Side -> (key, key) -> key -> (key, key)
 refine L (l, h) m = (l, min m h)
@@ -207,17 +211,21 @@ correctTilt was became tilt0 side = do
 
 deepened :: Map h k v -> Map h k v -> Bool
 -- | Find a difference in tilt between 2 versions of the branch.
-deepened was @ Branch {} became @ Branch {}
-    =   was ^.tilt == M
-    &&  became^.tilt `elem` [L1, R1]
+deepened was became
+  | Just wasF    <- was   ^.branching
+  , Just becameF <- became^.branching
+    =   wasF   ^.tilt   ==    M
+    &&  becameF^.tilt `elem` [L1, R1]
 deepened Leaf{} Branch{} = True
 deepened _      _        = False
 
 shortened :: Map h k v -> Map h k v -> Bool
 -- | Find a difference in tilt between 2 versions of the branch.
-shortened was @ Branch {} became @ Branch {}
-    =   was^.tilt `elem` [L1, R1]
-    &&  became^.tilt == M
+shortened was became
+  | Just wasF    <- was   ^.branching
+  , Just becameF <- became^.branching
+    =   wasF   ^.tilt `elem` [L1, R1]
+    &&  becameF^.tilt   ==    M
 shortened Branch{} Leaf{} = True
 shortened _        _      = False
 
@@ -292,27 +300,27 @@ track msg val = do
     Debug.trace (msg <> " " <> show val) $ return ()
 
 goto :: Hash h k v => k -> Zipped h k v ()
-goto key = do
-    raiseUntilHaveInRange key
-    descentOnto key
+goto key0 = do
+    raiseUntilHaveInRange key0
+    descentOnto key0
 
 raiseUntilHaveInRange :: Hash h k v => k -> Zipped h k v ()
-raiseUntilHaveInRange key = goUp
+raiseUntilHaveInRange key0 = goUp
   where
     goUp = do
         range <- use keyRange
-        unless (key `isInside` range) $ do
+        unless (key0 `isInside` range) $ do
             _ <- up
             goUp
 
     k `isInside` (l, h) = k >= l && k <= h
 
 descentOnto :: Hash h k v => k -> Zipped h k v ()
-descentOnto key = continueDescent
+descentOnto key0 = continueDescent
   where
     continueDescent = do
         center <- use (locus.centerKey)
-        if key >= center
+        if key0 >= center
         then descentRight
         else descentLeft
         continueDescent

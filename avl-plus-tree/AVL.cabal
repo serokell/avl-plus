@@ -28,6 +28,7 @@ library
   -- other-extensions:
   build-depends:       base >=4.9 && <4.10
                      , containers
+                     , data-fix
                      , lens
                      , MonadRandom
                      , mtl
