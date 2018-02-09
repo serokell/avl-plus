@@ -1,6 +1,7 @@
 
 {-# language NamedFieldPuns #-}
 {-# language TemplateHaskell #-}
+{-# language StandaloneDeriving #-}
 
 module Data.Tree.AVL.Zipper where
 
@@ -18,13 +19,15 @@ data TreeZipper h k v = TreeZipper
     , _tzHere     :: Map h k v
     , _tzKeyRange :: (k, k)
     , _tzMode     :: Mode
-    , _tzRevision :: Revision }
+    , _tzRevision :: Revision
+    }
 
 data TreeZipperCxt h k v
     = WentRightFrom (Map h k v) (k, k) Revision
     | WentLeftFrom  (Map h k v) (k, k) Revision
     | JustStarted
-    deriving Show
+
+deriving instance Hash h k v => Show (TreeZipperCxt h k v)
 
 data Mode
     = UpdateMode
@@ -102,7 +105,6 @@ up = do
           keyRange .= range
 
           replaceWith became
-
 
           rebalance
           return L

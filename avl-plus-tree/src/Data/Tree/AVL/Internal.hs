@@ -6,24 +6,19 @@
 {-# language NamedFieldPuns #-}
 {-# language PatternSynonyms #-}
 {-# language StrictData #-}
+{-# language FlexibleInstances #-}
+{-# language FlexibleContexts #-}
+{-# language ScopedTypeVariables #-}
+{-# language RankNTypes #-}
 
 module Data.Tree.AVL.Internal where
 
 import Control.Lens hiding (Empty)
 
 import Data.Monoid
--- import Data.Tree.Pretty as T
-import Data.Tree        as T
+import Data.Proxy
 
 -- import Debug.Trace      as Debug
-
--- | I decided to isolate all the hash-y things from tree topology
---   for the sake of it not getting in the way.
-data Payload h k = Payload
-    { _pRootHash  :: h
-    , _pMinKey    :: k
-    , _pCenterKey :: k
-    } deriving (Show)
 
 -- | "Tilt" is a difference in branch heights.
 --   We have only +2/-2 as our limits for the rebalance, lets make enum.
@@ -40,23 +35,46 @@ data Tilt
 -- | Implementation of AVL+ tree with data in leaves.
 data Map h k v
     = Branch
-        { _aptRevision :: Revision
-        , _aptPayload  :: Payload h k
-        , _aptTilt     :: Tilt
-        , _aptLeft     :: Map h k v
-        , _aptRight    :: Map h k v }
+        { _aptRevision  :: Revision
+        , _aptHash      :: h
+        , _aptMinKey    :: k
+        , _aptCenterKey :: k
+        , _aptTilt      :: Tilt
+        , _aptLeft      :: Map h k v
+        , _aptRight     :: Map h k v }
     | Leaf
-        { _aptRevision :: Revision
-        , _aptHash     :: h
-        , _aptKey      :: k
-        , _aptValue    :: v
-        , _aptNextKey  :: k
-        , _aptPrevKey  :: k }
+        { _aptRevision  :: Revision
+        , _aptHash      :: h
+        , _aptKey       :: k
+        , _aptValue     :: v
+        , _aptNextKey   :: k
+        , _aptPrevKey   :: k }
     | Empty
-        { _aptRevision :: Revision }
+        { _aptRevision  :: Revision
+        , _aptHash      :: h
+        }
     | Pruned
-        { _aptRevision :: Revision
-        , _aptPayload  :: Payload h k }
+        { _aptRevision  :: Revision
+        , _aptHash      :: h
+        , _aptMinKey    :: k
+        , _aptCenterKey :: k
+        }
+    deriving Show
+
+class
+    ( Ord k
+    , Show k
+    , Show h
+    , Show v
+    , Bounded k
+    , Eq h
+    , Monoid h
+    )
+      =>
+    Hash h k v
+  where
+    ofBranch :: (Revision, k, k, Tilt, h, h, Proxy v) -> h
+    ofLeaf   :: (Revision, k, v, k, k) -> h
 
 type Revision = Integer
 
@@ -67,21 +85,6 @@ another L = R
 another R = L
 
 makeLenses ''Map
-makeLenses ''Payload
-
-class Combined h where
-    combine  :: (h, Side, Tilt, h) -> h
-    emptyOne :: h
-
-class
-    (Ord k, Show k, Show h, Show v, Bounded k, Eq h, Combined h)
-      =>
-    Hash h k v | k v -> h
-  where
-    hashOf :: (k, v, k, k) -> h
-
-squeese :: Payload h k -> h
-squeese = (^.pRootHash)
 
 class HasRevision s where
     revision :: Lens' s Revision
@@ -100,25 +103,17 @@ Just x `orElse` _ = x
 _      `orElse` x = x
 
 rootHash :: Hash h k v => Getter (Map h k v) h
-rootHash = to $ \tree -> case tree of
-  Branch {} -> tree^?!aptPayload.pRootHash
-  Empty  {} -> emptyOne
-  Leaf   {} -> tree^?!aptHash
-  Pruned {} -> tree^?!aptPayload.pRootHash
+rootHash = aptHash
 
 minKey :: Hash h k v => Getter (Map h k v) k
 minKey = to $ \tree -> case tree of
-  Branch {} -> tree^?!aptPayload.pMinKey
-  Leaf   {} -> tree^?!aptKey
-  Empty  {} -> minBound
-  Pruned {} -> tree^?!aptPayload.pMinKey
+  Empty {} -> minBound
+  _other   -> tree^?!aptKey
 
 centerKey :: Hash h k v => Getter (Map h k v) k
 centerKey = to $ \tree -> case tree of
-  Branch {} -> tree^?!aptPayload.pCenterKey
-  Leaf   {} -> tree^?!aptKey
-  Empty  {} -> minBound
-  Pruned {} -> tree^?!aptPayload.pCenterKey
+  Empty {} -> minBound
+  _other   -> tree^?!aptKey
 
 -- isBadlyBalanced :: Map h k v -> Bool
 -- isBadlyBalanced = \case
@@ -143,74 +138,86 @@ centerKey = to $ \tree -> case tree of
 --   Branch {} ->
 --     1 + max (tree^?!aptLeft.to height) (tree^?!aptRight.to height)
 
-instance Hash h k v => Show (Map h k v) where
-    -- show tree = "fromList " ++ show (toList tree)
+-- instance Hash h k v => Show (Map h k v) where
+--     -- show tree = "fromList " ++ show (toList tree)
 
-    -- Uncomment the following to get structured printing:
+--     -- Uncomment the following to get structured printing:
 
-    -- show = \case
-    --   thunk @ (Branch rev pld d l r) -> mempty
-    --     <> "{" <> show l
-    --     <> " " <> show d
-    --     <> ":" <> show (height r - height l)
-    --     <> "/" <> show rev
-    --     <> " " <> show r
-    --     <> "}"
-    --
-    --   Leaf { aptKey, aptNextKey, aptPrevKey, aptValue, aptRevision } ->
-    --     ""
-    --     <> "{" <> show aptKey
-    --     <> ":" <> show aptRevision
-    --     <> "}"
-    --
-    --
-    --   Empty  {} -> "-"
-    show = T.drawTree . pp
-      where
-        pp = \case
-          Branch rev _pld d l r ->
-            T.Node (show d <> ":" {- <> show (height r - height l) -} <> ":" <> show rev)
-              [ pp l
-              , pp r
-              ]
+--     -- show = \case
+--     --   thunk @ (Branch rev pld d l r) -> mempty
+--     --     <> "{" <> show l
+--     --     <> " " <> show d
+--     --     <> ":" <> show (height r - height l)
+--     --     <> "/" <> show rev
+--     --     <> " " <> show r
+--     --     <> "}"
+--     --
+--     --   Leaf { aptKey, aptNextKey, aptPrevKey, aptValue, aptRevision } ->
+--     --     ""
+--     --     <> "{" <> show aptKey
+--     --     <> ":" <> show aptRevision
+--     --     <> "}"
+--     --
+--     --
+--     --   Empty  {} -> "-"
+--     show = T.drawTree . pp
+--       where
+--         pp = \case
+--           Branch rev _pld d l r ->
+--             T.Node (show d <> ":" {- <> show (height r - height l) -} <> ":" <> show rev)
+--               [ pp l
+--               , pp r
+--               ]
 
-          Leaf   { _aptRevision, _aptKey, _aptHash, _aptPrevKey, _aptNextKey } ->
-              T.Node (show _aptPrevKey <> " > " <> show _aptKey <> " < " <> show _aptNextKey <> " = " <> show _aptHash) []
-          Empty  {}          -> T.Node "EMPTY"  []
-          Pruned {}          -> T.Node "PRUNED" []
+--           Leaf   { _aptRevision, _aptKey, _aptHash, _aptPrevKey, _aptNextKey } ->
+--               T.Node (show _aptPrevKey <> " > " <> show _aptKey <> " < " <> show _aptNextKey <> " = " <> show _aptHash) []
+--           Empty  {}          -> T.Node "EMPTY"  []
+--           Pruned {}          -> T.Node "PRUNED" []
 
 pattern Node :: Tilt -> Map h k v -> Map h k v -> Map h k v
 -- | For clarity of rebalance procedure.
-pattern Node d l r <- Branch _ _ d l r
+pattern Node d l r <- Branch _ _ _ _ d l r
 
-empty :: Map h k v
-empty = Empty { _aptRevision = 0 }
+empty :: Hash h k v => Map h k v
+empty = Empty { _aptRevision = 0, _aptHash = mempty }
 
-pruned :: Revision -> Payload h k -> Map h k v
-pruned = Pruned
+pruneNode :: Hash h k v => Map h k v -> Map h k v
+pruneNode tree = case tree of
+  Pruned {} -> tree
+  _other    -> Pruned
+    (tree^.revision)
+    (tree^.rootHash)
+    (tree^.minKey)
+    (tree^.centerKey)
 
-branch :: Hash h k v => Revision -> Tilt -> Map h k v -> Map h k v -> Map h k v
+branch
+    :: forall h k v
+    .  Hash   h k v
+    => Revision
+    -> Tilt
+    -> Map h k v
+    -> Map h k v
+    -> Map h k v
 -- | Construct a branch from 2 subtrees. Recalculates hash.
 branch rev tilt0 left right = Branch
-  { _aptRevision = rev
-  , _aptPayload  = joinPayloads tilt0 left right
-  , _aptLeft     = left
-  , _aptRight    = right
-  , _aptTilt     = tilt0
+  { _aptRevision  = rev
+  , _aptHash      = ofBranch (rev, mKey, cKey, tilt0, lHash, rHash, Proxy :: Proxy v)
+  , _aptMinKey    = mKey
+  , _aptCenterKey = cKey
+  , _aptLeft      = left
+  , _aptRight     = right
+  , _aptTilt      = tilt0
   }
-
-joinPayloads :: Hash h k v => Tilt -> Map h k v -> Map h k v -> Payload h k
--- | Construct a payload from 2 subtrees' payloads.
-joinPayloads tilt0 left right = Payload
-  { _pRootHash   = combine (left^.rootHash, L, tilt0, right^.rootHash)
-  , _pMinKey     = (left^.minKey) `min` (right^.minKey)
-  , _pCenterKey  = right^.minKey
-  }
+  where
+    mKey  = (left^.minKey) `min` (right^.minKey)
+    cKey  = right^.minKey
+    lHash = left^.rootHash
+    rHash = right^.rootHash
 
 leaf :: Hash h k v => Revision -> k -> v -> k -> k -> Map h k v
 leaf r k v p n = Leaf
     { _aptRevision = r
-    , _aptHash     = hashOf (k, v, p, n)
+    , _aptHash     = ofLeaf (r, k, v, p, n)
     , _aptKey      = k
     , _aptValue    = v
     , _aptNextKey  = n
@@ -241,10 +248,10 @@ lessThanCenterKey key tree = key < (tree^.centerKey)
 
 toList :: Map h k v -> [(k, v)]
 toList tree = case tree of
-  Empty  {} -> []
-  Leaf   {} -> [(tree^?!aptKey, tree^?!aptValue)]
-  Branch {} -> toList (tree^?!aptLeft) <> toList (tree^?!aptRight)
-  Pruned {} -> []
+  Empty  {}                    -> []
+  Leaf   {_aptKey,  _aptValue} -> [(_aptKey, _aptValue)]
+  Branch {_aptLeft, _aptRight} -> toList _aptLeft <> toList _aptRight
+  Pruned {}                    -> error "toList: Pruned"
 
 instance Foldable (Map h k) where
     foldMap f = go
