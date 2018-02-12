@@ -6,6 +6,7 @@
 module Data.Tree.AVL.Zipper where
 
 import Data.Monoid
+import Data.Set (Set)
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
@@ -16,12 +17,15 @@ import Control.Applicative
 import Control.Lens hiding (locus)
 import Control.Monad.State.Strict
 
+import qualified Data.Set as Set
+
 data TreeZipper h k v = TreeZipper
     { _tzContext  :: [TreeZipperCxt h k v]
     , _tzHere     :: Map h k v
     , _tzKeyRange :: (k, k)
     , _tzMode     :: Mode
     , _tzRevision :: Revision
+    , _tzTouched  :: Set Revision
     }
 
 data TreeZipperCxt h k v
@@ -51,6 +55,9 @@ keyRange = tzKeyRange
 mode :: Getter (TreeZipper h k v) Mode
 mode = tzMode
 
+trail :: Lens' (TreeZipper h k v) (Set Revision)
+trail = tzTouched
+
 instance HasRevision (TreeZipper h k v) where
     revision = tzRevision
 
@@ -58,15 +65,16 @@ type Zipped h k v = StateT (TreeZipper h k v) Maybe
 
 runZipped :: Hash h k v => Zipped h k v a -> Mode -> Map h k v -> (a, Map h k v, Proof h k v)
 runZipped action mode0 tree = case mResult of
-    Just (a, tree1) -> (a, tree1, prune (tree^.revision) tree1)
+    Just (a, tree1, trails) -> (a, tree1, prune trails tree)
     Nothing -> error "runZipped: failed"
   where
     mResult = action' `evalStateT` enter mode0 tree
 
     action' = do
-      res   <- action
-      tree' <- exit
-      return (res, tree')
+      res    <- action
+      tree'  <- exit
+      trails <- use trail
+      return (res, tree', trails)
 
 newRevision :: Zipped h k v Revision
 newRevision = do
@@ -97,6 +105,7 @@ up = do
                   return tree
 
               else do
+                  trail %= Set.insert rev0
                   locus %= rehash
                   now   <- use locus
                   rev'  <- newRevision
@@ -120,6 +129,7 @@ up = do
                   return tree
 
               else do
+                  trail %= Set.insert rev0
                   locus %= rehash
                   now   <- use locus
                   rev'  <- newRevision
@@ -164,6 +174,7 @@ enter mode0 tree = TreeZipper
     , _tzKeyRange = (minBound, maxBound)
     , _tzMode     = mode0
     , _tzRevision = tree^.revision + 1
+    , _tzTouched  = Set.empty
     }
 
 descentLeft :: Hash h k v => Zipped h k v ()

@@ -53,11 +53,11 @@ tests =
             in
                 back == uniq
         ]
-    -- , testGroup "Rebalance quality"
-    --     [ testProperty
-    --         "forall tree, avg. height tree <= log2 (size tree) * 1.05" $
-    --         prettyMuchBalanced 0.05 . AVL.fromList
-    --     ]
+    , testGroup "Rebalance quality"
+        [ testProperty
+            "forall tree, avg. height tree <= log2 (size tree) * 1.05" $
+            prettyMuchBalanced 0.05 . AVL.fromList
+        ]
     , testGroup "Deletion"
         [ testProperty "deletion keeps balance" $
           \list ->

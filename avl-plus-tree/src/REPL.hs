@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -19,6 +20,7 @@ import           Data.Function (on)
 import           Data.List (sortBy, nubBy)
 import           Data.Monoid
 import           Data.Ord (comparing)
+import           Data.String (IsString(..))
 
 import qualified Data.Tree.AVL            as AVL
 
@@ -54,6 +56,9 @@ newtype StringName = StringName { getStringName :: String }
 
 instance Show StringName where
     show = getStringName
+
+instance IsString StringName where
+    fromString = StringName
 
 -- instance Arbitrary StringName where
 --     arbitrary = do
@@ -95,3 +100,5 @@ instance Show (a -> b) where
 
 type M = AVL.Map InitialHash StringName Int
 
+test :: [M]
+test = scanr (uncurry AVL.insertWithNoProof) AVL.empty [("B", 1), ("C", 2)]

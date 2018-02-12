@@ -121,10 +121,16 @@ rootHash :: Getter (Map h k v) h
 rootHash = _Fix . to (^.mlHash)
 
 minKey :: Bounded k => Getter (Map h k v) k
-minKey = _Fix . to (\tree -> tree^?mlMinKey `orElse` minBound)
+minKey = _Fix . to (\tree ->
+    tree^?mlMinKey `orElse`
+    tree^?mlKey `orElse`
+    minBound)
 
 centerKey :: Bounded k => Getter (Map h k v) k
-centerKey = _Fix . to (\tree -> tree^?mlCenterKey `orElse` minBound)
+centerKey = _Fix . to (\tree ->
+    tree^?mlCenterKey `orElse`
+    tree^?mlKey `orElse`
+    minBound)
 
 setLeft :: Setter' (Map h k v) (Map h k v)
 setLeft = _Fix.mlLeft
@@ -179,7 +185,7 @@ another :: Side -> Side
 another L = R
 another R = L
 
-infix 1 `orElse`
+infixr 1 `orElse`
 orElse :: Maybe a -> a -> a
 Just x `orElse` _ = x
 _      `orElse` x = x

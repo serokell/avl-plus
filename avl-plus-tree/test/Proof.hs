@@ -34,8 +34,6 @@ tests =
                 hash0          = tree^.AVL.rootHash
                 (proof, tree1) = AVL.insert k v tree
             in
-              Debug.traceShow ("proof", proof) $
-              Debug.traceShow ("hash0", hash0) $
                 AVL.checkProof hash0 proof
         ]
     ]
