@@ -57,16 +57,19 @@ tests =
                 ((z, _), deleted)   = AVL.delete k spine
 
                 check = AVL.checkProof hash1 (AVL.Proof deleted)
-            in
-                Debug.traceShow ("tree",  tree) $
-                Debug.traceShow ("key",   k) $
-                Debug.traceShow ("tree1", tree1) $
-                Debug.traceShow ("spine", spine) $
-                Debug.traceShow ("deleted", deleted) $
-                Debug.traceShow ("s.h", hash1) $
-                Debug.traceShow ("d.h", deleted^.AVL.rootHash) $
-                Debug.traceShow ("deleted", deleted) $
-                Debug.traceShow ("----", (y, check)) $
-                y && check
+            in  if not check
+                then
+                    Debug.traceShow ("tree",  tree) $
+                    Debug.traceShow ("key",   k) $
+                    Debug.traceShow ("tree1", tree1) $
+                    Debug.traceShow ("spine", spine) $
+                    Debug.traceShow ("deleted", deleted) $
+                    Debug.traceShow ("s.h", hash1) $
+                    Debug.traceShow ("d.h", deleted^.AVL.rootHash) $
+                    Debug.traceShow ("deleted", deleted) $
+                    Debug.traceShow ("----", (y, check)) $
+                    check
+                else
+                  check
         ]
     ]

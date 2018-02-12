@@ -37,7 +37,11 @@ import qualified Data.Tree.AVL            as AVL
 data InitialHash
   = InitialHash { getInitialHash :: AVL.MapLayer InitialHash StringName Int InitialHash }
   | Default
-    deriving Show
+
+instance Show InitialHash where
+    show = \case
+        InitialHash m -> "#(" ++ show m ++ ")"
+        Default       -> "#DEFAULT"
 
 instance Default InitialHash where
     def = Default
@@ -103,7 +107,7 @@ instance Show (a -> b) where
 type M = AVL.Map InitialHash StringName Int
 
 test :: M
-test = AVL.fromList [("X", 0), ("U", 0)]
+test = AVL.fromList [("X",0),("S",0),("P",0),("V",0),("I",0)]
 
 ((_, AVL.Proof p), r0) = AVL.delete (StringName "X") test
 

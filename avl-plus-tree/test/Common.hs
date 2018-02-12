@@ -41,7 +41,11 @@ infixr 5 .=.
 data InitialHash
   = InitialHash { getInitialHash :: AVL.MapLayer InitialHash StringName Int InitialHash }
   | Default
-    deriving Show
+
+instance Show InitialHash where
+    show = \case
+        InitialHash m -> "#(" ++ show m ++ ")"
+        Default       -> "#DEFAULT"
 
 instance Default InitialHash where
   def = Default

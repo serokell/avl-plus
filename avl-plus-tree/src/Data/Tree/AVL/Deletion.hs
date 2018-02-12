@@ -35,7 +35,7 @@ delete' k = do
             return True
 
         else do
-            change $ return ()
+            mark
             return False
 
       Empty {} -> do
@@ -56,7 +56,19 @@ delete' k = do
 
             else do
                 side <- up
+                _ <- case side of
+                  L -> do
+                    descentRight
+                    mark
+                    up
+
+                  R -> do
+                    descentLeft
+                    mark
+                    up
+
                 here <- use locus
+                mark
                 let
                   newTree
                     | Just fork <- here^.branching =
