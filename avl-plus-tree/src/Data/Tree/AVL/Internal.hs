@@ -71,10 +71,10 @@ data MapLayer h k v self
 
 instance (Show k, Show v, Show r) => Show (MapLayer h k v r) where
   show = \case
-    MLBranch _ _ mk ck t l r -> show (mk, ck, t, l, r)
-    MLLeaf   _ _ k v n p     -> show (k, v, p, n)
-    MLEmpty  _ _             -> show ()
-    MLPruned _ _ mk ck       -> show (mk, ck)
+    MLBranch _ _ mk ck t l r -> "Branch " ++ show (mk, ck, t, l, r)
+    MLLeaf   _ _ k v n p     -> "Leaf " ++ show (k, v, p, n)
+    MLEmpty  _ _             -> "Empty"
+    MLPruned _ _ mk ck       -> "Pruned " ++ show (mk, ck)
 
 type Revision = Integer
 
@@ -165,7 +165,7 @@ vacuous = to $ \case
 rehash :: Hash h k v => Map h k v -> Map h k v
 rehash (Fix tree) = Fix $ tree & mlHash .~ hashOf cleaned
   where
-    cleaned = tree & mlHash .~ () & fmap (^.rootHash)
+    cleaned = tree {-& mlHash .~ ()-} & fmap (^.rootHash)
 
 class
     ( Ord k
@@ -179,7 +179,7 @@ class
       =>
     Hash h k v
   where
-    hashOf :: MapLayer () k v h -> h
+    hashOf :: MapLayer h k v h -> h
 
 another :: Side -> Side
 another L = R
@@ -196,7 +196,7 @@ pattern Node :: Tilt -> Map h k v -> Map h k v -> Map h k v
 pattern Node d l r <- Branch _ _ _ _ d l r
 
 empty :: Hash h k v => Map h k v
-empty = Empty 0 def
+empty = rehash $ Empty 0 def
 
 pruned :: Hash h k v => Map h k v -> Map h k v
 pruned tree = case tree of
@@ -219,7 +219,13 @@ branch r tilt0 left0 right0 = rehash $ Branch
     right0
 
 leaf :: Hash h k v => Revision -> k -> v -> k -> k -> Map h k v
-leaf r k v p n = rehash $ Leaf r def k v n p
+leaf r k v p n = rehash $ Leaf
+    r
+    def
+    k
+    v
+    n
+    p
 
 lessThanCenterKey :: Hash h k v => k -> Map h k v -> Bool
 lessThanCenterKey key0 tree = key0 < (tree^.centerKey)
@@ -236,7 +242,7 @@ toList tree
     = []
 
   | otherwise
-    = error "toList: Pruned"
+    = []
 
 size :: Map h k v -> Integer
 size = go
@@ -245,7 +251,7 @@ size = go
       | Just Vacuous <- tree^.vacuous   = 0
       | Just _       <- tree^.terminal  = 1
       | Just fork    <- tree^.branching = go (fork^.left) + go (fork^.right)
-      | otherwise                       = error "foldMap: Pruned"
+      | otherwise                       = 1
 
 pathLengths :: Map h k v -> [Int]
 -- | For testing purposes. Finds lengths of all paths to the leaves.

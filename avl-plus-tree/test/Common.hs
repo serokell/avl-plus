@@ -39,7 +39,7 @@ f .=. g = \a ->
 infixr 5 .=.
 
 data InitialHash
-  = InitialHash { getInitialHash :: AVL.MapLayer () StringName Int InitialHash }
+  = InitialHash { getInitialHash :: AVL.MapLayer InitialHash StringName Int InitialHash }
   | Default
     deriving Show
 
@@ -50,7 +50,9 @@ instance Eq InitialHash where
     x == y = show x == show y
 
 instance AVL.Hash InitialHash StringName Int where
-    hashOf = InitialHash
+    hashOf tree = case tree of
+        AVL.MLPruned {} -> tree^.AVL.mlHash
+        other           -> InitialHash tree
 
 -- newtype IntHash = IntHash { getIntHash :: Int }
 --     deriving (Show, Eq, Arbitrary)

@@ -27,7 +27,7 @@ import           Test.QuickCheck.Instances  ()
 tests :: [Test]
 tests =
     [ testGroup "Proofs"
-        [ testProperty "Generated proofs are verified." $
+        [ testProperty "Generated proofs are verified" $
           \k v list ->
             let
                 tree           = AVL.fromList list :: M
@@ -35,5 +35,38 @@ tests =
                 (proof, tree1) = AVL.insert k v tree
             in
                 AVL.checkProof hash0 proof
+
+        , testProperty "Insert proof is verifiable" $
+          \k v list ->
+            let
+                tree            = AVL.fromList list :: M
+                (proof, tree1)  = AVL.insert k v tree
+                hash1           = tree1^.AVL.rootHash
+                AVL.Proof spine = proof
+                (_, inserted)   = AVL.insert k v spine
+            in
+                AVL.checkProof hash1 (AVL.Proof inserted)
+
+        , testProperty "Delete proof is verifiable" $
+          \k v list ->
+            let
+                tree                = AVL.fromList ((k, v) : list) :: M
+                ((y, proof), tree1) = AVL.delete k tree
+                hash1               = tree1^.AVL.rootHash
+                AVL.Proof spine     = proof
+                ((z, _), deleted)   = AVL.delete k spine
+
+                check = AVL.checkProof hash1 (AVL.Proof deleted)
+            in
+                Debug.traceShow ("tree",  tree) $
+                Debug.traceShow ("key",   k) $
+                Debug.traceShow ("tree1", tree1) $
+                Debug.traceShow ("spine", spine) $
+                Debug.traceShow ("deleted", deleted) $
+                Debug.traceShow ("s.h", hash1) $
+                Debug.traceShow ("d.h", deleted^.AVL.rootHash) $
+                Debug.traceShow ("deleted", deleted) $
+                Debug.traceShow ("----", (y, check)) $
+                y && check
         ]
     ]

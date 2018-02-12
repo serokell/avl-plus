@@ -35,7 +35,7 @@ import qualified Data.Tree.AVL            as AVL
 -- infixr 5 .=.
 
 data InitialHash
-  = InitialHash { getInitialHash :: AVL.MapLayer () StringName Int InitialHash }
+  = InitialHash { getInitialHash :: AVL.MapLayer InitialHash StringName Int InitialHash }
   | Default
     deriving Show
 
@@ -46,7 +46,9 @@ instance Eq InitialHash where
     x == y = show x == show y
 
 instance AVL.Hash InitialHash StringName Int where
-    hashOf = InitialHash
+    hashOf tree = case tree of
+        AVL.MLPruned {} -> tree^.AVL.mlHash
+        other           -> InitialHash tree
 
 -- newtype IntHash = IntHash { getIntHash :: Int }
 --     deriving (Show, Eq, Arbitrary)
@@ -100,5 +102,10 @@ instance Show (a -> b) where
 
 type M = AVL.Map InitialHash StringName Int
 
-test :: [M]
-test = scanr (uncurry AVL.insertWithNoProof) AVL.empty [("B", 1), ("C", 2)]
+test :: M
+test = AVL.fromList [("X", 0), ("U", 0)]
+
+((_, AVL.Proof p), r0) = AVL.delete (StringName "X") test
+
+
+((_, _), r1) = AVL.delete (StringName "X") p

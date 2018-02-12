@@ -31,7 +31,7 @@ data TreeZipper h k v = TreeZipper
 data TreeZipperCxt h k v
     = WentRightFrom (Map h k v) (k, k) Revision
     | WentLeftFrom  (Map h k v) (k, k) Revision
-    | JustStarted
+    | JustStarted                      Revision
 
 deriving instance Hash h k v => Show (TreeZipperCxt h k v)
 
@@ -65,8 +65,10 @@ type Zipped h k v = StateT (TreeZipper h k v) Maybe
 
 runZipped :: Hash h k v => Zipped h k v a -> Mode -> Map h k v -> (a, Map h k v, Proof h k v)
 runZipped action mode0 tree = case mResult of
-    Just (a, tree1, trails) -> (a, tree1, prune trails tree)
-    Nothing -> error "runZipped: failed"
+    Just (a, tree1, trails) ->
+      (a, tree1, prune trails tree)
+    Nothing ->
+      error "runZipped: failed"
   where
     mResult = action' `evalStateT` enter mode0 tree
 
@@ -92,6 +94,11 @@ dump msg = do
     track ("==== " <> msg <> " END ====") ()
     return ()
 
+mark :: Zipped h k v ()
+mark = do
+    rev0 <- use (locus.revision)
+    trail %= Set.insert rev0
+
 up :: Hash h k v => Zipped h k v Side
 up = do
     ctx  <- use context
@@ -105,7 +112,6 @@ up = do
                   return tree
 
               else do
-                  trail %= Set.insert rev0
                   locus %= rehash
                   now   <- use locus
                   rev'  <- newRevision
@@ -129,7 +135,6 @@ up = do
                   return tree
 
               else do
-                  trail %= Set.insert rev0
                   locus %= rehash
                   now   <- use locus
                   rev'  <- newRevision
@@ -145,7 +150,7 @@ up = do
           rebalance
           return R
 
-      [JustStarted] -> do
+      [JustStarted _rev0] -> do
           locus %= rehash
           rebalance
           context .= []
@@ -169,7 +174,7 @@ exit = uplift
 
 enter :: Hash h k v => Mode -> Map h k v -> TreeZipper h k v
 enter mode0 tree = TreeZipper
-    { _tzContext  = [JustStarted]
+    { _tzContext  = [JustStarted (tree^.revision)]
     , _tzHere     = tree
     , _tzKeyRange = (minBound, maxBound)
     , _tzMode     = mode0
@@ -181,6 +186,7 @@ descentLeft :: Hash h k v => Zipped h k v ()
 descentLeft = do
     tree  <- use locus
     range <- use keyRange
+    mark
     case tree of
       _ | Just fork <- tree^.branching -> do
           let rev   = fork^.left.revision
@@ -195,6 +201,7 @@ descentRight :: Hash h k v => Zipped h k v ()
 descentRight = do
     tree  <- use locus
     range <- use keyRange
+    mark
     case tree of
       _ | Just fork <- tree^.branching -> do
           let rev = fork^.right.revision
@@ -256,6 +263,7 @@ change action = do
     when (modus == ReadonlyMode) $ do
         error "change: calling this in ReadonlyMode is prohibited"
 
+    mark
     res <- action
     rev <- newRevision
     locus.revision .= rev
