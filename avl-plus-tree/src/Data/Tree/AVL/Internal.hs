@@ -5,7 +5,7 @@
 {-# language TemplateHaskell #-}
 {-# language NamedFieldPuns #-}
 {-# language PatternSynonyms #-}
--- {-# language StrictData #-}
+{-# language StrictData #-}
 {-# language FlexibleInstances #-}
 {-# language FlexibleContexts #-}
 {-# language ScopedTypeVariables #-}
