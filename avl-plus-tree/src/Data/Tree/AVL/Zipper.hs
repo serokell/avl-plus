@@ -99,6 +99,10 @@ mark = do
     rev0 <- use (locus.revision)
     trail %= Set.insert rev0
 
+markAll :: [Revision] -> Zipped h k v ()
+markAll revs = do
+    trail %= (<> Set.fromList revs)
+
 up :: Hash h k v => Zipped h k v Side
 up = do
     ctx  <- use context
@@ -274,7 +278,6 @@ replaceWith newTree = do
     change (locus .= newTree)
 
 rebalance :: Hash h k v => Zipped h k v ()
--- | Perform rebalance (on one layer, used in insert).
 rebalance = do
     tree <- use locus
     rev1 <- newRevision
@@ -287,23 +290,49 @@ rebalance = do
     let skewn2 = branch rev2
     let skewn3 = branch rev3
 
-    let
-      newTree = case tree of
-        Node L2 (Node L1 a b) c             -> node1 a (node2 b c)
-        Node R2 a (Node R1 b c)             -> node1 (node2 a b) c
+    newTree <- case tree of
+      Node r1 L2 (Node r2 L1 a b) c -> do
+        markAll [r1, r2]
+        return $ node1 a (node2 b c)
 
-        Node L2 (Node R1 a (Node R1 b c)) d -> node1 (skewn2 L1 a b) (node3 c d)
-        Node L2 (Node R1 a (Node L1 b c)) d -> node1 (node2 a b) (skewn3 R1 c d)
-        Node L2 (Node R1 a (Node M  b c)) d -> node1 (node2 a b) (node3 c d)
+      Node r1 R2 a (Node r2 R1 b c) -> do
+        markAll [r1, r2]
+        return $ node1 (node2 a b) c
 
-        Node R2 a (Node L1 (Node R1 b c) d) -> node1 (skewn2 L1 a b) (node2 c d)
-        Node R2 a (Node L1 (Node L1 b c) d) -> node1 (node2 a b) (skewn3 R1 c d)
-        Node R2 a (Node L1 (Node M  b c) d) -> node1 (node2 a b) (node3 c d)
+      Node r1 R2 a (Node r2 M b c) -> do
+        markAll [r1, r2]
+        return $ skewn2 L1 (skewn3 R1 a b) c
 
-        Node R2 a (Node M b c)              -> skewn2 L1 (skewn3 R1 a b) c
-        Node L2 (Node M a b) c              -> skewn2 R1 a (skewn3 L1 b c)
+      Node r1 L2 (Node r2 M a b) c -> do
+        markAll [r1, r2]
+        return $ skewn2 R1 a (skewn3 L1 b c)
 
-        other                               -> other
+      Node r1 L2 (Node r2 R1 a (Node r3 R1 b c)) d -> do
+        markAll [r1, r2, r3]
+        return $ node1 (skewn2 L1 a b) (node3 c d)
+
+      Node r1 L2 (Node r2 R1 a (Node r3 L1 b c)) d -> do
+        markAll [r1, r2, r3]
+        return $ node1 (node2 a b) (skewn3 R1 c d)
+
+      Node r1 L2 (Node r2 R1 a (Node r3 M  b c)) d -> do
+        markAll [r1, r2, r3]
+        return $ node1 (node2 a b) (node3 c d)
+
+      Node r1 R2 a (Node r2 L1 (Node r3 R1 b c) d) -> do
+        markAll [r1, r2, r3]
+        return $ node1 (skewn2 L1 a b) (node2 c d)
+
+      Node r1 R2 a (Node r2 L1 (Node r3 L1 b c) d) -> do
+        markAll [r1, r2, r3]
+        return $ node1 (node2 a b) (skewn3 R1 c d)
+
+      Node r1 R2 a (Node r2 L1 (Node r3 M  b c) d) -> do
+        markAll [r1, r2, r3]
+        return $ node1 (node2 a b) (node3 c d)
+
+      other ->
+        return other
 
     replaceWith newTree
 

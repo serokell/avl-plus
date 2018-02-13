@@ -64,6 +64,7 @@ data MapLayer h k v self
   | MLPruned
     { _mlRevision  :: Revision
     , _mlHash      :: h
+    , _mlTilt      :: Tilt
     , _mlMinKey    :: k
     , _mlCenterKey :: k
     }
@@ -74,7 +75,7 @@ instance (Show k, Show v, Show r) => Show (MapLayer h k v r) where
     MLBranch _ _ mk ck t l r -> "Branch " ++ show (mk, ck, t, l, r)
     MLLeaf   _ _ k v n p     -> "Leaf " ++ show (k, v, p, n)
     MLEmpty  _ _             -> "Empty"
-    MLPruned _ _ mk ck       -> "Pruned " ++ show (mk, ck)
+    MLPruned _ _ t mk ck     -> "Pruned " ++ show (t, mk, ck)
 
 type Revision = Integer
 
@@ -104,12 +105,12 @@ makePrisms ''Fix
 pattern Branch :: Revision -> h -> k -> k -> Tilt -> Map h k v -> Map h k v -> Map h k v
 pattern Leaf   :: Revision -> h -> k -> v -> k -> k -> Map h k v
 pattern Empty  :: Revision -> h -> Map h k v
-pattern Pruned :: Revision -> h -> k -> k -> Map h k v
+pattern Pruned :: Revision -> h -> Tilt -> k -> k -> Map h k v
 
 pattern Branch re hash mKey cKey t l r = Fix (MLBranch re hash mKey cKey t l r)
 pattern Leaf   r  hash key  val  n p   = Fix (MLLeaf   r  hash key  val  n p)
 pattern Empty  r  hash                 = Fix (MLEmpty  r  hash)
-pattern Pruned r  hash mKey cKey       = Fix (MLPruned r  hash mKey cKey)
+pattern Pruned r  hash t mKey cKey     = Fix (MLPruned r  hash t mKey cKey)
 
 class HasRevision r where
   revision :: Lens' r Revision
@@ -191,9 +192,9 @@ Just x `orElse` _ = x
 _      `orElse` x = x
 
 
-pattern Node :: Tilt -> Map h k v -> Map h k v -> Map h k v
+pattern Node :: Revision -> Tilt -> Map h k v -> Map h k v -> Map h k v
 -- | For clarity of rebalance procedure.
-pattern Node d l r <- Branch _ _ _ _ d l r
+pattern Node re d l r <- Branch re _ _ _ d l r
 
 empty :: Hash h k v => Map h k v
 empty = rehash $ Empty 0 def
@@ -204,6 +205,7 @@ pruned tree = case tree of
   _other    -> Pruned
     (tree^.revision)
     (tree^.rootHash)
+    (tree^?_Fix.mlTilt `orElse` M)
     (tree^.minKey)
     (tree^.centerKey)
 
