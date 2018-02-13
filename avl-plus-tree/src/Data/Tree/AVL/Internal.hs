@@ -166,7 +166,9 @@ vacuous = to $ \case
 rehash :: Hash h k v => Map h k v -> Map h k v
 rehash (Fix tree) = Fix $ tree & mlHash .~ hashOf cleaned
   where
-    cleaned = tree {-& mlHash .~ ()-} & fmap (^.rootHash)
+    cleaned = fmap (^.rootHash) $ case tree of
+      MLPruned {} -> tree
+      _           -> tree & mlHash .~ def
 
 class
     ( Ord k
