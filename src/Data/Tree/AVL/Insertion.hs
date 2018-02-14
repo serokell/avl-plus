@@ -1,7 +1,12 @@
 
 {-# language NamedFieldPuns #-}
 
-module Data.Tree.AVL.Insertion where
+module Data.Tree.AVL.Insertion
+  ( insert
+  , insertWithNoProof
+  , fromList
+  , fromFoldable
+  ) where
 
 import Control.Lens hiding (locus, Empty)
 import Control.Monad.State.Strict

@@ -1,7 +1,7 @@
 
 {-# language NamedFieldPuns #-}
 
-module Data.Tree.AVL.Deletion where
+module Data.Tree.AVL.Deletion (delete, deleteWithNoProof) where
 
 import Control.Lens hiding (locus, Empty)
 import Control.Monad.State.Strict
@@ -10,10 +10,10 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
-delete :: Hash h k v => k -> Map h k v -> ((Bool, Proof h k v), Map h k v)
-delete k tree = ((yes, proof), res)
+delete :: Hash h k v => k -> Map h k v -> (Proof h k v, Map h k v)
+delete k tree = (proof, res)
   where
-    (yes, res, proof) = runZipped (delete' k) DeleteMode tree
+    (_yes, res, proof) = runZipped (delete' k) DeleteMode tree
 
 deleteWithNoProof
     :: Hash h k v
@@ -39,6 +39,7 @@ delete' k = do
             return False
 
       Empty {} -> do
+        mark
         return False
 
       _ -> do
