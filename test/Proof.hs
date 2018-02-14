@@ -59,5 +59,18 @@ tests =
                 check = AVL.checkProof hash1 (AVL.Proof deleted)
             in
                 check
+
+        , testProperty "Delete proof is verifiable (even if there's nothing to delete)" $
+          \k list ->
+            let
+                tree            = AVL.fromList list :: M
+                (proof, tree1)  = AVL.delete k tree
+                hash1           = tree1^.AVL.rootHash
+                AVL.Proof spine = proof
+                (_, deleted)    = AVL.delete k spine
+
+                check = AVL.checkProof hash1 (AVL.Proof deleted)
+            in
+                check
         ]
     ]
