@@ -68,7 +68,7 @@ data MapLayer h k v self
     , _mlMinKey    :: k
     , _mlCenterKey :: k
     }
-    deriving (Functor)
+    deriving (Eq, Functor)
 
 instance (Show k, Show v, Show r) => Show (MapLayer h k v r) where
   show = \case
