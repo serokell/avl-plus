@@ -25,7 +25,7 @@ data TreeZipper h k v = TreeZipper
     , _tzKeyRange :: (k, k)
     , _tzMode     :: Mode
     , _tzRevision :: Revision
-    , _tzTouched  :: Set Revision
+    , _tzTouched  :: RevSet
     }
 
 data TreeZipperCxt h k v

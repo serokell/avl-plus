@@ -11,6 +11,8 @@ import Data.Tree.AVL.Proof
 
 import qualified Data.Set as Set
 
+type RevSet = Set Revision
+
 prune :: Hash h k v => Set Revision -> Map h k v -> Proof h k v
 prune revs = Proof . go
   where
