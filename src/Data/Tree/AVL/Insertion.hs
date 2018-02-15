@@ -6,6 +6,7 @@ module Data.Tree.AVL.Insertion
   , insertWithNoProof
   , fromList
   , fromFoldable
+  , insert'
   ) where
 
 import Control.Lens hiding (locus, Empty)

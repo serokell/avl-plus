@@ -63,6 +63,20 @@ instance HasRevision (TreeZipper h k v) where
 
 type Zipped h k v = StateT (TreeZipper h k v) Maybe
 
+runZipped' :: Hash h k v => Zipped h k v a -> Mode -> Map h k v -> (a, Map h k v, RevSet)
+runZipped' action mode0 tree =
+    case
+        action' `evalStateT` enter mode0 tree
+    of
+      Just it -> it
+      Nothing -> error "runZipped': failed"
+  where
+    action' = do
+      res    <- action
+      tree'  <- exit
+      trails <- use trail
+      return (res, tree', trails)
+
 runZipped :: Hash h k v => Zipped h k v a -> Mode -> Map h k v -> (a, Map h k v, Proof h k v)
 runZipped action mode0 tree = case mResult of
     Just (a, tree1, trails) ->

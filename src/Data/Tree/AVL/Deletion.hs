@@ -1,7 +1,7 @@
 
 {-# language NamedFieldPuns #-}
 
-module Data.Tree.AVL.Deletion (delete, deleteWithNoProof) where
+module Data.Tree.AVL.Deletion (delete, deleteWithNoProof, delete') where
 
 import Control.Lens hiding (locus, Empty)
 import Control.Monad.State.Strict
