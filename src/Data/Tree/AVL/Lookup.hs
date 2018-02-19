@@ -10,13 +10,18 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
+lookup' :: Hash h k v => k -> Map h k v -> ((Maybe v, RevSet), Map h k v)
+lookup' k tree0 = ((mv, trails), tree)
+  where
+    (mv, tree, trails) = runZipped' (lookupZ k) UpdateMode tree0
+
 lookup :: Hash h k v => k -> Map h k v -> ((Maybe v, Proof h k v), Map h k v)
 lookup k tree0 = ((mv, proof), tree)
   where
-    (mv, tree, proof) = runZipped (lookup' k) UpdateMode tree0
+    (mv, tree, proof) = runZipped (lookupZ k) UpdateMode tree0
 
-lookup' :: Hash h k v => k -> Zipped h k v (Maybe v)
-lookup' k = do
+lookupZ :: Hash h k v => k -> Zipped h k v (Maybe v)
+lookupZ k = do
     goto k
     tree <- use locus
     mark

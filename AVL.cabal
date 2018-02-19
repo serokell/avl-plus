@@ -45,7 +45,7 @@ test-suite avl-tree-sanity
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Main.hs
-  other-modules:       Proof, Insertion, Common
+  other-modules:       Proof, Insertion, Common, Lookup
   build-depends:       base >= 0.4 && < 5
                      , AVL
                      , data-default

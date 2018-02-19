@@ -28,6 +28,8 @@ data TreeZipper h k v = TreeZipper
     , _tzTouched  :: RevSet
     }
 
+type RevSet = Set Revision
+
 data TreeZipperCxt h k v
     = WentRightFrom (Map h k v) (k, k) Revision
     | WentLeftFrom  (Map h k v) (k, k) Revision

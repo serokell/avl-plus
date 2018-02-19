@@ -17,10 +17,15 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
+insert' :: Hash h k v => k -> v -> Map h k v -> (RevSet, Map h k v)
+insert' k v tree = (trails, res)
+  where
+    ((), res, trails) = runZipped' (insertZ k v) UpdateMode tree
+
 insert :: Hash h k v => k -> v -> Map h k v -> (Proof h k v, Map h k v)
 insert k v tree = (proof, res)
   where
-    ((), res, proof) = runZipped (insert' k v) UpdateMode tree
+    ((), res, proof) = runZipped (insertZ k v) UpdateMode tree
 
 insertWithNoProof
     :: Hash h k v
@@ -30,10 +35,10 @@ insertWithNoProof
     -> Map h k v
 insertWithNoProof k v tree = res
   where
-    ((), res, _) = runZipped (insert' k v) UpdateMode tree
+    ((), res, _) = runZipped (insertZ k v) UpdateMode tree
 
-insert' :: Hash h k v => k -> v -> Zipped h k v ()
-insert' k v = do
+insertZ :: Hash h k v => k -> v -> Zipped h k v ()
+insertZ k v = do
     goto k
     tree <- use locus
     case tree of
