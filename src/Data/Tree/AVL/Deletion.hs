@@ -1,5 +1,6 @@
 
 {-# language NamedFieldPuns #-}
+{-# language MultiWayIf     #-}
 
 module Data.Tree.AVL.Deletion (delete, deleteWithNoProof, delete') where
 
@@ -32,8 +33,8 @@ deleteWithNoProof k tree = res
 deleteZ :: Hash h k v => k -> Zipped h k v Bool
 deleteZ k = do
     tree <- use locus
-    case tree of
-      leaf0 | Just term <- leaf0^.terminal -> do
+    if
+      | Just term <- tree^.terminal -> do
         if term^.key == k
         then do
             replaceWith empty
@@ -43,15 +44,15 @@ deleteZ k = do
             mark
             return False
 
-      Empty {} -> do
+      | Just Vacuous <- tree^.vacuous -> do
         mark
         return False
 
-      _ -> do
+      | otherwise -> do
         goto k
         tree0 <- use locus
-        case tree0 of
-          leaf1 | Just term <- leaf1^.terminal -> do
+        if
+          | Just term <- tree0^.terminal -> do
             let key0 = term^.key
                 prev = term^.prevKey
                 next = term^.nextKey
@@ -63,15 +64,8 @@ deleteZ k = do
             else do
                 side <- up
                 _ <- case side of
-                  L -> do
-                    descentRight
-                    mark
-                    up
-
-                  R -> do
-                    descentLeft
-                    mark
-                    up
+                  L -> descentRight >> mark >> up
+                  R ->  descentLeft >> mark >> up
 
                 here <- use locus
                 mark
@@ -97,6 +91,6 @@ deleteZ k = do
 
                 return True
 
-          other -> do
-            error $ "insert: `goto k` ended in non-terminal node - " ++ show other
+          | otherwise -> do
+            error $ "insert: `goto k` ended in non-terminal node - " ++ show tree0
 
