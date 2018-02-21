@@ -1,6 +1,7 @@
 
 {-# language NamedFieldPuns #-}
 {-# language TemplateHaskell #-}
+{-# language MultiWayIf #-}
 
 module Data.Tree.AVL.Lookup where
 
@@ -25,9 +26,7 @@ lookupZ k = do
     goto k
     tree <- use locus
     mark
-    case () of
-      ()
-        | Just end <- tree^.terminal ->
+    if  | Just end <- tree^.terminal ->
             if end^.key == k
             then
                 return (end^.value.to Just)

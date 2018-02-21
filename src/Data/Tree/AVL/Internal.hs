@@ -222,13 +222,7 @@ branch r tilt0 left0 right0 = rehash $ Branch
     right0
 
 leaf :: Hash h k v => Revision -> k -> v -> k -> k -> Map h k v
-leaf r k v p n = rehash $ Leaf
-    r
-    def
-    k
-    v
-    n
-    p
+leaf r k v p n = rehash $ Leaf r def k v n p
 
 lessThanCenterKey :: Hash h k v => k -> Map h k v -> Bool
 lessThanCenterKey key0 tree = key0 < (tree^.centerKey)
