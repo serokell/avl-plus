@@ -9,10 +9,11 @@ module Data.Tree.AVL.Insertion
   , insert'
   ) where
 
-import Control.Lens hiding (locus, Empty)
-import Control.Monad.State.Strict
+import Control.Lens  ((^.), (.=), use)
+import Control.Monad (unless)
 
-import Data.List (foldl')
+import Data.List     (foldl')
+
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper

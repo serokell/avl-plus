@@ -3,8 +3,8 @@
 
 module Data.Tree.AVL.Deletion (delete, deleteWithNoProof, delete') where
 
-import Control.Lens hiding (locus, Empty)
-import Control.Monad.State.Strict
+import Control.Lens  ((^.), (.=), use)
+import Control.Monad (unless)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof

@@ -10,19 +10,8 @@ module Proof (tests) where
 
 import Common
 
-import qualified Debug.Trace as Debug
-
-import qualified Data.Tree.AVL            as AVL
-
---
-import           Test.Framework                       (Test, testGroup)
-import           Test.Framework.Providers.QuickCheck2 (testProperty)
-import           Test.QuickCheck                      ( Arbitrary (..)
-                                                      , Gen
-                                                      , Property
-                                                      , (===)
-                                                      , (==>) )
-import           Test.QuickCheck.Instances  ()
+import qualified Debug.Trace   as Debug
+import qualified Data.Tree.AVL as AVL
 
 tests :: [Test]
 tests =

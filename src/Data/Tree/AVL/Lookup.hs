@@ -4,7 +4,7 @@
 
 module Data.Tree.AVL.Lookup where
 
-import Control.Lens hiding (locus, Empty)
+import Control.Lens ((^.), use, to)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof

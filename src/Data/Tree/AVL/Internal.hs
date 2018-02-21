@@ -14,14 +14,13 @@
 
 module Data.Tree.AVL.Internal where
 
-import Control.Lens hiding (Empty)
-
--- import Data.Monoid
--- import Data.Proxy
-import Data.Default
-import Data.Fix
-
--- import Debug.Trace      as Debug
+import Control.Lens ( (&), (^.), (.~), (^?)
+                    , to
+                    , makeLenses, makePrisms
+                    , Getter, Setter', Lens'
+                    )
+import Data.Default (Default(..))
+import Data.Fix     (Fix(..))
 
 -- | "Tilt" is a difference in branch heights.
 --   We have only +2/-2 as our limits for the rebalance, lets make enum.

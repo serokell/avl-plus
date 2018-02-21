@@ -5,17 +5,23 @@
 
 module Data.Tree.AVL.Zipper where
 
-import Data.Monoid
-import Data.Set (Set)
+import Control.Applicative        ((<|>))
+import Control.Lens               ( (^.), (.=), (%=), (+=)
+                                  , use
+                                  , makeLenses
+                                  , Lens', Getter )
+
+import Control.Monad              (when, unless)
+import Control.Monad.State.Strict (StateT, evalStateT, get, put)
+
+import Data.Monoid                ((<>))
+import Data.Set                   (Set)
+
+import Debug.Trace as Debug       (trace)
+
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
-
-import Debug.Trace as Debug
-
-import Control.Applicative
-import Control.Lens hiding (locus)
-import Control.Monad.State.Strict
 
 import qualified Data.Set as Set
 

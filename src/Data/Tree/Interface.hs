@@ -20,9 +20,10 @@ module Data.Tree.Interface
   )
   where
 
-import Control.Lens
-import Control.Monad.State.Strict
-import Control.Monad.Except
+import Control.Lens               (makeLenses, use, uses, zoom, (^.), (.=))
+import Control.Monad.State.Strict (State, state, put, modify, get)
+import Control.Monad.Except       (ExceptT, throwError)
+import Control.Monad              (when)
 
 import Data.Tree.AVL
 

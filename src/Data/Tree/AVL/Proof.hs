@@ -4,15 +4,9 @@
 
 module Data.Tree.AVL.Proof where
 
--- import Control.Applicative
-import Control.Lens hiding (locus, Empty)
--- import Control.Monad.State.Strict
-
--- import Debug.Trace as Debug
+import Control.Lens ((&), (^.), (%~))
 
 import Data.Tree.AVL.Internal
--- import Data.Tree.AVL.Zipper
--- import Data.Tree.AVL.Prune
 
 newtype Proof h k v = Proof { getProof :: Map h k v }
     deriving (Eq, Show)

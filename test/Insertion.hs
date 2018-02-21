@@ -8,23 +8,16 @@
 
 module Insertion (tests) where
 
-import           Data.Ord (comparing)
-import           Data.Function (on)
-import           Data.List (sortBy, nubBy, (\\))
+import Data.Ord                             (comparing)
+import Data.Function                        (on)
+import Data.List                            (sortBy, nubBy, (\\))
 
-import qualified Debug.Trace as Debug
+import Common
 
-import qualified Data.Tree.AVL            as AVL
+import qualified Data.Tree.AVL as AVL
+import qualified Debug.Trace   as Debug
 
-import           Test.Framework             (Test, defaultMain, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
-import           Test.QuickCheck            (Arbitrary (..), Gen, Property,
-                                             (===), (==>))
-import           Test.QuickCheck.Instances  ()
-
-import           Common
-
-unique = nubBy ((==) `on` fst)
+unique  = nubBy  ((==) `on` fst)
 uniqued = sortBy (comparing fst) . unique . reverse
 
 prettyMuchBalanced :: Float -> M -> Bool

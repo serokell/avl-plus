@@ -3,9 +3,10 @@
 
 module Data.Tree.AVL.Prune where
 
-import Control.Lens hiding (Empty)
+import Control.Lens ((&), (^.), (%~))
 
-import Data.Set (Set)
+import Data.Set     (Set)
+
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 
