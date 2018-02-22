@@ -14,13 +14,15 @@ newtype Proof h k v = Proof { getProof :: Map h k v }
 makePrisms ''Proof
 
 checkProof :: Hash h k v => h -> Proof h k v -> Bool
-checkProof ideal (Proof proof) = go proof^.rootHash == ideal
-  where
-    go tree = case tree of
-      Leaf   {} -> rehash tree
-      Branch {} -> tree
-        & setLeft  %~ go
-        & setRight %~ go
-        & rehash
-      _other    -> tree
+checkProof ideal (Proof proof) = fullRehash proof^.rootHash == ideal
+
+fullRehash :: Hash h k v => Map h k v -> Map h k v
+fullRehash tree = case tree of
+  Empty  {} -> rehash tree
+  Leaf   {} -> rehash tree
+  Branch {} -> tree
+    & setLeft  %~ fullRehash
+    & setRight %~ fullRehash
+    & rehash
+  _other    -> tree
 
