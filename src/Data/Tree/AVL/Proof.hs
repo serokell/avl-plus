@@ -1,15 +1,21 @@
 
-{-# language NamedFieldPuns #-}
-{-# language TemplateHaskell #-}
+{-# language NamedFieldPuns             #-}
+{-# language TemplateHaskell            #-}
+{-# language DeriveGeneric              #-}
+{-# language GeneralizedNewtypeDeriving #-}
 
 module Data.Tree.AVL.Proof where
 
 import Control.Lens ((&), (^.), (%~), makePrisms)
 
+import Data.Binary
+
+import GHC.Generics
+
 import Data.Tree.AVL.Internal
 
 newtype Proof h k v = Proof { getProof :: Map h k v }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic, Binary)
 
 makePrisms ''Proof
 

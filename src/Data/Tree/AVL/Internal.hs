@@ -11,6 +11,11 @@
 {-# language ScopedTypeVariables #-}
 {-# language RankNTypes #-}
 {-# language DeriveFunctor #-}
+{-# language DeriveGeneric              #-}
+{-# language StandaloneDeriving #-}
+{-# language DeriveAnyClass #-}
+{-# language UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Data.Tree.AVL.Internal where
 
@@ -19,8 +24,12 @@ import Control.Lens ( (&), (^.), (.~), (^?)
                     , makeLenses, makePrisms
                     , Getter, Setter', Lens'
                     )
+import Data.Binary
 import Data.Default (Default(..))
 import Data.Fix     (Fix(..))
+
+import GHC.Generics hiding (to)
+
 
 -- | "Tilt" is a difference in branch heights.
 --   We have only +2/-2 as our limits for the rebalance, lets make enum.
@@ -32,11 +41,13 @@ data Tilt
     | M   -- Balanced
     | R1  -- BalancedRight
     | R2  -- UnbalancedRight
-    deriving (Eq, Ord, Enum, Show)
+    deriving (Eq, Ord, Enum, Show, Generic, Binary)
 
 -- | Representation of AVL+ tree with data in leaves.
 
 type Map h k v = Fix (MapLayer h k v)
+
+deriving instance Binary (f (Fix f)) => Binary (Fix f)
 
 data MapLayer h k v self
   = MLBranch
@@ -67,7 +78,7 @@ data MapLayer h k v self
     , _mlMinKey    :: k
     , _mlCenterKey :: k
     }
-    deriving (Eq, Functor)
+    deriving (Eq, Functor, Generic, Binary)
 
 instance (Show k, Show v, Show r) => Show (MapLayer h k v r) where
   show = \case
@@ -78,7 +89,7 @@ instance (Show k, Show v, Show r) => Show (MapLayer h k v r) where
 
 type Revision = Integer
 
-data Side = L | R deriving (Eq, Show)
+data Side = L | R deriving (Eq, Show, Generic, Binary)
 
 data Branching h k v = Branching
   { _left  :: Map h k v

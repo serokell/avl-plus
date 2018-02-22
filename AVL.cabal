@@ -29,6 +29,7 @@ library
                , Data.Tree.AVL.Zipper
   -- other-extensions:
   build-depends:       base >=4.9 && <4.10
+                     , binary
                      , containers
                      , data-default
                      , data-fix
