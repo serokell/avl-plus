@@ -18,16 +18,19 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
+-- | Endpoint that allows to merge proofs for some sequental operations.
 insert' :: Hash h k v => k -> v -> Map h k v -> (RevSet, Map h k v)
 insert' k v tree = (trails, res)
   where
     ((), res, trails) = runZipped' (insertZ k v) UpdateMode tree
 
+-- | Endpoint that generates proof.
 insert :: Hash h k v => k -> v -> Map h k v -> (Proof h k v, Map h k v)
 insert k v tree = (proof, res)
   where
     ((), res, proof) = runZipped (insertZ k v) UpdateMode tree
 
+-- | Endpoint that generates no proof.
 insertWithNoProof
     :: Hash h k v
     => k
@@ -38,9 +41,10 @@ insertWithNoProof k v tree = res
   where
     ((), res, _) = runZipped (insertZ k v) UpdateMode tree
 
+-- | Insertion algorithm.
 insertZ :: Hash h k v => k -> v -> Zipped h k v ()
 insertZ k v = do
-    goto k
+    goto k             -- teleport to a key (or near it if absent)
     tree <- use locus
     case tree of
       Empty {} -> do
@@ -52,7 +56,7 @@ insertZ k v = do
             prev = term^.prevKey
             next = term^.nextKey
 
-        if k == key0 then do
+        if k == key0 then do  -- update case, replace with new value
             change $ do
                 locus.setValue .= v
         else do

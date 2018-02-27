@@ -11,16 +11,19 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
+-- | Endpoint that allows to merge proofs for some sequental operations.
 delete' :: Hash h k v => k -> Map h k v -> (RevSet, Map h k v)
 delete' k tree = (trails, res)
   where
     (_yes, res, trails) = runZipped' (deleteZ k) DeleteMode tree
 
+-- | Endpoint that generates proof.
 delete :: Hash h k v => k -> Map h k v -> (Proof h k v, Map h k v)
 delete k tree = (proof, res)
   where
     (_yes, res, proof) = runZipped (deleteZ k) DeleteMode tree
 
+-- | Endpoint that generates no proof.
 deleteWithNoProof
     :: Hash h k v
     => k
@@ -30,10 +33,11 @@ deleteWithNoProof k tree = res
   where
     (_yes, res, _proof) = runZipped (deleteZ k) DeleteMode tree
 
+-- | Deletion algorithm.
 deleteZ :: Hash h k v => k -> Zipped h k v Bool
 deleteZ k = do
     tree <- use locus
-    if
+    if  -- corner cases for degenerate trees
       | Just term <- tree^.terminal -> do
         if term^.key == k
         then do
@@ -62,13 +66,14 @@ deleteZ k = do
                 return False
 
             else do
-                side <- up
+                side <- up  -- return to a parent of node to be deleted
+
+                -- we need to mark another child, so it ends in a proof
                 _ <- case side of
                   L -> descentRight >> mark >> up
                   R ->  descentLeft >> mark >> up
 
                 here <- use locus
-                mark
                 let
                   newTree
                     | Just fork <- here^.branching =
@@ -79,7 +84,7 @@ deleteZ k = do
                     | otherwise =
                         error "delete: successful `up` ended in non-Branch"
 
-                replaceWith newTree
+                replaceWith newTree  -- replace with another child
 
                 unless (prev == minBound) $ do
                     goto prev

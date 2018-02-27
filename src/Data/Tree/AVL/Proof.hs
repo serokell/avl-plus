@@ -22,6 +22,7 @@ makePrisms ''Proof
 checkProof :: Hash h k v => h -> Proof h k v -> Bool
 checkProof ideal (Proof proof) = fullRehash proof^.rootHash == ideal
 
+-- | Apply 'rehash' recursively.
 fullRehash :: Hash h k v => Map h k v -> Map h k v
 fullRehash tree = case tree of
   Empty  {} -> rehash tree

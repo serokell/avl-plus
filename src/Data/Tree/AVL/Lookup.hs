@@ -26,16 +26,15 @@ lookupZ k = do
     goto k
     tree <- use locus
     mark
-    if  | Just end <- tree^.terminal ->
-            if end^.key == k
-            then
-                return (end^.value.to Just)
-            else
-                return Nothing
+    if
+      | Just end <- tree^.terminal ->
+        if end^.key == k
+        then return (end^.value.to Just)
+        else return Nothing
 
-        | Just Vacuous <- tree^.vacuous ->
-            return Nothing
+      | Just Vacuous <- tree^.vacuous ->
+        return Nothing
 
-        | otherwise ->
-            error $ "lookup: `goto " ++ show k ++ "` ended in non-terminal node"
+      | otherwise ->
+        error $ "lookup: `goto " ++ show k ++ "` ended in non-terminal node"
 

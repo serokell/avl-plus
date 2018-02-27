@@ -30,6 +30,11 @@ import Data.Fix     (Fix(..))
 
 import GHC.Generics hiding (to)
 
+-- | Current semantics: a "unique name" for a node.
+--   TODO: verify that no order comparison used, use `rootHash` instead.
+type Revision = Integer
+
+data Side = L | R deriving (Eq, Show, Generic, Binary)
 
 -- | "Tilt" is a difference in branch heights.
 --   We have only +2/-2 as our limits for the rebalance, lets make enum.
@@ -45,16 +50,15 @@ data Tilt
 
 -- | Representation of AVL+ tree with data in leaves.
 
-type Map h k v = Fix (MapLayer h k v)
-
-deriving instance Binary (f (Fix f)) => Binary (Fix f)
-
+-- | One layer of AVL Tree structure.
+--   It is build that way to guarantee 'hashOf' implementation to touch only
+--   current level and be syncronised with any changes in tree structure.
 data MapLayer h k v self
   = MLBranch
     { _mlRevision  :: Revision
     , _mlHash      :: h
     , _mlMinKey    :: k
-    , _mlCenterKey :: k
+    , _mlCenterKey :: k     -- Could be removed at cost of 1 additional descent.
     , _mlTilt      :: Tilt
     , _mlLeft      :: self
     , _mlRight     :: self
@@ -71,7 +75,7 @@ data MapLayer h k v self
     { _mlRevision  :: Revision
     , _mlHash      :: h
     }
-  | MLPruned
+  | MLPruned  -- | Has to contain all this data to act as a proper subtree.
     { _mlRevision  :: Revision
     , _mlHash      :: h
     , _mlTilt      :: Tilt
@@ -80,6 +84,10 @@ data MapLayer h k v self
     }
     deriving (Eq, Functor, Generic, Binary)
 
+type Map h k v = Fix (MapLayer h k v)
+
+deriving instance Binary (f (Fix f)) => Binary (Fix f)
+
 instance (Show k, Show v, Show r) => Show (MapLayer h k v r) where
   show = \case
     MLBranch _ _ mk ck t l r -> "Branch " ++ show (mk, ck, t, l, r)
@@ -87,16 +95,14 @@ instance (Show k, Show v, Show r) => Show (MapLayer h k v r) where
     MLEmpty  _ _             -> "Empty"
     MLPruned _ _ t mk ck     -> "Pruned " ++ show (t, mk, ck)
 
-type Revision = Integer
-
-data Side = L | R deriving (Eq, Show, Generic, Binary)
-
+-- | A view on tree node that can branch.
 data Branching h k v = Branching
   { _left  :: Map h k v
   , _right :: Map h k v
   , _tilt  :: Tilt
   }
 
+-- | A view on tree node that has actual data.
 data Terminal h k v = Terminal
   { _key     :: k
   , _value   :: v
@@ -104,6 +110,7 @@ data Terminal h k v = Terminal
   , _prevKey :: k
   }
 
+-- | A view on an empty node.
 data Vacuous = Vacuous
 
 makeLenses ''Terminal
@@ -112,6 +119,7 @@ makeLenses ''MapLayer
 makePrisms ''MapLayer
 makePrisms ''Fix
 
+-- | Patterns to hide the 'Fix' plumbing between levels.
 pattern Branch :: Revision -> h -> k -> k -> Tilt -> Map h k v -> Map h k v -> Map h k v
 pattern Leaf   :: Revision -> h -> k -> v -> k -> k -> Map h k v
 pattern Empty  :: Revision -> h -> Map h k v
@@ -123,10 +131,11 @@ pattern Empty  r  hash                 = Fix (MLEmpty  r  hash)
 pattern Pruned r  hash t mKey cKey     = Fix (MLPruned r  hash t mKey cKey)
 
 class HasRevision r where
-  revision :: Lens' r Revision
+    revision :: Lens' r Revision
 
+-- | A revision lens for AVL tree.
 instance HasRevision (Map h k v) where
-  revision = _Fix . mlRevision
+    revision = _Fix . mlRevision
 
 rootHash :: Getter (Map h k v) h
 rootHash = _Fix . to (^.mlHash)
@@ -143,19 +152,16 @@ centerKey = _Fix . to (\tree ->
     tree^?mlKey `orElse`
     minBound)
 
-setLeft :: Setter' (Map h k v) (Map h k v)
-setLeft = _Fix.mlLeft
-
-setRight :: Setter' (Map h k v) (Map h k v)
-setRight = _Fix.mlRight
-
-setValue :: Setter' (Map h k v) v
-setValue = _Fix.mlValue
-
+setLeft    :: Setter' (Map h k v) (Map h k v)
+setRight   :: Setter' (Map h k v) (Map h k v)
+setValue   :: Setter' (Map h k v) v
 setNextKey :: Setter' (Map h k v) k
-setNextKey = _Fix.mlNextKey
-
 setPrevKey :: Setter' (Map h k v) k
+
+setLeft    = _Fix.mlLeft
+setRight   = _Fix.mlRight
+setValue   = _Fix.mlValue
+setNextKey = _Fix.mlNextKey
 setPrevKey = _Fix.mlPrevKey
 
 branching :: Getter (Map h k v) (Maybe (Branching h k v))
@@ -173,13 +179,16 @@ vacuous = to $ \case
   Empty _ _ -> Just (Vacuous)
   _         -> Nothing
 
+-- | Recalculate 'rootHash' of the node.
+--   Does nothing on 'Pruned' node.
 rehash :: Hash h k v => Map h k v -> Map h k v
-rehash (Fix tree) = Fix $ case tree of
-  MLPruned {} -> tree
-  _           -> tree & mlHash .~ hashOf cleaned
+rehash node @ (Fix tree) = case tree of
+  MLPruned {} -> node
+  _           -> Fix $ tree & mlHash .~ hashOf cleaned
   where
     cleaned = fmap (^.rootHash) $ tree & mlHash .~ def
 
+-- | Interface for calculating hash of the 'Map' node.
 class
     (Ord k, Show k, Show h, Show v, Bounded k, Eq h, Default h)
       =>
@@ -197,13 +206,16 @@ Just x `orElse` _ = x
 _      `orElse` x = x
 
 
-pattern Node :: Revision -> Tilt -> Map h k v -> Map h k v -> Map h k v
 -- | For clarity of rebalance procedure.
+pattern Node :: Revision -> Tilt -> Map h k v -> Map h k v -> Map h k v
 pattern Node re d l r <- Branch re _ _ _ d l r
 
 empty :: Hash h k v => Map h k v
 empty = rehash $ Empty 0 def
 
+-- | Smart constructor for 'Pruned' node.
+--   Turns node into 'Pruned' one.
+--   Does nothing on already 'Pruned' node.
 pruned :: Hash h k v => Map h k v -> Map h k v
 pruned tree = case tree of
   Pruned {} -> tree
@@ -214,8 +226,9 @@ pruned tree = case tree of
     (tree^.minKey)
     (tree^.centerKey)
 
+-- | Construct a branch from 2 subtrees.
+--   Recalculates 'rootHash', 'minKey' and 'centerKey'.
 branch :: Hash h k v => Revision -> Tilt -> Map h k v -> Map h k v -> Map h k v
--- | Construct a branch from 2 subtrees. Recalculates hash.
 branch r tilt0 left0 right0 = rehash $ Branch
     r
     def
@@ -254,14 +267,11 @@ size = go
       | Just fork    <- tree^.branching = go (fork^.left) + go (fork^.right)
       | otherwise                       = 1
 
-pathLengths :: Map h k v -> [Int]
 -- | For testing purposes. Finds lengths of all paths to the leaves.
+pathLengths :: Map h k v -> [Int]
 pathLengths tree = case tree of
   Leaf   {} -> [0]
   Pruned {} -> error "pathLengths: Pruned"
   _ | Just fork <- tree^.branching ->
     map (+ 1) (pathLengths (fork^.left) ++ pathLengths (fork^.right))
   _         -> []
-
--- olderThan :: Map h k v -> Revision -> Bool
--- olderThan tree rev = tree^.revision > rev

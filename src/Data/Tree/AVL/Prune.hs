@@ -12,6 +12,7 @@ import Data.Tree.AVL.Proof
 
 import qualified Data.Set as Set
 
+-- | Prune all subtrees that haven't been touched.
 prune :: Hash h k v => Set Revision -> Map h k v -> Proof h k v
 prune revs = Proof . go
   where
