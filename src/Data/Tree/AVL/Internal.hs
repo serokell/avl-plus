@@ -174,21 +174,14 @@ vacuous = to $ \case
   _         -> Nothing
 
 rehash :: Hash h k v => Map h k v -> Map h k v
-rehash (Fix tree) = Fix $ tree & mlHash .~ hashOf cleaned
+rehash (Fix tree) = Fix $ case tree of
+  MLPruned {} -> tree
+  _           -> tree & mlHash .~ hashOf cleaned
   where
-    cleaned = fmap (^.rootHash) $ case tree of
-      MLPruned {} -> tree
-      _           -> tree & mlHash .~ def
+    cleaned = fmap (^.rootHash) $ tree & mlHash .~ def
 
 class
-    ( Ord k
-    , Show k
-    , Show h
-    , Show v
-    , Bounded k
-    , Eq h
-    , Default h
-    )
+    (Ord k, Show k, Show h, Show v, Bounded k, Eq h, Default h)
       =>
     Hash h k v
   where
