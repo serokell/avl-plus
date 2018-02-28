@@ -1,11 +1,11 @@
 
-{-# language NamedFieldPuns #-}
-{-# language TemplateHaskell #-}
-{-# language MultiWayIf #-}
+{-# LANGUAGE MultiWayIf      #-}
+{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Data.Tree.AVL.Lookup where
 
-import Control.Lens ((^.), use, to)
+import Control.Lens (to, use, (^.))
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof

@@ -1,10 +1,10 @@
 
-{-# language NamedFieldPuns #-}
-{-# language MultiWayIf     #-}
+{-# LANGUAGE MultiWayIf     #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Data.Tree.AVL.Deletion (delete, deleteWithNoProof, delete') where
 
-import Control.Lens  ((^.), (.=), use)
+import Control.Lens (use, (.=), (^.))
 import Control.Monad (unless)
 
 import Data.Tree.AVL.Internal

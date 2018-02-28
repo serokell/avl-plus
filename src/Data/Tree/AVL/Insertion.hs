@@ -1,5 +1,5 @@
 
-{-# language NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Data.Tree.AVL.Insertion
   ( insert
@@ -9,10 +9,10 @@ module Data.Tree.AVL.Insertion
   , insert'
   ) where
 
-import Control.Lens  ((^.), (.=), use)
+import Control.Lens (use, (.=), (^.))
 import Control.Monad (unless)
 
-import Data.List     (foldl')
+import Data.List (foldl')
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof

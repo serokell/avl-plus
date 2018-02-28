@@ -1,12 +1,12 @@
 
-{-# language NamedFieldPuns             #-}
-{-# language TemplateHaskell            #-}
-{-# language DeriveGeneric              #-}
-{-# language GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 module Data.Tree.AVL.Proof where
 
-import Control.Lens ((&), (^.), (%~), makePrisms)
+import Control.Lens (makePrisms, (%~), (&), (^.))
 
 import Data.Binary
 

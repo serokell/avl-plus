@@ -1,11 +1,11 @@
 
-{-# language FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Data.Tree.AVL.Prune where
 
-import Control.Lens ((&), (^.), (%~))
+import Control.Lens ((%~), (&), (^.))
 
-import Data.Set     (Set)
+import Data.Set (Set)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof

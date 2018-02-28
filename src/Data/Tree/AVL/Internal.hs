@@ -1,32 +1,28 @@
 
-{-# language FunctionalDependencies #-}
-{-# language LambdaCase #-}
-{-# language MultiParamTypeClasses #-}
-{-# language TemplateHaskell #-}
-{-# language NamedFieldPuns #-}
-{-# language PatternSynonyms #-}
-{-# language StrictData #-}
-{-# language FlexibleInstances #-}
-{-# language FlexibleContexts #-}
-{-# language ScopedTypeVariables #-}
-{-# language RankNTypes #-}
-{-# language DeriveFunctor #-}
-{-# language DeriveGeneric              #-}
-{-# language StandaloneDeriving #-}
-{-# language DeriveAnyClass #-}
-{-# language UndecidableInstances #-}
+{-# LANGUAGE DeriveAnyClass         #-}
+{-# LANGUAGE DeriveFunctor          #-}
+{-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE NamedFieldPuns         #-}
+{-# LANGUAGE PatternSynonyms        #-}
+{-# LANGUAGE RankNTypes             #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE StandaloneDeriving     #-}
+{-# LANGUAGE StrictData             #-}
+{-# LANGUAGE TemplateHaskell        #-}
+{-# LANGUAGE UndecidableInstances   #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Data.Tree.AVL.Internal where
 
-import Control.Lens ( (&), (^.), (.~), (^?)
-                    , to
-                    , makeLenses, makePrisms
-                    , Getter, Setter', Lens'
-                    )
+import Control.Lens (Getter, Lens', Setter', makeLenses, makePrisms, to, (&), (.~), (^.), (^?))
 import Data.Binary
-import Data.Default (Default(..))
-import Data.Fix     (Fix(..))
+import Data.Default (Default (..))
+import Data.Fix (Fix (..))
 
 import GHC.Generics hiding (to)
 
@@ -64,16 +60,16 @@ data MapLayer h k v self
     , _mlRight     :: self
     }
   | MLLeaf
-    { _mlRevision  :: Revision
-    , _mlHash      :: h
-    , _mlKey       :: k
-    , _mlValue     :: v
-    , _mlNextKey   :: k
-    , _mlPrevKey   :: k
+    { _mlRevision :: Revision
+    , _mlHash     :: h
+    , _mlKey      :: k
+    , _mlValue    :: v
+    , _mlNextKey  :: k
+    , _mlPrevKey  :: k
     }
   | MLEmpty
-    { _mlRevision  :: Revision
-    , _mlHash      :: h
+    { _mlRevision :: Revision
+    , _mlHash     :: h
     }
   | MLPruned  -- | Has to contain all this data to act as a proper subtree.
     { _mlRevision  :: Revision
@@ -182,11 +178,12 @@ vacuous = to $ \case
 -- | Recalculate 'rootHash' of the node.
 --   Does nothing on 'Pruned' node.
 rehash :: Hash h k v => Map h k v -> Map h k v
-rehash node @ (Fix tree) = case tree of
+rehash node = case tree of
   MLPruned {} -> node
   _           -> Fix $ tree & mlHash .~ hashOf cleaned
   where
-    cleaned = fmap (^.rootHash) $ tree & mlHash .~ def
+    cleaned  = fmap (^.rootHash) $ tree & mlHash .~ def
+    Fix tree = node
 
 -- | Interface for calculating hash of the 'Map' node.
 class

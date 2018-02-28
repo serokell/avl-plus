@@ -1,7 +1,7 @@
 
-{-# language NamedFieldPuns #-}
-{-# language TemplateHaskell #-}
-{-# language StandaloneDeriving #-}
+{-# LANGUAGE NamedFieldPuns     #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell    #-}
 
 -- | This module represents zipper layer.
 --   It allows us represent all operations using
@@ -12,19 +12,16 @@
 
 module Data.Tree.AVL.Zipper where
 
-import Control.Applicative        ((<|>))
-import Control.Lens               ( (^.), (.=), (%=), (+=)
-                                  , use
-                                  , makeLenses
-                                  , Lens', Getter )
+import Control.Applicative ((<|>))
+import Control.Lens (Getter, Lens', makeLenses, use, (%=), (+=), (.=), (^.))
 
-import Control.Monad              (when, unless)
+import Control.Monad (unless, when)
 import Control.Monad.State.Strict (StateT, evalStateT, get, put)
 
-import Data.Monoid                ((<>))
-import Data.Set                   (Set)
+import Data.Monoid ((<>))
+import Data.Set (Set)
 
-import Debug.Trace as Debug       (trace)
+import Debug.Trace as Debug (trace)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
@@ -293,7 +290,7 @@ correctTilt was became tilt0 side = do
       res = case modus of
         UpdateMode | deepened  was became -> roll tilt0 side
         DeleteMode | shortened was became -> roll tilt0 (another side)
-        _                                 -> tilt0
+        _          -> tilt0
 
     return res
 
