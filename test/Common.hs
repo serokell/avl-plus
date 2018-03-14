@@ -8,24 +8,25 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 
-module Common (module Common, module Control.Lens) where
+module Common (module Common, module Control.Lens, module T) where
 
 import Control.Lens hiding (locus, elements, Empty)
 
-import           Data.Bits (xor)
-import           Data.Foldable
-import           Data.Function (on)
-import           Data.List (sortBy, nubBy)
-import           Data.Monoid
-import           Data.Ord (comparing)
+import Data.Bits                                 (xor)
+import Data.Default                              (Default(def))
+import Data.Foldable                             ()
+import Data.Function                             (on)
+import Data.List                                 (sortBy, nubBy)
+import Data.Monoid                               ((<>))
+import Data.Ord                                  (comparing)
 
-import qualified Data.Tree.AVL            as AVLPlus
+import Test.Framework                       as T (Test, defaultMain, testGroup)
+import Test.Framework.Providers.QuickCheck2 as T (testProperty)
+import Test.QuickCheck                      as T ( Arbitrary (..), Gen, Property
+                                                 , (===), (==>), elements )
+import Test.QuickCheck.Instances            as T ()
 
-import           Test.Framework             (Test, defaultMain, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
-import           Test.QuickCheck            (Arbitrary (..), Gen, Property,
-                                             (===), (==>), elements)
-import           Test.QuickCheck.Instances  ()
+import qualified Data.Tree.AVL as AVL
 
 -- | Extensional equality combinator.
 (.=.) :: (Eq b, Show b, Arbitrary a) => (a -> b) -> (a -> b) -> a -> Property
@@ -38,26 +39,24 @@ f .=. g = \a ->
 infixr 5 .=.
 
 data InitialHash
-    = HashOf (StringName, Int, StringName, StringName)
-    | Combine (InitialHash, AVLPlus.Side, AVLPlus.Tilt, InitialHash)
-    | EmptyOne
+  = InitialHash { getInitialHash :: AVL.MapLayer InitialHash StringName Int InitialHash }
+  | Default
+
+instance Show InitialHash where
+    show = \case
+        InitialHash m -> "#(" ++ show m ++ ")"
+        Default       -> "#DEFAULT"
+
+instance Default InitialHash where
+  def = Default
 
 instance Eq InitialHash where
     x == y = show x == show y
 
-instance Show InitialHash where
-    show = \case
-      HashOf   (k, _, p, n)        -> show (p, k, n)
-      Combine (l, AVLPlus.L, t, r) -> "(" <> show l <> " # " <> show t <> " # " <> show r <> ")"
-      Combine (l, AVLPlus.R, t, r) -> "(" <> show r <> " # " <> show t <> " # " <> show l <> ")"
-      EmptyOne                     -> "0"
-
-instance AVLPlus.Combined InitialHash where
-    emptyOne = EmptyOne
-    combine  = Combine
-
-instance AVLPlus.Hash InitialHash StringName Int where
-    hashOf = HashOf
+instance AVL.Hash InitialHash StringName Int where
+    hashOf tree = case tree of
+        AVL.MLPruned {} -> tree^.AVL.mlHash
+        other           -> InitialHash tree
 
 -- newtype IntHash = IntHash { getIntHash :: Int }
 --     deriving (Show, Eq, Arbitrary)
@@ -92,18 +91,18 @@ instance Bounded StringName where
 --         IntHash $ 37 * length k + 53 * v + 67 * length p + 91 * length n
 
 instance
-    ( AVLPlus.Hash h k v
+    ( AVL.Hash h k v
     , Arbitrary k
     , Arbitrary v
     , Show h
     )
       =>
-    Arbitrary (AVLPlus.Map h k v)
+    Arbitrary (AVL.Map h k v)
   where
-    arbitrary = AVLPlus.fromList <$> arbitrary
+    arbitrary = AVL.fromList <$> arbitrary
 
 -- Requirement of QuickCheck
 instance Show (a -> b) where
     show _ = "<function>"
 
-type M = AVLPlus.Map InitialHash StringName Int
+type M = AVL.Map InitialHash StringName Int
