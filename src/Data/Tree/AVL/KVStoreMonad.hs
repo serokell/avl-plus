@@ -10,13 +10,23 @@ module Data.Tree.AVL.KVStoreMonad where
 --import Universum
 
 import Control.Monad.Catch
+import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 
 import Data.Composition
+import Data.Foldable hiding (toList)
+import Data.Typeable
+import Data.Hashable
+import Data.HashMap.Strict (toList, HashMap)
+
+import System.IO.Unsafe
 
 class MonadCatch m => KVStoreMonad m k v where
     retrieve :: k -> m v
     store    :: k -> v -> m ()
+
+seed :: KVStoreMonad m k v => HashMap k v -> m ()
+seed hm = toList hm `for_` uncurry store
 
 --exists :: KVStoreMonad m k v => k -> m Bool
 --exists k = do
@@ -26,6 +36,10 @@ class MonadCatch m => KVStoreMonad m k v where
 --    return False
 
 instance (MonadTrans t, MonadCatch (t m), KVStoreMonad m k v) => KVStoreMonad (t m) k v where
-
     retrieve = lift .  retrieve
     store    = lift .: store
+
+data NotFound k = NotFound k
+    deriving (Show, Typeable)
+
+instance (Show k, Typeable k) => Exception (NotFound k) where

@@ -30,12 +30,12 @@ import Control.Exception (SomeException(SomeException))
 
 import Control.Monad (void, (<=<))
 import Control.Monad.Catch (catch)
+import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Free
 
 import Data.Binary
 import Data.Default (Default (..))
-import Data.Fix (Fix (..))
 import Data.Foldable (for_)
 
 import GHC.Generics hiding (to)
@@ -98,8 +98,6 @@ data MapLayer h k v self
 
 type Map h k v m = FreeT (MapLayer h k v) m h
 
---deriving instance Binary (f (Fix f)) => Binary (Fix f)
-
 --instance (Show k, Show v, Show r) => Show (MapLayer h k v r) where
 --  show = \case
 --    MLBranch _ _ mk ck t l r -> "Branch " ++ show (mk, ck, t, l, r)
@@ -107,29 +105,8 @@ type Map h k v m = FreeT (MapLayer h k v) m h
 --    MLEmpty  _ _             -> "Empty"
 --    MLPruned _ _ t mk ck     -> "Pruned " ++ show (t, mk, ck)
 
--- | A view on tree node that can branch.
-data Branching h k v m = Branching
-  { _left  :: Map h k v m
-  , _right :: Map h k v m
-  , _tilt  :: Tilt
-  }
-
--- | A view on tree node that has actual data.
-data Terminal h k v = Terminal
-  { _key     :: k
-  , _value   :: v
-  , _nextKey :: k
-  , _prevKey :: k
-  }
-
--- | A view on an empty node.
-data Vacuous = Vacuous
-
-makeLenses ''Terminal
-makeLenses ''Branching
 makeLenses ''MapLayer
 makePrisms ''MapLayer
-makePrisms ''Fix
 
 makeBranch :: Stores h k v m => Revision -> h -> k -> k -> Tilt -> Map h k v m -> Map h k v m -> Map h k v m
 makeLeaf   :: Stores h k v m => Revision -> h -> k -> v -> k -> k -> Map h k v m
@@ -141,8 +118,8 @@ makeLeaf   r  hash key  val  n p   = hash `stored` MLLeaf   r  hash key  val  n 
 makeEmpty  r  hash                 = hash `stored` MLEmpty  r  hash
 makePruned r  hash t mKey cKey     = hash `stored` MLPruned r  hash t mKey cKey
 
-class    (Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
-instance (Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
+class    (Ord h, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
+instance (Ord h, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
 
 stored :: Stores h k v m => h -> MapLayer h k v (Map h k v m) -> Map h k v m
 stored hash layer = do
@@ -155,11 +132,12 @@ rootHash = pickAnd (^.mlHash)
 
 class HasRevision m r | r -> m where
     revision    :: r -> m Revision
-    setRevision :: Revision -> r -> m ()
+    setRevision :: Revision -> r -> r
 
 -- | A revision lens for AVL tree.
 instance Stores h k v m => HasRevision m (Map h k v m) where
     revision = pickAnd (^.mlRevision)
+    setRevision r = onTopNode (mlRevision .~ r)
 
 --rootHash :: Getter (Map h k v) h
 --rootHash = _Fix . to (^.mlHash)
@@ -189,9 +167,8 @@ hide layer = FreeT $ Free <$> traverse pickTree layer
 
 pickTree :: forall h k v m . Stores h k v m => h -> m (Map h k v m)
 pickTree hash = do
-  sublayer <- retrieve hash :: m (MapLayer h k v h)
-
-  FreeT . return . Free <$> traverse pickTree sublayer
+    sublayer <- retrieve hash :: m (MapLayer h k v h)
+    FreeT . return . Free <$> traverse pickTree sublayer
 
 onTopNode :: Stores h k v m => (MapLayer h k v h -> MapLayer h k v h) -> Map h k v m -> Map h k v m
 onTopNode f tree = do
@@ -408,13 +385,11 @@ size = go
           _                            -> return 1
 
 -- | For testing purposes. Finds lengths of all paths to the leaves.
--- | In this state: it has a typo - s/pickTree/pick tree/.
--- | What is interesting, the compiler loops indefinitely on that.
 pathLengths :: Stores h k v m => Map h k v m -> m [Int]
 pathLengths = go
   where
-    go = do
-      layer <- pickTree
+    go tree = do
+      layer <- pick tree
       case layer of
         MLLeaf   {}                  -> return [0]
         MLBranch {_mlLeft, _mlRight} -> do
