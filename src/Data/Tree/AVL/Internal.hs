@@ -22,14 +22,9 @@
 module Data.Tree.AVL.Internal where
 
 import Control.Applicative ((<|>))
+import Control.Lens (makeLenses, makePrisms, (&), (.~), (^.), (^?))
 
-import Control.Lens (Getter, Lens', Setter', makeLenses, makePrisms, to, (&), (.~), (^.), (^?))
-import Control.Lens.Action (Action)
-
-import Control.Exception (SomeException(SomeException))
-
-import Control.Monad (void, (<=<))
-import Control.Monad.Catch (catch)
+import Control.Monad (void, (<=<), MonadPlus)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Free
@@ -37,6 +32,7 @@ import Control.Monad.Trans.Free
 import Data.Binary
 import Data.Default (Default (..))
 import Data.Foldable (for_)
+import Data.Typeable (Typeable)
 
 import GHC.Generics hiding (to)
 
@@ -118,8 +114,8 @@ makeLeaf   r  hash key  val  n p   = hash `stored` MLLeaf   r  hash key  val  n 
 makeEmpty  r  hash                 = hash `stored` MLEmpty  r  hash
 makePruned r  hash t mKey cKey     = hash `stored` MLPruned r  hash t mKey cKey
 
-class    (Ord h, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
-instance (Ord h, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
+class    (Ord h, MonadIO m, MonadPlus m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
+instance (Ord h, MonadIO m, MonadPlus m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
 
 stored :: Stores h k v m => h -> MapLayer h k v (Map h k v m) -> Map h k v m
 stored hash layer = do
@@ -153,8 +149,8 @@ pick tree = do
     
     return layer
   where
-    getHash tree = do
-        wand <- runFreeT tree
+    getHash point = do
+        wand <- runFreeT point
         return $ case wand of
           Pure key   -> key
           Free layer -> layer^. mlHash
@@ -170,6 +166,9 @@ pickTree hash = do
     sublayer <- retrieve hash :: m (MapLayer h k v h)
     FreeT . return . Free <$> traverse pickTree sublayer
 
+ref :: forall h k v m . Stores h k v m => h -> Map h k v m
+ref h = FreeT $ return $ Pure h
+
 onTopNode :: Stores h k v m => (MapLayer h k v h -> MapLayer h k v h) -> Map h k v m -> Map h k v m
 onTopNode f tree = do
     layer <- lift $ pick tree
@@ -180,16 +179,23 @@ save tree = do
     wand <- runFreeT tree
 
     case wand of
-      Pure key -> return ()
+      Pure _     -> return ()
       Free layer -> do    
         let hash = layer^.mlHash
         
-        void (retrieve hash :: m (MapLayer h k v h)) `catch` \(SomeException e) -> do
+        void (retrieve hash :: m (MapLayer h k v h)) <|> do
             isolated <- traverse rootHash layer
             store hash isolated
             for_ layer save
 
         return ()
+
+saveOne :: forall h k v m . Stores h k v m => Map h k v m -> m h
+saveOne tree = do
+    layer <- pick tree
+    rHash <- rootHash tree
+    store rHash layer
+    return rHash
 
 --materialize
 --    :: forall m h k v
@@ -244,11 +250,15 @@ centerKey = pickAnd $ \layer ->
     layer^?mlKey `orElse`
     minBound
 
-setLeft  :: Stores h k v m => Map h k v m -> Map h k v m -> Map h k v m
-setRight :: Stores h k v m => Map h k v m -> Map h k v m -> Map h k v m
-setNextKey :: Stores h k v m => k -> Map h k v m -> Map h k v m
-setPrevKey :: Stores h k v m => k -> Map h k v m -> Map h k v m
-setValue :: Stores h k v m => v -> Map h k v m -> Map h k v m
+tilt :: Stores h k v m => Map h k v m -> m Tilt
+tilt = pickAnd $ \layer ->
+    layer^?mlTilt `orElse` M
+
+setLeft    :: Stores h k v m => Map h k v m -> Map h k v m -> Map h k v m
+setRight   :: Stores h k v m => Map h k v m -> Map h k v m -> Map h k v m
+setNextKey :: Stores h k v m => k           -> Map h k v m -> Map h k v m
+setPrevKey :: Stores h k v m => k           -> Map h k v m -> Map h k v m
+setValue   :: Stores h k v m => v           -> Map h k v m -> Map h k v m
 
 setLeft left whole = do
     leftHash <- lift $ rootHash left
@@ -303,15 +313,15 @@ rehash tree = do
 
 -- | Interface for calculating hash of the 'Map' node.
 class
-    (Ord k, Show k, Show h, Show v, Bounded k, Eq h, Default h)
+    (Ord k, Show k, Show h, Typeable h, Show v, Bounded k, Eq h, Default h)
       =>
     Hash h k v
   where
     hashOf :: MapLayer h k v h -> h
 
-----another :: Side -> Side
-----another L = R
-----another R = L
+another :: Side -> Side
+another L = R
+another R = L
 
 infixr 1 `orElse`
 orElse :: Maybe a -> a -> a
@@ -344,7 +354,7 @@ pruned tree = do
 -- | Construct a branch from 2 subtrees.
 --   Recalculates 'rootHash', 'minKey' and 'centerKey'.
 branch :: Stores h k v m => Revision -> Tilt -> Map h k v m -> Map h k v m -> Map h k v m
-branch r tilt left right = do
+branch r tilt0 left right = do
     left0  <- lift $ pick left
     right0 <- lift $ pick right
     rehash $ hide $ MLBranch
@@ -352,7 +362,7 @@ branch r tilt left right = do
         def
         ((left0^?mlMinKey `orElse` minBound) `min` (right0^?mlMinKey `orElse` minBound))
         (right0^?mlMinKey `orElse` minBound)
-        tilt
+        tilt0
         (left0^.mlHash)
         (right0^.mlHash)
 

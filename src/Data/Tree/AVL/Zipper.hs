@@ -5,6 +5,8 @@
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE ExplicitForAll  #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 
 -- | This module represents zipper layer.
 --   It allows us represent all operations using
@@ -16,15 +18,18 @@
 module Data.Tree.AVL.Zipper where
 
 import Control.Applicative ((<|>))
-import Control.Lens (Getter, Lens', makeLenses, use, (%=), (+=), (.=), (^.), (.~))
+import Control.Exception(Exception)
+import Control.Lens (Getter, Lens', makeLenses, use, (%=), (.=), (^.), (.~))
 
 import Control.Monad (unless, when)
-import Control.Monad.State.Strict (StateT, evalStateT, get, put, gets, modify, lift, MonadIO)
+import Control.Monad.Catch (throwM)
+import Control.Monad.State.Strict (StateT, evalStateT, get, put, modify, lift)
 
 import Data.Monoid ((<>))
 import Data.Set (Set)
+import Data.Typeable (Typeable)
 
-import Debug.Trace as Debug (trace)
+--import Debug.Trace as Debug (trace)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
@@ -152,17 +157,21 @@ markAll :: Stores h k v m => [Revision] -> Zipped h k v m ()
 markAll revs = do
     trail %= (<> Set.fromList revs)
 
+data AlreadyOnTop = AlreadyOnTop deriving (Show, Typeable)
+
+instance Exception AlreadyOnTop
+
 -- | Move to the parent node; update & 'rebalance' it if required.
-up :: Stores h k v m => Zipped h k v m Side
+up :: forall h k m v . Stores h k v m => Zipped h k v m Side
 up = do
     ctx  <- use context
-    loc  <- use locus
+    loc  <- use locus :: Zipped h k v m (Map h k v m)
     rev1 <- lift $ revision loc -- retrive actual 'revision' of current node
     side <- case ctx of
       WentLeftFrom tree range rev0 : rest -> do
         layer <- lift $ pick loc
         case layer of
-          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt} -> do
+          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
             became <- do
                 if rev0 == rev1  -- if current node didn't 'change'
                 then do
@@ -174,8 +183,8 @@ up = do
                     locus %= rehash
                     now   <- use locus
                     rev'  <- newRevision
-                    tilt' <- correctTilt left now tilt L
-                    let b = branch rev' tilt' now right
+                    tilt' <- correctTilt (ref left) now tilt0 L
+                    let b = branch rev' tilt' now (ref right)
                     return b
 
             context  .= rest    -- pop parent layer from context stack
@@ -189,10 +198,13 @@ up = do
             rebalance
             return L            -- return the side we went from
 
+          _ ->
+            error "up: zipper is broken"
+
       WentRightFrom tree range rev0 : rest -> do
         layer <- lift $ pick loc
         case layer of
-          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt} -> do
+          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
             became <- do
                 if rev0 == rev1
                 then do
@@ -202,8 +214,8 @@ up = do
                     locus %= rehash
                     now   <- use locus
                     rev'  <- newRevision
-                    tilt' <- correctTilt right now tilt R
-                    let b = branch rev' tilt' left now
+                    tilt' <- correctTilt (ref right) now tilt0 R
+                    let b = branch rev' tilt' (ref left) now
                     return b
 
             context  .= rest
@@ -214,6 +226,9 @@ up = do
             rebalance
             return R
 
+          _ ->
+            error "up: zipper is broken"
+
       [JustStarted _rev0] -> do
           locus %= rehash  -- removing this causes tests to fail
           rebalance        -- TODO: investigate
@@ -221,10 +236,10 @@ up = do
           return L
 
       [] -> do
-          fail "already on top"
+          throwM AlreadyOnTop
 
-      other -> do
-        error $ "up: " ++ show other
+      _other -> do
+          error $ "up: zipper is broken"
 
     return side
 
@@ -251,21 +266,27 @@ enter mode0 tree = do
     , _tzTouched  = Set.empty
     }
 
+data WentDownOnNonBranch h = WentDownOnNonBranch h deriving (Show, Typeable)
+
+instance (Show h, Typeable h) => Exception (WentDownOnNonBranch h)
+
 -- | Move into the left branch of the current node.
 descentLeft :: Stores h k v m => Zipped h k v m ()
 descentLeft = do
     tree  <- use locus
     range <- use keyRange
     mark
-    case tree of
-      _ | Just fork <- tree^.branching -> do
-          let rev   = fork^.left.revision
+    layer <- lift $ pick tree
+    case layer of
+      MLBranch { _mlLeft, _mlRight, _mlCenterKey } -> do
+          left     <- lift $ pickTree _mlLeft
+          rev      <- lift $ revision left
           context  %= (WentLeftFrom tree range rev :)
-          locus    .= fork^.left
-          keyRange .= refine L range (tree^.centerKey)
+          locus    .= left
+          keyRange .= refine L range _mlCenterKey
 
-        | otherwise -> do
-            fail "cant' go down on non-branch"
+      _ -> do
+          throwM $ WentDownOnNonBranch (_mlHash layer)
 
 -- | Move into the right branch of the current node.
 descentRight :: Stores h k v m => Zipped h k v m ()
@@ -273,15 +294,17 @@ descentRight = do
     tree  <- use locus
     range <- use keyRange
     mark
-    case tree of
-      _ | Just fork <- tree^.branching -> do
-          let rev = fork^.right.revision
+    layer <- lift $ pick tree
+    case layer of
+      MLBranch { _mlLeft, _mlRight, _mlCenterKey } -> do
+          right    <- lift $ pickTree _mlRight
+          rev      <- lift $ revision right
           context  %= (WentRightFrom tree range rev :)
-          locus    .= fork^.right
-          keyRange .= refine R range (tree^.centerKey)
+          locus    .= right
+          keyRange .= refine R range _mlCenterKey
 
-        | otherwise -> do
-            fail "cant' go down on non-branch"
+      _ -> do
+          throwM $ WentDownOnNonBranch (_mlHash layer)
 
 -- | Using side and current 'centerKey', select a key subrange we end in.
 refine :: Ord key => Side -> (key, key) -> key -> (key, key)
@@ -291,42 +314,50 @@ refine R (l, h) m = (max m l, h)
 -- | Correct tilt.
 correctTilt :: Stores h k v m => Map h k v m -> Map h k v m -> Tilt -> Side -> Zipped h k v m Tilt
 correctTilt was became tilt0 side = do
-    modus <- use mode
+    modus   <- use mode
+    deeper  <- lift $ deepened  was became
+    shorter <- lift $ shortened was became
     let
       -- If we inserted and tree became deeper,  increase tilt to that side.
       -- if we deleted  and tree became shorter, decrease tilt to that side.
       res = case modus of
-        UpdateMode | deepened  was became -> roll tilt0 side
-        DeleteMode | shortened was became -> roll tilt0 (another side)
+        UpdateMode | deeper  -> roll tilt0 side
+        DeleteMode | shorter -> roll tilt0 (another side)
         _          -> tilt0
 
     return res
 
 -- | Find if tree became deeper.
-deepened :: Map h k v m -> Map h k v m -> m Bool
+deepened :: Stores h k v m => Map h k v m -> Map h k v m -> m Bool
 deepened was became = do
     wasLayer    <- pick was
     becameLayer <- pick became
+    wasTilt     <- tilt was
+    becameTilt  <- tilt became
 
     case (wasLayer, becameLayer) of
-      (MLLeaf   {}, MLBranch {}) -> True
-      (MLBranch {}, MLBranch{}) -> 
-            wasLayer   ^.tilt   ==    M
-        &&  becameLayer^.tilt `elem` [L1, R1]
-      _ -> False
+      (MLLeaf   {}, MLBranch {}) -> return True
+      (MLBranch {}, MLBranch {}) -> return $
+            wasTilt      ==    M
+        &&  becameTilt `elem` [L1, R1]
+      
+      _                          -> return False
 
 -- | Find if tree became shorter.
-shortened :: Map h k v m -> Map h k v m -> m Bool
+shortened :: Stores h k v m => Map h k v m -> Map h k v m -> m Bool
 shortened was became = do
     wasLayer    <- pick was
     becameLayer <- pick became
+    wasTilt     <- tilt was
+    becameTilt  <- tilt became
 
     case (wasLayer, becameLayer) of
-      (MLLeaf   {}, MLBranch {}) -> True
-      (MLBranch {}, MLBranch {}) -> 
-            becameLayer^.tilt   ==    M
-        &&  wasLayer   ^.tilt `elem` [L1, R1]
-      _ -> False
+      (MLLeaf   {}, MLBranch {}) -> return True
+      (MLBranch {}, MLBranch {}) -> return $
+            becameTilt   ==    M
+        &&  wasTilt    `elem` [L1, R1]
+      
+      _                          -> return False
 
 -- | Change tilt depending on grown side.
 roll :: Tilt -> Side -> Tilt
@@ -349,14 +380,21 @@ change action = do
     mark  -- automatically add node the list of touched
     res <- action
     rev <- newRevision
-    locus.revision .= rev
+    locus %= setRevision rev
     return res
 
 replaceWith :: Stores h k v m => Map h k v m -> Zipped h k v m ()
 replaceWith newTree = do
     change (locus .= newTree)
 
-rebalance :: Stores h k v m => Zipped h k v m ()
+--materializeTop3 :: Map h k v m -> m (MapLayer h k v (MapLayer h k v (MapLayer h k v h)))
+--materializeTop3 tree = do
+--  layer <- pick tree
+
+
+--dematerializeTop3 :: MapLayer h k v (MapLayer h k v (MapLayer h k v h)) -> Map h k v m
+
+rebalance :: forall h k v m . Stores h k v m => Zipped h k v m ()
 rebalance = do
     tree <- use locus
     rev1 <- newRevision  -- up to 3 nodes could be touched
@@ -369,64 +407,93 @@ rebalance = do
     let skewn2 = branch rev2
     let skewn3 = branch rev3
 
-    newTree <- case tree of
-      Node r1 L2 (Node r2 L1 a b) c -> do
-        markAll [r1, r2]
-        return $ node1 a (node2 b c)
+    layer <- lift $ pick tree :: Zipped h k v m (MapLayer h k v h)
+    newTree <- case layer of
+      Node r1 L2 leftH d -> do
+        left      <- lift $ (pickTree leftH :: m (Map h k v m))
+        leftLayer <- lift $ pick     left
+        case leftLayer of
+          Node r2 L1 a b -> do
+            markAll [r1, r2]
+            return $ node1 (ref a) (node2 (ref b) (ref d))
 
-      Node r1 R2 a (Node r2 R1 b c) -> do
-        markAll [r1, r2]
-        return $ node1 (node2 a b) c
+          Node r2 M a b -> do
+            markAll [r1, r2]
+            return $ skewn2 R1 (ref a) (skewn3 L1 (ref b) (ref d))
 
-      Node r1 R2 a (Node r2 M b c) -> do
-        markAll [r1, r2]
-        return $ skewn2 L1 (skewn3 R1 a b) c
+          Node r2 R1 a rightH -> do
+            right      <- lift $ (pickTree rightH :: m (Map h k v m))
+            rightLayer <- lift $ pick     right
+            case rightLayer of
+              Node r3 R1 b c -> do
+                markAll [r1, r2, r3]
+                return $ node1 (skewn2 L1 (ref a) (ref b)) (node3 (ref c) (ref d))
 
-      Node r1 L2 (Node r2 M a b) c -> do
-        markAll [r1, r2]
-        return $ skewn2 R1 a (skewn3 L1 b c)
+              Node r3 L1 b c -> do
+                markAll [r1, r2, r3]
+                return $ node1 (node2 (ref a) (ref b)) (skewn3 R1 (ref c) (ref d))
 
-      Node r1 L2 (Node r2 R1 a (Node r3 R1 b c)) d -> do
-        markAll [r1, r2, r3]
-        return $ node1 (skewn2 L1 a b) (node3 c d)
+              Node r3 M  b c -> do
+                markAll [r1, r2, r3]
+                return $ node1 (node2 (ref a) (ref b)) (node3 (ref c) (ref d))
 
-      Node r1 L2 (Node r2 R1 a (Node r3 L1 b c)) d -> do
-        markAll [r1, r2, r3]
-        return $ node1 (node2 a b) (skewn3 R1 c d)
+              _ ->
+                return tree
 
-      Node r1 L2 (Node r2 R1 a (Node r3 M  b c)) d -> do
-        markAll [r1, r2, r3]
-        return $ node1 (node2 a b) (node3 c d)
+          _ ->
+            return tree
 
-      Node r1 R2 a (Node r2 L1 (Node r3 R1 b c) d) -> do
-        markAll [r1, r2, r3]
-        return $ node1 (skewn2 L1 a b) (node2 c d)
+      Node r1 R2 a rightH -> do
+        right      <- lift $ (pickTree rightH :: m (Map h k v m))
+        rightLayer <- lift $ pick     right
+        case rightLayer of
+          Node r2 R1 b c -> do
+            markAll [r1, r2]
+            return $ node1 (node2 (ref a) (ref b)) (ref c)
 
-      Node r1 R2 a (Node r2 L1 (Node r3 L1 b c) d) -> do
-        markAll [r1, r2, r3]
-        return $ node1 (node2 a b) (skewn3 R1 c d)
+          Node r2 M b c -> do
+            markAll [r1, r2]
+            return $ skewn2 L1 (skewn3 R1 (ref a) (ref b)) (ref c)
 
-      Node r1 R2 a (Node r2 L1 (Node r3 M  b c) d) -> do
-        markAll [r1, r2, r3]
-        return $ node1 (node2 a b) (node3 c d)
+          Node r2 L1 leftH d -> do
+            left      <- lift $ (pickTree leftH :: m (Map h k v m))
+            leftLayer <- lift $ pick     left
+            case leftLayer of
+              Node r3 R1 b c -> do
+                markAll [r1, r2, r3]
+                return $ node1 (skewn2 L1 (ref a) (ref b)) (node2 (ref c) (ref d))
 
-      other ->
-        return other
+              Node r3 L1 b c -> do
+                markAll [r1, r2, r3]
+                return $ node1 (node2 (ref a) (ref b)) (skewn3 R1 (ref c) (ref d))
+
+              Node r3 M  b c -> do
+                markAll [r1, r2, r3]
+                return $ node1 (node2 (ref a) (ref b)) (node3 (ref c) (ref d))
+
+              _ ->
+                return tree
+
+          _ ->
+            return tree
+
+      _ ->
+        return tree
 
     replaceWith newTree
 
 -- | Was used to track proofs, now obsolete.
 --   TODO: remove.
-separately :: Zipped h k v m a -> Zipped h k v m a
+separately :: Stores h k v m => Zipped h k v m a -> Zipped h k v m a
 separately action = do
     state0 <- get
     result <- action
     put state0
     return result
 
-track :: Show a => String -> a -> Zipped h k v m ()
-track msg val = do
-    Debug.trace (msg <> " " <> show val) $ return ()
+--track :: Show a => String -> a -> Zipped h k v m ()
+--track msg val = do
+--    Debug.trace (msg <> " " <> show val) $ return ()
 
 -- | Teleport to a 'Leaf' with given key from anywhere.
 goto :: Stores h k v m => k -> Zipped h k v m ()
@@ -450,7 +517,8 @@ descentOnto :: Stores h k v m => k -> Zipped h k v m ()
 descentOnto key0 = continueDescent
   where
     continueDescent = do
-        center <- use (locus.centerKey)
+        loc <- use locus
+        center <- lift $ centerKey loc
         if key0 >= center
         then descentRight
         else descentLeft

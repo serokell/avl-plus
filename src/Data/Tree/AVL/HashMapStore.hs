@@ -7,6 +7,7 @@
 
 module Data.Tree.AVL.HashMapStore where
 
+import Control.Applicative
 import Control.Concurrent.STM
 
 import Control.Monad.Reader
@@ -25,7 +26,7 @@ type Storage h k v = HashMap h (MapLayer h k v h)
 
 type HashMapStore h k v = ReaderT (TVar (Storage h k v))
 
-instance (MonadCatch m, MonadIO m, Eq h, Show h, Typeable h, Hashable h) => KVStoreMonad (HashMapStore h k v m) h (MapLayer h k v h) where
+instance (MonadCatch m, MonadIO m, Alternative m, Eq h, Show h, Typeable h, Hashable h) => KVStoreMonad (HashMapStore h k v m) h (MapLayer h k v h) where
     retrieve k = do
         mapVar <- ask
         mapping <- liftIO $ atomically $ readTVar mapVar
@@ -39,7 +40,7 @@ instance (MonadCatch m, MonadIO m, Eq h, Show h, Typeable h, Hashable h) => KVSt
 
 instance (Show a, Typeable a) => KVStoreMonad NullStore a b where
     retrieve k = throwM (NotFound k)
-    store k v  = return ()
+    store _ _  = return ()
 
 runPureCache :: MonadIO m => Storage h k v -> HashMapStore h k v m a -> m (a, Storage h k v)
 runPureCache db action = do

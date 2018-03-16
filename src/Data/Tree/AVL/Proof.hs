@@ -1,7 +1,6 @@
 
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE LambdaCase                 #-}
@@ -12,8 +11,7 @@
 
 module Data.Tree.AVL.Proof where
 
-import Control.Lens (makePrisms, (.~), (&), (^.))
-import Control.Monad.Trans.Free
+import Control.Lens (makePrisms, (.~), (&))
 import Control.Monad.Trans.Class
 
 import Data.Binary
@@ -24,7 +22,6 @@ import Data.HashMap.Strict as HM
 import GHC.Generics
 
 import Data.Tree.AVL.Internal
-import Data.Tree.AVL.HashMapStore
 import Data.Tree.AVL.KVStoreMonad
 
 data Proof   h k v   = Proof { database :: HashMap h (MapLayer h k v h), root :: h }
@@ -42,13 +39,13 @@ checkProof :: forall h k v m . Stores h k v m => h -> Proof h k v -> m Bool
 checkProof ideal (Proof db root) = do
     seed db
     let rehashed = fullRehash root :: Map h k v m
-    hash <- rootHash rehashed :: m h
-    return $ hash == ideal
+    theHash <- rootHash rehashed :: m h
+    return $ theHash == ideal
   where
     -- | Apply 'rehash' recursively.
     fullRehash :: h -> Map h k v m
-    fullRehash root = do
-        tree <- lift $ pickTree root
+    fullRehash point = do
+        tree  <- lift $ pickTree point
         layer <- lift $ pick tree
         case layer of
           MLEmpty  {} -> rehash tree

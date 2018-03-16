@@ -6,7 +6,7 @@
 
 module Data.Tree.AVL.Prune where
 
-import Control.Lens ((.~), (&), (^.))
+import Control.Lens ((.~), (&))
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 
@@ -14,7 +14,6 @@ import Data.Set (Set)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
-import Data.Tree.AVL.KVStoreMonad
 import Data.Tree.AVL.HashMapStore
 
 import qualified Data.Set as Set
@@ -31,14 +30,14 @@ prune revs tree = do
   where
     go :: h -> HashMapStore h k v m (Map h k v m)
     go hash = do
-        tree <- lift $ pickTree hash
+        bush <- lift $ pickTree hash
         rev  <- lift $ revision tree
         if Set.notMember rev revs
         then do
-            return $ pruned tree
+            return $ pruned bush
 
         else do
-            layer <- lift $ pick tree
+            layer <- lift $ pick bush
             case layer of
               MLBranch {_mlLeft, _mlRight} -> do
                 left  <- (lift . rootHash) =<< go _mlLeft
@@ -46,3 +45,5 @@ prune revs tree = do
                 return $ hide $ layer
                   & mlLeft  .~ left
                   & mlRight .~ right
+              _other ->
+                return bush
