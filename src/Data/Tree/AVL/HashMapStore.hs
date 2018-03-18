@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 
 module Data.Tree.AVL.HashMapStore where
 
@@ -26,13 +27,18 @@ type Storage h k v = HashMap h (MapLayer h k v h)
 
 type HashMapStore h k v = ReaderT (TVar (Storage h k v))
 
-instance (MonadCatch m, MonadIO m, Alternative m, Eq h, Show h, Typeable h, Hashable h) => KVStoreMonad (HashMapStore h k v m) h (MapLayer h k v h) where
+instance (KVStoreMonad m h (MapLayer h k v h), MonadCatch m, MonadIO m, Alternative m, Eq h, Show h, Typeable h, Hashable h) => KVStoreMonad (HashMapStore h k v m) h (MapLayer h k v h) where
     retrieve k = do
         mapVar <- ask
         mapping <- liftIO $ atomically $ readTVar mapVar
         case k `HM.lookup` mapping of
-          Nothing -> throwM (NotFound k)
-          Just it -> return it
+          Nothing -> do
+            v <- lift $ retrieve k
+            store k v
+            return v
+          
+          Just it -> do
+            return it
 
     store k v = do
         mapVar <- ask

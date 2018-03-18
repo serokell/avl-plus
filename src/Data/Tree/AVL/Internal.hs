@@ -120,7 +120,7 @@ instance (Ord h, MonadIO m, MonadPlus m, Hash h k v, KVStoreMonad m h (MapLayer 
 stored :: Stores h k v m => h -> MapLayer h k v (Map h k v m) -> Map h k v m
 stored hash layer = do
     isolated <- traverse (lift . rootHash) layer
-    store hash isolated
+    lift $ store hash isolated
     FreeT $ return $ Free layer
 
 rootHash :: Stores h k v m => Map h k v m -> m h
