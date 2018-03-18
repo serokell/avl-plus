@@ -45,48 +45,61 @@ tests :: [Test]
 tests =
     [ testGroup "Order check"
         [ cachedProperty "toList . fromList == sort . unique" $ \list -> do
-            tree <- AVL.fromList list :: StorageMonad M
-            back <- AVL.toList tree
-            let uniq = uniqued list
-            return (back == uniq)
-        ]
-    , testGroup "Rebalance quality"
-        [ cachedProperty
-            "forall tree, avg. height tree <= log2 (size tree) * 1.05" $ \list -> do
-                tree <- AVL.fromList list :: StorageMonad M
-                prettyMuchBalanced 0.05 tree
-        ]
-
-    , testGroup "Pruning preserves hash"
-        [ cachedProperty "It does" $ \list -> do
-            tree  <- AVL.fromList list :: StorageMonad M
-            hash1 <- AVL.rootHash tree
-            hash2 <- AVL.rootHash (AVL.pruned tree)
-            return $ hash1 == hash2
-        ]
-
-    , testGroup "Deletion"
-        [ cachedProperty "deletion keeps balance" $ \list -> do
-            tree  <- AVL.fromList list
-            trees <- scanM (AVL.deleteWithNoProof . fst) tree list
-            yes   <- allM (prettyMuchBalanced 0.06) trees
-            
-            when (not yes) $ do
-                lift $ print list
-            
-            return yes
-        
-        , cachedProperty "deletion is sane" $ \list -> do
-            if length list == 0
+            if null list
             then do
                 return True
-            
             else do
-                let (k, _) : _  = list
-                tree   <- AVL.fromList list :: StorageMonad M
-                tree1  <- AVL.deleteWithNoProof k tree
-                list'  <- AVL.toList tree1
-                let diff   = uniqued list \\ list'
-                return $ length diff == 1 && fst (head diff) == k
+                let (k, v) : xs = list
+                tree <- AVL.insertWithNoProof k v AVL.empty :: StorageMonad M
+                back <- AVL.toList tree
+                let uniq = uniqued list
+                return (back == uniq)
         ]
     ]
+    --[ testGroup "Order check"
+    --    [ cachedProperty "toList . fromList == sort . unique" $ \list -> do
+    --        tree <- AVL.fromList list :: StorageMonad M
+    --        back <- AVL.toList tree
+    --        let uniq = uniqued list
+    --        return (back == uniq)
+    --    ]
+    --, testGroup "Rebalance quality"
+    --    [ cachedProperty
+    --        "forall tree, avg. height tree <= log2 (size tree) * 1.05" $ \list -> do
+    --            tree <- AVL.fromList list :: StorageMonad M
+    --            prettyMuchBalanced 0.05 tree
+    --    ]
+
+    --, testGroup "Pruning preserves hash"
+    --    [ cachedProperty "It does" $ \list -> do
+    --        tree  <- AVL.fromList list :: StorageMonad M
+    --        hash1 <- AVL.rootHash tree
+    --        hash2 <- AVL.rootHash (AVL.pruned tree)
+    --        return $ hash1 == hash2
+    --    ]
+
+    --, testGroup "Deletion"
+    --    [ cachedProperty "deletion keeps balance" $ \list -> do
+    --        tree  <- AVL.fromList list
+    --        trees <- scanM (AVL.deleteWithNoProof . fst) tree list
+    --        yes   <- allM (prettyMuchBalanced 0.06) trees
+            
+    --        when (not yes) $ do
+    --            lift $ print list
+            
+    --        return yes
+        
+    --    , cachedProperty "deletion is sane" $ \list -> do
+    --        if length list == 0
+    --        then do
+    --            return True
+            
+    --        else do
+    --            let (k, _) : _  = list
+    --            tree   <- AVL.fromList list :: StorageMonad M
+    --            tree1  <- AVL.deleteWithNoProof k tree
+    --            list'  <- AVL.toList tree1
+    --            let diff   = uniqued list \\ list'
+    --            return $ length diff == 1 && fst (head diff) == k
+    --    ]
+    --]

@@ -19,6 +19,8 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
+import qualified Debug.Trace as Debug
+
 -- | Endpoint that allows to merge proofs for some sequental operations.
 insert' :: Stores h k v m => k -> v -> Map h k v m -> m (RevSet, Map h k v m)
 insert' k v tree = do
@@ -45,7 +47,9 @@ insertWithNoProof k v tree = do
 -- | Insertion algorithm.
 insertZ :: forall h k v m . Stores h k v m => k -> v -> Zipped h k v m ()
 insertZ k v = do
+    () <- Debug.trace "goto k" $ return ()
     goto k             -- teleport to a key (or near it if absent)
+    () <- Debug.trace "use locus" $ return ()
     tree <- use locus
     layer <- lift $ pick tree
     case layer of

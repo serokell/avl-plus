@@ -17,12 +17,11 @@
 
 module Data.Tree.AVL.Zipper where
 
-import Control.Applicative ((<|>))
 import Control.Exception(Exception)
 import Control.Lens (Getter, Lens', makeLenses, use, (%=), (.=), (^.), (.~))
 
 import Control.Monad (unless, when)
-import Control.Monad.Catch (throwM)
+import Control.Monad.Catch (throwM, catch)
 import Control.Monad.State.Strict (StateT, evalStateT, get, put, modify, lift)
 
 import Data.Monoid ((<>))
@@ -34,6 +33,8 @@ import Data.Typeable (Typeable)
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
+
+import qualified Debug.Trace as Debug
 
 import qualified Data.Set as Set
 
@@ -250,7 +251,8 @@ exit = uplift
     uplift = do
         _ <- up
         uplift
-      <|> use locus
+      `catch` \AlreadyOnTop ->
+        use locus
 
 -- | Open the tree.
 -- | Acts like "Tree.rootIterator()" in Java.
@@ -457,7 +459,9 @@ separately action = do
 -- | Teleport to a 'Leaf' with given key from anywhere.
 goto :: Stores h k v m => k -> Zipped h k v m ()
 goto key0 = do
+    () <- Debug.trace "raiseUntilHaveInRange key0" $ return ()
     raiseUntilHaveInRange key0
+    () <- Debug.trace "descentOnto key0" $ return ()
     descentOnto key0
 
 raiseUntilHaveInRange :: Stores h k v m => k -> Zipped h k v m ()
@@ -472,14 +476,18 @@ raiseUntilHaveInRange key0 = goUp
     k `isInside` (l, h) = k >= l && k <= h
 
 -- | Teleport to a 'Leaf' with given key from above.
-descentOnto :: Stores h k v m => k -> Zipped h k v m ()
+descentOnto :: forall h k v m . Stores h k v m => k -> Zipped h k v m ()
 descentOnto key0 = continueDescent
   where
     continueDescent = do
         loc <- use locus
         center <- lift $ centerKey loc
+        isolated <- lift $ isolate loc
+        () <- Debug.traceShow ("center <-", center, key0, isolated) $ return ()
         if key0 >= center
         then descentRight
         else descentLeft
         continueDescent
-      <|> return ()
+      `catch` \(WentDownOnNonBranch (_ :: h)) -> do
+        () <- Debug.traceShow ("catch WentDownOnNonBranch") $ return ()
+        return ()

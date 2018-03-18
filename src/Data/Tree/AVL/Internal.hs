@@ -21,10 +21,10 @@
 
 module Data.Tree.AVL.Internal where
 
-import Control.Applicative ((<|>))
 import Control.Lens (makeLenses, makePrisms, (&), (.~), (^.), (^?))
 
-import Control.Monad (void, MonadPlus)
+import Control.Monad (void)
+import Control.Monad.Catch (catch)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Free
@@ -114,8 +114,8 @@ makeLeaf   r  hash key  val  n p   = hash `stored` MLLeaf   r  hash key  val  n 
 makeEmpty  r  hash                 = hash `stored` MLEmpty  r  hash
 makePruned r  hash t mKey cKey     = hash `stored` MLPruned r  hash t mKey cKey
 
-class    (Ord h, MonadIO m, MonadPlus m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
-instance (Ord h, MonadIO m, MonadPlus m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
+class    (Ord h, Typeable k, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
+instance (Ord h, Typeable k, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
 
 stored :: Stores h k v m => h -> MapLayer h k v (Map h k v m) -> Map h k v m
 stored hash layer = do
@@ -176,7 +176,8 @@ save tree = do
       Free layer -> do    
         let hash = layer^.mlHash
         
-        void (retrieve hash :: m (MapLayer h k v h)) <|> do
+        void (retrieve hash :: m (MapLayer h k v h))
+          `catch` \(NotFound (_ :: k)) -> do
             isolated <- traverse rootHash layer
             store hash isolated
             for_ layer save
@@ -231,6 +232,11 @@ saveOne tree = do
 
 --materializeAnd :: Stores h k v m => (MapLayer m h k v -> a) -> m a
 --materializeAnd f tree = f <$> materialize tree
+
+isolate :: Stores h k v m => Map h k v m -> m (MapLayer h k v h)
+isolate tree = do
+    layer <- pick tree
+    traverse rootHash layer
 
 minKey :: (Bounded k, Stores h k v m) => Map h k v m -> m k
 minKey = pickAnd $ \layer ->

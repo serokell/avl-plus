@@ -9,7 +9,6 @@ module Data.Tree.AVL.KVStoreMonad where
 
 --import Universum
 
-import Control.Applicative
 import Control.Monad.Catch
 --import Control.Monad.IO.Class
 
@@ -20,7 +19,7 @@ import Data.HashMap.Strict (toList, HashMap)
 
 --import System.IO.Unsafe
 
-class (Alternative m, MonadCatch m) => KVStoreMonad m k v where
+class (MonadCatch m) => KVStoreMonad m k v where
     retrieve :: k -> m v
     store    :: k -> v -> m ()
 
