@@ -90,7 +90,7 @@ data MapLayer h k v self
     , _mlMinKey    :: k
     , _mlCenterKey :: k
     }
-    deriving (Eq, Functor, Foldable, Traversable, Generic, Binary)
+    deriving (Eq, Show, Functor, Foldable, Traversable, Generic, Binary)
 
 type Map h k v m = FreeT (MapLayer h k v) m h
 

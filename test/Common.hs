@@ -7,6 +7,8 @@
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE DeriveGeneric  #-}
 
 module Common (module Common, module Control.Lens, module T) where
 
@@ -19,11 +21,15 @@ import Data.Function                             (on)
 import Data.List                                 (sortBy, nubBy)
 import Data.Monoid                               ((<>))
 import Data.Ord                                  (comparing)
+import Data.Hashable                             (Hashable)
 
-import Test.Framework                       as T (Test, defaultMain, testGroup)
+import GHC.Generics                              (Generic)
+
+import Test.Framework                       as T (Test, defaultMain, testGroup, TestName)
 import Test.Framework.Providers.QuickCheck2 as T (testProperty)
 import Test.QuickCheck                      as T ( Arbitrary (..), Gen, Property
-                                                 , (===), (==>), elements )
+                                                 , (===), (==>), elements
+                                                 , ioProperty, Testable, forAll )
 import Test.QuickCheck.Instances            as T ()
 
 import qualified Data.Tree.AVL as AVL
@@ -39,12 +45,25 @@ f .=. g = \a ->
 infixr 5 .=.
 
 data InitialHash
-  = InitialHash { getInitialHash :: AVL.MapLayer InitialHash StringName Int InitialHash }
-  | Default
+    = InitialHash { getInitialHash :: Layer }
+    | Default
+    deriving (Ord, Generic)
+
+type Layer = AVL.MapLayer InitialHash StringName Int InitialHash
+
+instance Hashable InitialHash
+
+deriving instance Ord Layer
+instance Hashable Layer
+
+deriving instance Generic  StringName
+instance Hashable StringName
+
+instance Hashable AVL.Tilt
 
 instance Show InitialHash where
     show = \case
-        InitialHash m -> "#(" ++ show m ++ ")"
+        InitialHash m -> "#(" ++ show (m & AVL.mlHash .~ Default) ++ ")"
         Default       -> "#DEFAULT"
 
 instance Default InitialHash where
@@ -90,19 +109,37 @@ instance Bounded StringName where
 --       =
 --         IntHash $ 37 * length k + 53 * v + 67 * length p + 91 * length n
 
-instance
-    ( AVL.Hash h k v
-    , Arbitrary k
-    , Arbitrary v
-    , Show h
-    )
-      =>
-    Arbitrary (AVL.Map h k v)
-  where
-    arbitrary = AVL.fromList <$> arbitrary
+--instance
+--    ( AVL.Hash h k v
+--    , Arbitrary k
+--    , Arbitrary v
+--    , Show h
+--    )
+--      =>
+--    Arbitrary (AVL.Map h k v)
+--  where
+--    arbitrary = AVL.fromList <$> arbitrary
 
 -- Requirement of QuickCheck
 instance Show (a -> b) where
     show _ = "<function>"
 
-type M = AVL.Map InitialHash StringName Int
+type StorageMonad = AVL.HashMapStore InitialHash StringName Int AVL.NullStore
+
+type M = AVL.Map InitialHash StringName Int StorageMonad
+
+cachedProperty :: (Testable a, Arbitrary b, Show b) => TestName -> (b -> StorageMonad a) -> Test
+cachedProperty msg prop =
+    testProperty msg $
+        forAll arbitrary $ \b -> ioProperty $ do
+            (a, _st) <- AVL.runEmptyCache $ do
+                prop b
+
+            return a
+
+scanM :: Monad m => (a -> b -> m b) -> b -> [a] -> m [b]
+scanM _      _     []       = return []
+scanM action accum (x : xs) = do
+    (accum :) <$> do
+        accum' <- action x accum
+        scanM action accum' xs

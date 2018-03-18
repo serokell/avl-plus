@@ -58,9 +58,11 @@ test-suite avl-tree-sanity
   build-depends:       base >= 0.4 && < 5
                      , AVL
                      , data-default
+                     , hashable
                      , lens
                      , test-framework
                      , test-framework-quickcheck2
+                     , universum
                      , QuickCheck
                      , quickcheck-instances
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
