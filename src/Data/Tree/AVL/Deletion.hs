@@ -4,42 +4,44 @@
 
 module Data.Tree.AVL.Deletion (delete, deleteWithNoProof, delete') where
 
-import Control.Lens (use, (.=), (^.))
+import Control.Lens (use, (%=))
 import Control.Monad (unless)
+import Control.Monad.Trans.Class (lift)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 -- | Endpoint that allows to merge proofs for some sequental operations.
-delete' :: Hash h k v => k -> Map h k v -> (RevSet, Map h k v)
-delete' k tree = (trails, res)
-  where
-    (_yes, res, trails) = runZipped' (deleteZ k) DeleteMode tree
+delete' :: Stores h k v m => k -> Map h k v m -> m (RevSet, Map h k v m)
+delete' k tree = do
+    (_yes, res, trails) <- runZipped' (deleteZ k) DeleteMode tree
+    return (trails, res)
 
 -- | Endpoint that generates proof.
-delete :: Hash h k v => k -> Map h k v -> (Proof h k v, Map h k v)
-delete k tree = (proof, res)
-  where
-    (_yes, res, proof) = runZipped (deleteZ k) DeleteMode tree
+delete :: Stores h k v m => k -> Map h k v m -> m (Proof h k v, Map h k v m)
+delete k tree = do
+    (_yes, res, proof) <- runZipped (deleteZ k) DeleteMode tree
+    return (proof, res)
 
 -- | Endpoint that generates no proof.
 deleteWithNoProof
-    :: Hash h k v
+    :: Stores h k v m
     => k
-    -> Map h k v
-    -> Map h k v
-deleteWithNoProof k tree = res
-  where
-    (_yes, res, _proof) = runZipped (deleteZ k) DeleteMode tree
+    -> Map h k v m
+    -> m (Map h k v m)
+deleteWithNoProof k tree = do
+    (_yes, res, _proof) <- runZipped (deleteZ k) DeleteMode tree
+    return res
 
 -- | Deletion algorithm.
-deleteZ :: Hash h k v => k -> Zipped h k v Bool
+deleteZ :: Stores h k v m => k -> Zipped h k v m Bool
 deleteZ k = do
-    tree <- use locus
-    if  -- corner cases for degenerate trees
-      | Just term <- tree^.terminal -> do
-        if term^.key == k
+    tree  <- use locus
+    layer <- lift $ pick tree
+    case layer of
+      MLLeaf { _mlKey } -> do
+        if _mlKey == k
         then do
             replaceWith empty
             return True
@@ -48,19 +50,16 @@ deleteZ k = do
             mark
             return False
 
-      | Just Vacuous <- tree^.vacuous -> do
+      MLEmpty {} -> do
         mark
         return False
 
-      | otherwise -> do
+      _ -> do
         goto k
-        tree0 <- use locus
-        if
-          | Just term <- tree0^.terminal -> do
-            let key0 = term^.key
-                prev = term^.prevKey
-                next = term^.nextKey
-
+        tree0  <- use locus
+        layer0 <- lift $ pick tree0
+        case layer0 of
+          MLLeaf { _mlKey = key0, _mlPrevKey = prev, _mlNextKey = next } -> do
             if key0 /= k
             then do
                 return False
@@ -73,29 +72,30 @@ deleteZ k = do
                   L -> descentRight >> mark >> up
                   R ->  descentLeft >> mark >> up
 
-                here <- use locus
+                here      <- use locus
+                hereLayer <- lift $ pick here
                 let
-                  newTree
-                    | Just fork <- here^.branching =
+                  newTree = case hereLayer of
+                    MLBranch { _mlLeft = left, _mlRight = right } ->
                       case side of
-                        L -> fork^.right
-                        R -> fork^.left
+                        L -> right
+                        R -> left
 
-                    | otherwise =
+                    _ ->
                         error "delete: successful `up` ended in non-Branch"
 
                 replaceWith newTree  -- replace with another child
 
                 unless (prev == minBound) $ do
                     goto prev
-                    change (locus.setNextKey .= next)
+                    change (locus %= setNextKey next)
 
                 unless (next == maxBound) $ do
                     goto next
-                    change (locus.setPrevKey .= prev)
+                    change (locus %= setPrevKey prev)
 
                 return True
 
-          | otherwise -> do
-            error $ "insert: `goto k` ended in non-terminal node - " ++ show tree0
+          _ -> do
+            error $ "insert: `goto " ++ show k ++ "` ended in non-terminal node"
 

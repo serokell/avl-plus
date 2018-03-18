@@ -16,9 +16,7 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules: Data.Tree.AVL, Data.Tree.Interface
-  -- , AVLPlusTree
-  -- , Prover, Interface
+  exposed-modules: Data.Tree.AVL
   other-modules:
                  Data.Tree.AVL.Internal
                , Data.Tree.AVL.Deletion
@@ -27,6 +25,8 @@ library
                , Data.Tree.AVL.Proof
                , Data.Tree.AVL.Prune
                , Data.Tree.AVL.Zipper
+               , Data.Tree.AVL.HashMapStore
+               , Data.Tree.AVL.KVStoreMonad
   -- other-extensions:
   build-depends:       base >=4.9 && <4.10
                      , binary
