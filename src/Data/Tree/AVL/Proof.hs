@@ -11,7 +11,7 @@
 
 module Data.Tree.AVL.Proof where
 
-import Control.Lens (makePrisms, (.~), (&))
+import Control.Lens (makePrisms, (%~), (&))
 import Control.Monad.Trans.Class
 
 import Data.Binary
@@ -38,23 +38,19 @@ makePrisms ''Proof
 checkProof :: forall h k v m . Stores h k v m => h -> Proof h k v -> m Bool
 checkProof ideal (Proof db root) = do
     seed db
-    let rehashed = fullRehash root :: Map h k v m
-    theHash <- rootHash rehashed :: m h
+    theHash <- rootHash $ fullRehash (ref root :: Map h k v m)
     return $ theHash == ideal
   where
     -- | Apply 'rehash' recursively.
-    fullRehash :: h -> Map h k v m
-    fullRehash point = do
-        tree  <- lift $ pickTree point
+    fullRehash :: Map h k v m -> Map h k v m
+    fullRehash tree = do
         layer <- lift $ pick tree
         case layer of
           MLEmpty  {} -> rehash tree
           MLLeaf   {} -> rehash tree
-          MLBranch {_mlLeft, _mlRight} -> do
-            newLeft  <- lift $ rootHash (fullRehash _mlLeft)
-            newRight <- lift $ rootHash (fullRehash _mlRight)
+          MLBranch {_mlLeft, _mlRight} ->
             hide $ layer
-              & mlLeft  .~ newLeft
-              & mlRight .~ newRight
+              & mlLeft  %~ fullRehash
+              & mlRight %~ fullRehash
           _other    -> tree
 

@@ -183,8 +183,8 @@ up = do
                     locus %= rehash
                     now   <- use locus
                     rev'  <- newRevision
-                    tilt' <- correctTilt (ref left) now tilt0 L
-                    let b = branch rev' tilt' now (ref right)
+                    tilt' <- correctTilt left now tilt0 L
+                    let b = branch rev' tilt' now right
                     return b
 
             context  .= rest    -- pop parent layer from context stack
@@ -214,8 +214,8 @@ up = do
                     locus %= rehash
                     now   <- use locus
                     rev'  <- newRevision
-                    tilt' <- correctTilt (ref right) now tilt0 R
-                    let b = branch rev' tilt' (ref left) now
+                    tilt' <- correctTilt right now tilt0 R
+                    let b = branch rev' tilt' left now
                     return b
 
             context  .= rest
@@ -278,8 +278,7 @@ descentLeft = do
     mark
     layer <- lift $ pick tree
     case layer of
-      MLBranch { _mlLeft, _mlRight, _mlCenterKey } -> do
-          left     <- lift $ pickTree _mlLeft
+      MLBranch { _mlLeft = left, _mlCenterKey } -> do
           rev      <- lift $ revision left
           context  %= (WentLeftFrom tree range rev :)
           locus    .= left
@@ -296,8 +295,7 @@ descentRight = do
     mark
     layer <- lift $ pick tree
     case layer of
-      MLBranch { _mlLeft, _mlRight, _mlCenterKey } -> do
-          right    <- lift $ pickTree _mlRight
+      MLBranch { _mlRight = right, _mlCenterKey } -> do
           rev      <- lift $ revision right
           context  %= (WentRightFrom tree range rev :)
           locus    .= right
@@ -407,78 +405,39 @@ rebalance = do
     let skewn2 = branch rev2
     let skewn3 = branch rev3
 
-    layer <- lift $ pick tree :: Zipped h k v m (MapLayer h k v h)
+    layer <- lift $ pick tree :: Zipped h k v m (MapLayer h k v (Map h k v m))
     newTree <- case layer of
-      Node r1 L2 leftH d -> do
-        left      <- lift $ (pickTree leftH :: m (Map h k v m))
-        leftLayer <- lift $ pick     left
+      Node r1 L2 left d -> do
+        leftLayer <- lift $ pick (left :: Map h k v m)
         case leftLayer of
-          Node r2 L1 a b -> do
-            markAll [r1, r2]
-            return $ node1 (ref a) (node2 (ref b) (ref d))
-
-          Node r2 M a b -> do
-            markAll [r1, r2]
-            return $ skewn2 R1 (ref a) (skewn3 L1 (ref b) (ref d))
-
-          Node r2 R1 a rightH -> do
-            right      <- lift $ (pickTree rightH :: m (Map h k v m))
-            rightLayer <- lift $ pick     right
+          Node r2 L1 a b -> do markAll [r1, r2]; return $ node1     a (node2     b d)
+          Node r2 M  a b -> do markAll [r1, r2]; return $ skewn2 R1 a (skewn3 L1 b d)
+          Node r2 R1 a right -> do
+            rightLayer <- lift $ pick (right :: Map h k v m)
             case rightLayer of
-              Node r3 R1 b c -> do
-                markAll [r1, r2, r3]
-                return $ node1 (skewn2 L1 (ref a) (ref b)) (node3 (ref c) (ref d))
+              Node r3 R1 b c -> do markAll [r1, r2, r3]; return $ node1 (skewn2 L1 a b) (node3     c d)
+              Node r3 L1 b c -> do markAll [r1, r2, r3]; return $ node1 (node2     a b) (skewn3 R1 c d)
+              Node r3 M  b c -> do markAll [r1, r2, r3]; return $ node1 (node2     a b) (node3     c d)
+              _              -> return tree
 
-              Node r3 L1 b c -> do
-                markAll [r1, r2, r3]
-                return $ node1 (node2 (ref a) (ref b)) (skewn3 R1 (ref c) (ref d))
+          _ -> return tree
 
-              Node r3 M  b c -> do
-                markAll [r1, r2, r3]
-                return $ node1 (node2 (ref a) (ref b)) (node3 (ref c) (ref d))
-
-              _ ->
-                return tree
-
-          _ ->
-            return tree
-
-      Node r1 R2 a rightH -> do
-        right      <- lift $ (pickTree rightH :: m (Map h k v m))
-        rightLayer <- lift $ pick     right
+      Node r1 R2 a right -> do
+        rightLayer <- lift $ pick (right :: Map h k v m)
         case rightLayer of
-          Node r2 R1 b c -> do
-            markAll [r1, r2]
-            return $ node1 (node2 (ref a) (ref b)) (ref c)
-
-          Node r2 M b c -> do
-            markAll [r1, r2]
-            return $ skewn2 L1 (skewn3 R1 (ref a) (ref b)) (ref c)
-
-          Node r2 L1 leftH d -> do
-            left      <- lift $ (pickTree leftH :: m (Map h k v m))
-            leftLayer <- lift $ pick     left
+          Node r2 R1 b c -> do markAll [r1, r2]; return $ node1     (node2     a b) c
+          Node r2 M  b c -> do markAll [r1, r2]; return $ skewn2 L1 (skewn3 R1 a b) c
+          Node r2 L1 left d -> do
+            leftLayer <- lift $ pick (left :: Map h k v m)
             case leftLayer of
-              Node r3 R1 b c -> do
-                markAll [r1, r2, r3]
-                return $ node1 (skewn2 L1 (ref a) (ref b)) (node2 (ref c) (ref d))
+              Node r3 R1 b c -> do markAll [r1, r2, r3]; return $ node1 (skewn2 L1 a b) (node2     c d)
+              Node r3 L1 b c -> do markAll [r1, r2, r3]; return $ node1 (node2     a b) (skewn3 R1 c d)
+              Node r3 M  b c -> do markAll [r1, r2, r3]; return $ node1 (node2     a b) (node3     c d)
+              _              -> return tree
 
-              Node r3 L1 b c -> do
-                markAll [r1, r2, r3]
-                return $ node1 (node2 (ref a) (ref b)) (skewn3 R1 (ref c) (ref d))
+          _ -> return tree
 
-              Node r3 M  b c -> do
-                markAll [r1, r2, r3]
-                return $ node1 (node2 (ref a) (ref b)) (node3 (ref c) (ref d))
-
-              _ ->
-                return tree
-
-          _ ->
-            return tree
-
-      _ ->
-        return tree
+      _ -> return tree
 
     replaceWith newTree
 

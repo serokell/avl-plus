@@ -23,15 +23,14 @@ prune :: forall h k v m . (Ord h, MonadIO m, Stores h k v m) => Set Revision -> 
 prune revs tree = do
     start <- rootHash tree
     ((), db) <- runEmptyCache $ do
-        whole <- go start
+        whole <- go tree
         lift $ save whole
         return ()
     return $ Proof db start
   where
-    go :: h -> HashMapStore h k v m (Map h k v m)
-    go hash = do
-        bush <- lift $ pickTree hash
-        rev  <- lift $ revision tree
+    go :: Map h k v m -> HashMapStore h k v m (Map h k v m)
+    go bush = do
+        rev  <- lift $ revision bush
         if Set.notMember rev revs
         then do
             return $ pruned bush
@@ -40,8 +39,8 @@ prune revs tree = do
             layer <- lift $ pick bush
             case layer of
               MLBranch {_mlLeft, _mlRight} -> do
-                left  <- (lift . rootHash) =<< go _mlLeft
-                right <- (lift . rootHash) =<< go _mlRight
+                left  <- go _mlLeft
+                right <- go _mlRight
                 return $ hide $ layer
                   & mlLeft  .~ left
                   & mlRight .~ right
