@@ -12,8 +12,9 @@ module Data.Tree.AVL.Insertion
   ) where
 
 import Control.Lens (use, (%=))
-import Control.Monad (unless, foldM)
+import Control.Monad (unless, foldM, void)
 import Control.Monad.Trans.Class (lift)
+import Control.Monad.IO.Class (liftIO)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
@@ -47,15 +48,17 @@ insertWithNoProof k v tree = do
 -- | Insertion algorithm.
 insertZ :: forall h k v m . Stores h k v m => k -> v -> Zipped h k v m ()
 insertZ k v = do
-    () <- Debug.trace "goto k" $ return ()
+    dump "insert"
     goto k             -- teleport to a key (or near it if absent)
-    () <- Debug.trace "use locus" $ return ()
     tree <- use locus
     layer <- lift $ pick tree
     case layer of
       MLEmpty {} -> do
         leaf0 <- createLeaf k v minBound maxBound
         replaceWith leaf0
+        tree1 <- use locus
+        isolated1 <- lift $ isolate tree1
+        return ()
 
       MLLeaf {_mlKey, _mlPrevKey, _mlNextKey} -> do
         let key0 = _mlKey
@@ -69,8 +72,9 @@ insertZ k v = do
             if k `isInside` (prev, key0)
             then do
                 leaf0 <- createLeaf k v prev key0
-
+                
                 splitInsertBefore leaf0
+                
                 unless (prev == minBound) $ do
                     goto prev
                     change $ do
@@ -80,6 +84,7 @@ insertZ k v = do
                 leaf0 <- createLeaf k v key0 next
 
                 splitInsertAfter leaf0
+                
                 unless (next == maxBound) $ do
                     goto next
                     change $ do
@@ -97,6 +102,7 @@ insertZ k v = do
         descentRight
         change $ do
             locus %= setPrevKey k
+        void up
 
     splitInsertAfter :: Map h k v m -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
@@ -106,6 +112,7 @@ insertZ k v = do
         descentLeft
         change $ do
             locus %= setNextKey k
+        void up
 
     createLeaf :: k -> v -> k -> k -> Zipped h k v m (Map h k v m)
     createLeaf k0 v0 prev next = do

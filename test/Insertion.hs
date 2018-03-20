@@ -45,24 +45,13 @@ tests :: [Test]
 tests =
     [ testGroup "Order check"
         [ cachedProperty "toList . fromList == sort . unique" $ \list -> do
-            if null list
-            then do
-                return True
-            else do
-                let (k, v) : xs = list
-                tree <- AVL.insertWithNoProof k v AVL.empty :: StorageMonad M
-                back <- AVL.toList tree
-                let uniq = uniqued list
-                return (back == uniq)
+            tree <- AVL.fromList list :: StorageMonad M
+            back <- AVL.toList tree
+            let uniq = uniqued list
+            lift $ print (back, uniq)
+            return (back == uniq)
         ]
     ]
-    --[ testGroup "Order check"
-    --    [ cachedProperty "toList . fromList == sort . unique" $ \list -> do
-    --        tree <- AVL.fromList list :: StorageMonad M
-    --        back <- AVL.toList tree
-    --        let uniq = uniqued list
-    --        return (back == uniq)
-    --    ]
     --, testGroup "Rebalance quality"
     --    [ cachedProperty
     --        "forall tree, avg. height tree <= log2 (size tree) * 1.05" $ \list -> do

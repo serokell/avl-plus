@@ -8,13 +8,16 @@
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE DeriveGeneric  #-}
 
-module REPL where
+--module REPL where
 
 import Control.Lens hiding (locus, elements, Empty)
 
 import           Data.Bits (xor)
 import           Data.Default
+import           Data.Hashable
 import           Data.Foldable
 import           Data.Function (on)
 import           Data.List (sortBy, nubBy)
@@ -22,29 +25,34 @@ import           Data.Monoid
 import           Data.Ord (comparing)
 import           Data.String (IsString(..))
 
+import           GHC.Generics (Generic)
+
 import qualified Data.Tree.AVL            as AVL
 
--- | Extensional equality combinator.
--- (.=.) :: (Eq b, Show b, Arbitrary a) => (a -> b) -> (a -> b) -> a -> Property
--- f .=. g = \a ->
---   let fa = f a
---       ga = g a
-
---   in  fa === ga
-
--- infixr 5 .=.
-
 data InitialHash
-  = InitialHash { getInitialHash :: AVL.MapLayer InitialHash StringName Int InitialHash }
-  | Default
+    = InitialHash { getInitialHash :: Layer }
+    | Default
+    deriving (Ord, Generic)
+
+type Layer = AVL.MapLayer InitialHash StringName Int InitialHash
+
+instance Hashable InitialHash
+
+deriving instance Ord Layer
+instance Hashable Layer
+
+deriving instance Generic  StringName
+instance Hashable StringName
+
+instance Hashable AVL.Tilt
 
 instance Show InitialHash where
     show = \case
-        InitialHash m -> "#(" ++ show m ++ ")"
+        InitialHash m -> "#(" ++ show (m & AVL.mlHash .~ Default) ++ ")"
         Default       -> "#DEFAULT"
 
 instance Default InitialHash where
-    def = Default
+  def = Default
 
 instance Eq InitialHash where
     x == y = show x == show y
@@ -63,17 +71,12 @@ newtype StringName = StringName { getStringName :: String }
 instance Show StringName where
     show = getStringName
 
-instance IsString StringName where
-    fromString = StringName
-
--- instance Arbitrary StringName where
---     arbitrary = do
---         a <- elements ['B'.. 'Y']
---         return (StringName [a])
-
 instance Bounded StringName where
     minBound = StringName "A"
     maxBound = StringName "Z"
+
+instance IsString StringName where
+    fromString = StringName
 
 -- instance AVLPlus.Combined IntHash where
 --     emptyOne = IntHash 0
@@ -89,27 +92,28 @@ instance Bounded StringName where
 --       =
 --         IntHash $ 37 * length k + 53 * v + 67 * length p + 91 * length n
 
--- instance
---     ( AVL.Hash h k v
---     , Arbitrary k
---     , Arbitrary v
---     , Show h
---     )
---       =>
---     Arbitrary (AVL.Map h k v)
---   where
---     arbitrary = AVL.fromList <$> arbitrary
+--instance
+--    ( AVL.Hash h k v
+--    , Arbitrary k
+--    , Arbitrary v
+--    , Show h
+--    )
+--      =>
+--    Arbitrary (AVL.Map h k v)
+--  where
+--    arbitrary = AVL.fromList <$> arbitrary
 
 -- Requirement of QuickCheck
 instance Show (a -> b) where
     show _ = "<function>"
 
-type M = AVL.Map InitialHash StringName Int
+type StorageMonad = AVL.HashMapStore InitialHash StringName Int AVL.NullStore
 
-test :: M
-test = AVL.fromList [("X",0),("S",0),("P",0),("V",0),("I",0)]
+type M = AVL.Map InitialHash StringName Int StorageMonad
 
-((_, AVL.Proof p), r0) = AVL.delete (StringName "X") test
+test :: StorageMonad M
+test = AVL.fromList [("Y",0),("X",0),("W",0),("V",0),("U",0),("S",0),("T",0),("P",0),("Q",0),("R",0),("X",0),("B",0),("D",0),("G",0),("I",0)]
 
-
-((_, _), r1) = AVL.delete (StringName "X") p
+main = do
+    _ <- AVL.runEmptyCache test
+    return ()

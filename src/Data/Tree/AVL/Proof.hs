@@ -11,7 +11,7 @@
 
 module Data.Tree.AVL.Proof where
 
-import Control.Lens (makePrisms, (%~), (&))
+import Control.Lens (makePrisms, (.~), (&))
 import Control.Monad.Trans.Class
 
 import Data.Binary
@@ -24,10 +24,10 @@ import GHC.Generics
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.KVStoreMonad
 
-data Proof   h k v   = Proof { database :: HashMap h (MapLayer h k v h), root :: h }
+data Proof h k v = Proof { database :: HashMap h (MapLayer h k v h), root :: h }
     deriving (Generic, Binary)
 
-instance  (Hashable k, Eq k, Binary k, Binary v) => Binary (HM.HashMap k v) where
+instance (Hashable k, Eq k, Binary k, Binary v) => Binary (HM.HashMap k v) where
   get = HM.fromList <$> get
   put = put . HM.toList
 
@@ -38,19 +38,21 @@ makePrisms ''Proof
 checkProof :: forall h k v m . Stores h k v m => h -> Proof h k v -> m Bool
 checkProof ideal (Proof db root) = do
     seed db
-    theHash <- rootHash $ fullRehash (ref root :: Map h k v m)
+    renewed <- fullRehash (ref root :: Map h k v)
+    theHash <- rootHash renewed
     return $ theHash == ideal
   where
     -- | Apply 'rehash' recursively.
-    fullRehash :: Map h k v m -> Map h k v m
+    fullRehash :: Map h k v -> m (Map h k v)
     fullRehash tree = do
-        layer <- lift $ pick tree
-        case layer of
-          MLEmpty  {} -> rehash tree
-          MLLeaf   {} -> rehash tree
-          MLBranch {_mlLeft, _mlRight} ->
-            hide $ layer
-              & mlLeft  %~ fullRehash
-              & mlRight %~ fullRehash
-          _other    -> tree
+        open tree >>= \case
+          layer @ MLBranch {_mlLeft, _mlRight} -> do
+            left  <- fullRehash _mlLeft
+            right <- fullRehash _mlRight
+            return $ close $ layer
+              & mlLeft  .~ left
+              & mlRight .~ right
+          
+          _other -> do
+            rehash tree
 
