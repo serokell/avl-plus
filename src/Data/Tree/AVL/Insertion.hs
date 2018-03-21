@@ -23,13 +23,13 @@ import Data.Tree.AVL.Zipper
 import qualified Debug.Trace as Debug
 
 -- | Endpoint that allows to merge proofs for some sequental operations.
-insert' :: Stores h k v m => k -> v -> Map h k v m -> m (RevSet, Map h k v m)
+insert' :: Stores h k v m => k -> v -> Map h k v -> m (RevSet, Map h k v)
 insert' k v tree = do
     ((), res, trails) <- runZipped' (insertZ k v) UpdateMode tree
     return (trails, res)
 
 -- | Endpoint that generates proof.
-insert :: Stores h k v m => k -> v -> Map h k v m -> m (Proof h k v, Map h k v m)
+insert :: Stores h k v m => k -> v -> Map h k v -> m (Proof h k v, Map h k v)
 insert k v tree = do
     ((), res, proof) <- runZipped (insertZ k v) UpdateMode tree
     return (proof, res)
@@ -39,8 +39,8 @@ insertWithNoProof
     :: Stores h k v m
     => k
     -> v
-    -> Map h k v m
-    -> m (Map h k v m)
+    -> Map h k v
+    -> m (Map h k v)
 insertWithNoProof k v tree = do
     ((), res, _) <- runZipped (insertZ k v) UpdateMode tree
     return res
@@ -94,7 +94,7 @@ insertZ k v = do
 
     return ()
   where
-    splitInsertBefore :: Map h k v m -> Zipped h k v m ()
+    splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
         tree <- use locus
         rev  <- newRevision
@@ -104,7 +104,7 @@ insertZ k v = do
             locus %= setPrevKey k
         void up
 
-    splitInsertAfter :: Map h k v m -> Zipped h k v m ()
+    splitInsertAfter :: Map h k v -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
         tree <- use locus
         rev  <- newRevision
@@ -114,7 +114,7 @@ insertZ k v = do
             locus %= setNextKey k
         void up
 
-    createLeaf :: k -> v -> k -> k -> Zipped h k v m (Map h k v m)
+    createLeaf :: k -> v -> k -> k -> Zipped h k v m (Map h k v)
     createLeaf k0 v0 prev next = do
         rev <- newRevision
         return $ leaf rev k0 v0 prev next
@@ -123,10 +123,10 @@ insertZ k v = do
 
 fromList :: Stores h k v m
     => [(k, v)]
-    -> m (Map h k v m)
+    -> m (Map h k v)
 -- | Monomorphised version.
 fromList = fromFoldable
 
-fromFoldable :: Stores h k v m => Foldable f => f (k, v) -> m (Map h k v m)
+fromFoldable :: Stores h k v m => Foldable f => f (k, v) -> m (Map h k v)
 -- | Construct a tree from any Foldable (and calculate all hashes).
 fromFoldable = foldM (flip $ uncurry insertWithNoProof) empty

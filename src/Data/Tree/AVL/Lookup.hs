@@ -12,12 +12,12 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
-lookup' :: Stores h k v m => k -> Map h k v m -> m ((Maybe v, RevSet), Map h k v m)
+lookup' :: Stores h k v m => k -> Map h k v -> m ((Maybe v, RevSet), Map h k v)
 lookup' k tree0 = do
     (mv, tree, trails) <- runZipped' (lookupZ k) UpdateMode tree0
     return ((mv, trails), tree)
 
-lookup :: Stores h k v m => k -> Map h k v m -> m ((Maybe v, Proof h k v), Map h k v m)
+lookup :: Stores h k v m => k -> Map h k v -> m ((Maybe v, Proof h k v), Map h k v)
 lookup k tree0 = do
     (mv, tree, proof) <- runZipped (lookupZ k) UpdateMode tree0
     return ((mv, proof), tree)

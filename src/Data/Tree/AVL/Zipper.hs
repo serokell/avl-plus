@@ -22,7 +22,7 @@ module Data.Tree.AVL.Zipper where
 import Control.Exception(Exception)
 import Control.Lens (Getter, Lens', makeLenses, use, (%=), (.=), (+=), (^.), (.~))
 
-import Control.Monad (unless, when)
+import Control.Monad (unless, when, liftM2)
 import Control.Monad.Catch (throwM, catch)
 import Control.Monad.State.Strict (StateT, evalStateT, get, put, modify, lift, liftIO)
 
@@ -439,37 +439,42 @@ rebalance = do
     rev2 <- newRevision
     rev3 <- newRevision
 
-    let node1 = branch rev1 M  -- making prefabs for them
-    let node2 = branch rev2 M
-    let node3 = branch rev3 M
-    let skewn2 = branch rev2
-    let skewn3 = branch rev3
+    let
+      node1 = branch rev1 M :: Map h k v -> Map h k v -> m (Map h k v)
+      node2 = branch rev2 M
+      node3 = branch rev3 M
+      skewn2 = branch rev2
+      skewn3 = branch rev3
 
-    let changedIn revs nodeGen = (revs,) <$> nodeGen
+    let
+      changedIn :: [Revision] -> m (Map h k v) -> m ([Revision], Map h k v)
+      changedIn revs nodeGen = do
+        gen <- nodeGen
+        return (revs, gen)
 
     (revs, newTree) <- lift $ open tree >>= \case -- :: Zipped h k v m (MapLayer h k v (Map h k v))
       Node r1 L2 left d -> do
         open left >>= \case -- :: Map h k v)
-          Node r2 L1 a b -> [r1, r2] `changedIn` (node1     a <$> node2     b d) :: m ([Revision], Map h k v)
-          Node r2 M  a b -> [r1, r2] `changedIn` (skewn2 R1 a <$> skewn3 L1 b d)
+          Node r2 L1 a b -> [r1, r2] `changedIn` (node1     a =<< node2     b d)
+          Node r2 M  a b -> [r1, r2] `changedIn` (skewn2 R1 a =<< skewn3 L1 b d)
           Node r2 R1 a right -> do
             open right >>= \case -- :: Map h k v)
-              Node r3 R1 b c -> [r1, r2, r3] `changedIn` (node1 <$> skewn2 L1 a b <*> node3     c d)
-              Node r3 L1 b c -> [r1, r2, r3] `changedIn` (node1 <$> node2     a b <*> skewn3 R1 c d)
-              Node r3 M  b c -> [r1, r2, r3] `changedIn` (node1 <$> node2     a b <*> node3     c d)
+              Node r3 R1 b c -> [r1, r2, r3] `changedIn` do left <- skewn2 L1 a b; right <- node3     c d; node1 left right
+              Node r3 L1 b c -> [r1, r2, r3] `changedIn` do left <- node2     a b; right <- skewn3 R1 c d; node1 left right
+              Node r3 M  b c -> [r1, r2, r3] `changedIn` do left <- node2     a b; right <- node3     c d; node1 left right
               _              -> return ([], tree)
 
           _ -> return ([], tree)
 
       Node r1 R2 a right -> do
         open right >>= \case -- :: Map h k v)
-          Node r2 R1 b c -> [r1, r2] `changedIn` (node1     <$> node2     a b <*> pure c)
-          Node r2 M  b c -> [r1, r2] `changedIn` (skewn2 L1 <$> skewn3 R1 a b <*> pure c)
+          Node r2 R1 b c -> [r1, r2] `changedIn` do left <- node2     a b; node1     left c
+          Node r2 M  b c -> [r1, r2] `changedIn` do left <- skewn3 R1 a b; skewn2 L1 left c
           Node r2 L1 left d -> do
             open left >>= \case
-              Node r3 R1 b c -> [r1, r2, r3] `changedIn` (node1 <$> skewn2 L1 a b <*> node2     c d)
-              Node r3 L1 b c -> [r1, r2, r3] `changedIn` (node1 <$> node2     a b <*> skewn3 R1 c d)
-              Node r3 M  b c -> [r1, r2, r3] `changedIn` (node1 <$> node2     a b <*> node3     c d)
+              Node r3 R1 b c -> [r1, r2, r3] `changedIn` do left <- skewn2 L1 a b; right <- node2     c d; node1 left right
+              Node r3 L1 b c -> [r1, r2, r3] `changedIn` do left <- node2     a b; right <- skewn3 R1 c d; node1 left right
+              Node r3 M  b c -> [r1, r2, r3] `changedIn` do left <- node2     a b; right <- node3     c d; node1 left right
               _              -> return ([], tree)
 
           _ -> return ([], tree)

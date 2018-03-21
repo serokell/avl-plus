@@ -13,13 +13,13 @@ import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 -- | Endpoint that allows to merge proofs for some sequental operations.
-delete' :: Stores h k v m => k -> Map h k v m -> m (RevSet, Map h k v m)
+delete' :: Stores h k v m => k -> Map h k v -> m (RevSet, Map h k v)
 delete' k tree = do
     (_yes, res, trails) <- runZipped' (deleteZ k) DeleteMode tree
     return (trails, res)
 
 -- | Endpoint that generates proof.
-delete :: Stores h k v m => k -> Map h k v m -> m (Proof h k v, Map h k v m)
+delete :: Stores h k v m => k -> Map h k v -> m (Proof h k v, Map h k v )
 delete k tree = do
     (_yes, res, proof) <- runZipped (deleteZ k) DeleteMode tree
     return (proof, res)
