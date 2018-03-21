@@ -2,6 +2,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Data.Tree.AVL.Insertion
   ( insert
@@ -11,7 +12,7 @@ module Data.Tree.AVL.Insertion
   , insert'
   ) where
 
-import Control.Lens (use, (%=))
+import Control.Lens (use, (%=), (.=))
 import Control.Monad (unless, foldM, void)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.IO.Class (liftIO)
@@ -51,13 +52,10 @@ insertZ k v = do
     dump "insert"
     goto k             -- teleport to a key (or near it if absent)
     tree <- use locus
-    layer <- lift $ pick tree
-    case layer of
+    lift (open tree) >>= \case
       MLEmpty {} -> do
         leaf0 <- createLeaf k v minBound maxBound
         replaceWith leaf0
-        tree1 <- use locus
-        isolated1 <- lift $ isolate tree1
         return ()
 
       MLLeaf {_mlKey, _mlPrevKey, _mlNextKey} -> do
@@ -67,7 +65,9 @@ insertZ k v = do
 
         if k == key0 then do  -- update case, replace with new value
             change $ do
-                locus %= setValue v
+                here  <- use locus
+                here' <- lift $ setValue v here
+                locus .= here'
         else do
             if k `isInside` (prev, key0)
             then do
@@ -78,7 +78,9 @@ insertZ k v = do
                 unless (prev == minBound) $ do
                     goto prev
                     change $ do
-                        locus %= setNextKey k
+                        here  <- use locus
+                        here' <- lift $ setNextKey k here
+                        locus .= here'
 
             else do
                 leaf0 <- createLeaf k v key0 next
@@ -88,7 +90,9 @@ insertZ k v = do
                 unless (next == maxBound) $ do
                     goto next
                     change $ do
-                        locus %= setPrevKey k
+                        here  <- use locus
+                        here' <- lift $ setPrevKey k here
+                        locus .= here'
       _ -> do
         error $ "insert: `goto k` ended in non-terminal node"
 
@@ -98,26 +102,32 @@ insertZ k v = do
     splitInsertBefore leaf0 = do
         tree <- use locus
         rev  <- newRevision
-        replaceWith (branch rev M leaf0 tree)
+        new  <- lift $ branch rev M leaf0 tree
+        replaceWith new
         descentRight
         change $ do
-            locus %= setPrevKey k
+            here  <- use locus
+            here' <- lift $ setPrevKey k here
+            locus .= here'
         void up
 
     splitInsertAfter :: Map h k v -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
         tree <- use locus
         rev  <- newRevision
-        replaceWith (branch rev M tree leaf0)
+        new  <- lift $ branch rev M tree leaf0
+        replaceWith new
         descentLeft
         change $ do
-            locus %= setNextKey k
+            here  <- use locus
+            here' <- lift $ setNextKey k here
+            locus .= here'
         void up
 
     createLeaf :: k -> v -> k -> k -> Zipped h k v m (Map h k v)
     createLeaf k0 v0 prev next = do
         rev <- newRevision
-        return $ leaf rev k0 v0 prev next
+        lift $ leaf rev k0 v0 prev next
 
     isInside k0 (l, h) = k0 >= l && k0 <= h
 
@@ -127,6 +137,11 @@ fromList :: Stores h k v m
 -- | Monomorphised version.
 fromList = fromFoldable
 
-fromFoldable :: Stores h k v m => Foldable f => f (k, v) -> m (Map h k v)
+fromFoldable :: forall h k v m f . Stores h k v m => Foldable f => f (k, v) -> m (Map h k v)
 -- | Construct a tree from any Foldable (and calculate all hashes).
-fromFoldable = foldM (flip $ uncurry insertWithNoProof) empty
+fromFoldable list = do
+    e <- empty
+    foldM push e list
+  where
+    push :: Map h k v -> (k, v) -> m (Map h k v)
+    push tree (k, v) = insertWithNoProof k v tree
