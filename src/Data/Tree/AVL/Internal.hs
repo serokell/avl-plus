@@ -23,17 +23,20 @@ module Data.Tree.AVL.Internal where
 
 import Control.Lens (makeLenses, makePrisms, (&), (.~), (^.), (^?))
 
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Control.Monad.Catch (catch)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Free
 
 import Data.Binary
+import Data.String.Utils (replace)
 import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.Foldable (for_)
 import Data.Typeable (Typeable)
+import Data.Tree as Tree (Tree(Node), drawTree)
+--import Data.Tree.View (showTree)
 
 import GHC.Generics (Generic)
 
@@ -57,15 +60,15 @@ data Tilt
     | M   -- Balanced
     | R1  -- BalancedRight
     | R2  -- UnbalancedRight
-    deriving (Eq, Ord, Enum, Generic, Binary)
+    deriving (Eq, Ord, Show, Enum, Generic, Binary)
 
-instance Show Tilt where
-  show = \case
-    L2 -> "<<"
-    L1 -> "<"
-    M  -> "."
-    R1 -> ">"
-    R2 -> ">>"
+--instance Show Tilt where
+--  show = \case
+--    L2 -> "<<"
+--    L1 -> "<"
+--    M  -> "."
+--    R1 -> ">"
+--    R2 -> ">>"
 
 -- | Representation of AVL+ tree with data in leaves.
 
@@ -115,12 +118,29 @@ type Map h k v = Free (MapLayer h k v) h
 makeLenses ''MapLayer
 makePrisms ''MapLayer
 
+showMap :: (Show h, Show k, Show v) => Map h k v -> String
+showMap = drawTree . asTree 
+  where
+    asTree = \case
+      Free (MLBranch r _ mk ck t l r') -> Tree.Node (show t) [asTree r', asTree l]
+      Free (MLLeaf   r _ k  v  n p)    -> Tree.Node (show k) []
+      Free (MLEmpty  r _)              -> Tree.Node "--" []
+      Free (MLPruned r _ t m c)        -> Tree.Node "++" []
+      Pure  _                          -> Tree.Node "NOPE" []
+
+    unfuck
+        = replace "├" "+"
+        . replace "└" "\\"
+        . replace "│" "|"
+        . replace "╴" "-"
+        . replace "╴" "-"
+
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
-      MLBranch r _ mk ck t l r' -> "Branch" ++ show (r, ck, l, r')
-      MLLeaf   r _ k  v  n p    -> "Leaf"   ++ show (r, k, v)
-      MLEmpty  r _              -> "Empty"  ++ show (r, ())
-      MLPruned r _ t m c        -> "Pruned" ++ show (r, ())
+      MLBranch r _ mk ck t l r' -> "Branch" ++ show (t, l, r')
+      MLLeaf   r _ k  v  n p    -> show k
+      MLEmpty  r _              -> "--"
+      MLPruned r _ t m c        -> "??"
 
 makeBranch :: Revision -> h -> k -> k -> Tilt -> Map h k v -> Map h k v -> Map h k v
 makeLeaf   :: Revision -> h -> k -> v -> k -> k -> Map h k v
@@ -176,8 +196,10 @@ onTopNode f tree = do
 
 save :: forall h k v m . Stores h k v m => Map h k v -> m ()
 save = \case
-  Pure _     -> return ()
-  Free layer -> do    
+  Pure  _            -> return ()
+  Free (MLPruned {}) -> return ()
+  
+  Free  layer -> do    
     let hash = layer^.mlHash
     
     void (retrieve hash :: m (MapLayer h k v h))
@@ -306,7 +328,9 @@ rehash tree =
       
       layer -> do
         isolated <- traverse rootHash layer
-        return $ close $ layer & mlHash .~ hashOf (isolated & mlHash .~ def)
+        let tree = close $ layer & mlHash .~ hashOf (isolated & mlHash .~ def)
+        saveOne tree
+        return tree
 
 -- | Interface for calculating hash of the 'Map' node.
 class
@@ -355,11 +379,11 @@ branch r tilt0 left right = do
     left0        <- open left
     right0       <- open right
     [minL, minR] <- traverse minKey [left, right]
-    h <- saveOne $ close $ MLBranch r def (min minL minR) minR tilt0 left right
-    return (ref h)
+    rehash $ close $ MLBranch r def (min minL minR) minR tilt0 left right
 
 leaf :: Stores h k v m => Revision -> k -> v -> k -> k -> m (Map h k v)
-leaf r k v p n = rehash $ close $ MLLeaf r def k v n p
+leaf r k v p n = do
+    rehash $ close $ MLLeaf r def k v n p
 
 lessThanCenterKey :: Stores h k v m => k -> Map h k v -> m Bool
 lessThanCenterKey key0 = openAnd $ \layer ->
@@ -395,3 +419,37 @@ pathLengths = go
           rights <- go _mlRight
           return $ map (+ 1) $ lefts ++ rights
         _                            -> return []
+
+height :: Stores h k v m => Map h k v -> m Integer
+height = go
+  where
+    go tree = do
+        open tree >>= \case
+          MLEmpty  {}                  -> return 0
+          MLBranch {_mlLeft, _mlRight} -> (\x y -> 1 + max x y) <$> go _mlLeft <*> go _mlRight 
+          _                            -> return 1
+
+isBalancedToTheLeaves :: forall h k v m . Stores h k v m => Map h k v -> m Bool
+isBalancedToTheLeaves = go
+  where
+    go :: Map h k v -> m Bool
+    go tree = do
+        open tree >>= \case
+          MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
+            leftH  <- height _mlLeft
+            rightH <- height _mlRight
+            let
+              localBalance = case _mlTilt of
+                L2 -> leftH - rightH == 2
+                L1 -> leftH - rightH == 1
+                M  -> leftH - rightH == 0
+                R1 -> leftH - rightH == -1
+                R2 -> leftH - rightH == -2
+
+            leftGood  <- go _mlLeft
+            rightGood <- go _mlRight
+
+            return $ localBalance && leftGood && rightGood
+          
+          _ ->
+            return True

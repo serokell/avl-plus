@@ -26,9 +26,9 @@ type Storage h k v = HashMap h (MapLayer h k v h)
 
 type HashMapStore h k v = ReaderT (TVar (Storage h k v))
 
-instance (KVStoreMonad m h (MapLayer h k v h), MonadCatch m, MonadIO m, Eq h, Show h, Typeable h, Hashable h) => KVStoreMonad (HashMapStore h k v m) h (MapLayer h k v h) where
+instance (KVStoreMonad m h (MapLayer h k v h), MonadCatch m, MonadIO m, Eq h, Show h, Show k, Show v, Typeable h, Hashable h) => KVStoreMonad (HashMapStore h k v m) h (MapLayer h k v h) where
     retrieve k = do
-        liftIO $ print "retrieve"
+        --liftIO $ print "retrieve"
         mapVar <- ask
         mapping <- liftIO $ atomically $ readTVar mapVar
         case k `HM.lookup` mapping of
@@ -41,7 +41,7 @@ instance (KVStoreMonad m h (MapLayer h k v h), MonadCatch m, MonadIO m, Eq h, Sh
             return it
 
     store k v = do
-        liftIO $ print "store"
+        --liftIO $ putStrLn $ "store " ++ show k ++ " " ++ show v
         mapVar <- ask
         liftIO $ atomically $ mapVar `modifyTVar` insert k v 
 

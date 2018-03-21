@@ -1,7 +1,7 @@
 
 {-# LANGUAGE MultiWayIf      #-}
 {-# LANGUAGE NamedFieldPuns  #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Data.Tree.AVL.Lookup where
 
@@ -27,8 +27,7 @@ lookupZ k = do
     goto k
     mark
     tree  <- use locus
-    layer <- lift $ pick tree
-    case layer of
+    lift (open tree) >>= \case
       MLLeaf {_mlKey, _mlValue} ->
         if _mlKey == k
         then return (Just _mlValue)

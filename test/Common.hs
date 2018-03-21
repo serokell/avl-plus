@@ -21,7 +21,7 @@ import Data.Function                             (on)
 import Data.List                                 (sortBy, nubBy)
 import Data.Monoid                               ((<>))
 import Data.Ord                                  (comparing)
-import Data.Hashable                             (Hashable)
+import Data.Hashable                             (Hashable, hash)
 
 import GHC.Generics                              (Generic)
 
@@ -72,10 +72,12 @@ instance Default InitialHash where
 instance Eq InitialHash where
     x == y = show x == show y
 
-instance AVL.Hash InitialHash StringName Int where
+instance AVL.Hash Int StringName Int where
     hashOf tree = case tree of
         AVL.MLPruned {} -> tree^.AVL.mlHash
-        other           -> InitialHash tree
+        AVL.MLBranch r _ mk ck t l r' -> hash (hash r + hash mk + hash ck + hash t + l + r')
+        AVL.MLLeaf   r _ k  v  n p    -> hash (hash r + hash k + hash v + hash n + hash p)
+        AVL.MLEmpty  r _              -> hash r
 
 -- newtype IntHash = IntHash { getIntHash :: Int }
 --     deriving (Show, Eq, Arbitrary)
@@ -124,9 +126,9 @@ instance Bounded StringName where
 instance Show (a -> b) where
     show _ = "<function>"
 
-type StorageMonad = AVL.HashMapStore InitialHash StringName Int AVL.NullStore
+type StorageMonad = AVL.HashMapStore Int StringName Int AVL.NullStore
 
-type M = AVL.Map InitialHash StringName Int StorageMonad
+type M = AVL.Map Int StringName Int
 
 cachedProperty :: (Testable a, Arbitrary b, Show b) => TestName -> (b -> StorageMonad a) -> Test
 cachedProperty msg prop =

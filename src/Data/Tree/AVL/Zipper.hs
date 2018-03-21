@@ -362,7 +362,7 @@ shortened was became = do
     becameTilt  <- tilt became
 
     case (wasLayer, becameLayer) of
-      (MLLeaf   {}, MLBranch {}) -> return True
+      (MLBranch {}, MLLeaf   {}) -> return True
       (MLBranch {}, MLBranch {}) -> return $
             becameTilt   ==    M
         &&  wasTilt    `elem` [L1, R1]
@@ -440,46 +440,58 @@ rebalance = do
     rev3 <- newRevision
 
     let
-      node1 = branch rev1 M :: Map h k v -> Map h k v -> m (Map h k v)
-      node2 = branch rev2 M
-      node3 = branch rev3 M
-      skewn2 = branch rev2
-      skewn3 = branch rev3
+      shape1 = branch rev1 :: Tilt -> Map h k v -> Map h k v -> m (Map h k v)
+      shape2 = branch rev2
+      shape3 = branch rev3
 
     let
-      changedIn :: [Revision] -> m (Map h k v) -> m ([Revision], Map h k v)
-      changedIn revs nodeGen = do
+      (|-) :: [Revision] -> m (Map h k v) -> m ([Revision], Map h k v)
+      revs |- nodeGen = do
         gen <- nodeGen
         return (revs, gen)
 
-    (revs, newTree) <- lift $ open tree >>= \case -- :: Zipped h k v m (MapLayer h k v (Map h k v))
+    let
+      combine fork left right = do
+        l <- left
+        r <- right
+        fork l r
+
+    wasGood <- lift $ isBalancedToTheLeaves tree
+
+    (revs, newTree) <- lift $ open tree >>= \case
       Node r1 L2 left d -> do
-        open left >>= \case -- :: Map h k v)
-          Node r2 L1 a b -> [r1, r2] `changedIn` (node1     a =<< node2     b d)
-          Node r2 M  a b -> [r1, r2] `changedIn` (skewn2 R1 a =<< skewn3 L1 b d)
+        open left >>= \case
+          Node r2 L1 a b     -> [r1, r2]     |- combine (shape1 M)  (pure a)        (shape1 M  b d)
+          Node r2 M  a b     -> [r1, r2]     |- combine (shape2 R1) (pure a)        (shape3 L1 b d)
           Node r2 R1 a right -> do
-            open right >>= \case -- :: Map h k v)
-              Node r3 R1 b c -> [r1, r2, r3] `changedIn` do left <- skewn2 L1 a b; right <- node3     c d; node1 left right
-              Node r3 L1 b c -> [r1, r2, r3] `changedIn` do left <- node2     a b; right <- skewn3 R1 c d; node1 left right
-              Node r3 M  b c -> [r1, r2, r3] `changedIn` do left <- node2     a b; right <- node3     c d; node1 left right
+            open right >>= \case
+              Node r3 R1 b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 L1 a b) (shape3 M  c d)
+              Node r3 L1 b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 M  a b) (shape3 R1 c d)
+              Node r3 M  b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 M  a b) (shape3 M  c d)
               _              -> return ([], tree)
 
           _ -> return ([], tree)
 
       Node r1 R2 a right -> do
-        open right >>= \case -- :: Map h k v)
-          Node r2 R1 b c -> [r1, r2] `changedIn` do left <- node2     a b; node1     left c
-          Node r2 M  b c -> [r1, r2] `changedIn` do left <- skewn3 R1 a b; skewn2 L1 left c
-          Node r2 L1 left d -> do
+        open right >>= \case
+          Node r2 R1 b c     -> [r1, r2]     |- combine (shape1 M)  (shape2 M  a b) (pure c)
+          Node r2 M  b c     -> [r1, r2]     |- combine (shape2 L1) (shape3 R1 a b) (pure c)
+          Node r2 L1 left d  -> do
             open left >>= \case
-              Node r3 R1 b c -> [r1, r2, r3] `changedIn` do left <- skewn2 L1 a b; right <- node2     c d; node1 left right
-              Node r3 L1 b c -> [r1, r2, r3] `changedIn` do left <- node2     a b; right <- skewn3 R1 c d; node1 left right
-              Node r3 M  b c -> [r1, r2, r3] `changedIn` do left <- node2     a b; right <- node3     c d; node1 left right
+              Node r3 R1 b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 L1 a b) (shape2 M  c d)
+              Node r3 L1 b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 M  a b) (shape3 R1 c d)
+              Node r3 M  b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 M  a b) (shape3 M  c d)
               _              -> return ([], tree)
 
           _ -> return ([], tree)
 
       _ -> return ([], tree)
+
+    isGood <- lift $ isBalancedToTheLeaves newTree
+
+    liftIO $ when (not isGood) $ do
+        putStrLn $ "WAS " ++ showMap tree
+        putStrLn $ "NOW " ++ showMap newTree
 
     replaceWith newTree
 

@@ -49,7 +49,6 @@ insertWithNoProof k v tree = do
 -- | Insertion algorithm.
 insertZ :: forall h k v m . Stores h k v m => k -> v -> Zipped h k v m ()
 insertZ k v = do
-    dump "insert"
     goto k             -- teleport to a key (or near it if absent)
     tree <- use locus
     lift (open tree) >>= \case

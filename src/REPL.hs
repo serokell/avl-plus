@@ -109,7 +109,7 @@ instance Show (a -> b) where
 
 type StorageMonad = AVL.HashMapStore InitialHash StringName Int AVL.NullStore
 
-type M = AVL.Map InitialHash StringName Int StorageMonad
+type M = AVL.Map InitialHash StringName Int
 
 test :: StorageMonad M
 test = AVL.fromList [("Y",0),("X",0),("W",0),("V",0),("U",0),("S",0),("T",0),("P",0),("Q",0),("R",0),("X",0),("B",0),("D",0),("G",0),("I",0)]
