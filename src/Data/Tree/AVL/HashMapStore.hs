@@ -53,8 +53,8 @@ runPureCache db action = runStateT action db
 runEmptyCache :: MonadIO m => HashMapStore h k v m a -> m (a, Storage h k v)
 runEmptyCache = runPureCache HM.empty
 
-withCachelayer :: MonadIO m => Storage h k v -> HashMapStore h k v (HashMapStore h k v m) a -> HashMapStore h k v m a
-withCachelayer db action = do
+withCacheLayer :: MonadIO m => Storage h k v -> HashMapStore h k v (HashMapStore h k v m) a -> HashMapStore h k v m a
+withCacheLayer db action = do
     (res, _) <- runPureCache db action
     return res
 

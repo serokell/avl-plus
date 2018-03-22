@@ -25,7 +25,7 @@ tests =
                 
                 let AVL.Proof db root = proof
                 
-                (proof1, _) <- AVL.withCachelayer db $ do
+                (proof1, _) <- AVL.withCacheLayer db $ do
                     AVL.insert k v (AVL.ref root)
                 
                 AVL.checkProof hash1 proof1
@@ -37,7 +37,7 @@ tests =
                 
                 let AVL.Proof db root = proof
                 
-                (proof1, tree2) <- AVL.withCachelayer db $ do
+                (proof1, tree2) <- AVL.withCacheLayer db $ do
                     AVL.insert k v (AVL.ref root)
                 
                 hash2 <- AVL.rootHash tree2
@@ -57,7 +57,7 @@ tests =
                 
                 let AVL.Proof db root = proof
                 
-                (proof1, tree2) <- AVL.withCachelayer db $ do
+                (proof1, tree2) <- AVL.withCacheLayer db $ do
                     AVL.delete k (AVL.ref root :: M)
 
                 AVL.checkProof hash1 proof1
@@ -70,7 +70,7 @@ tests =
                 
                 let AVL.Proof db root = proof
                 
-                (proof1, tree2) <- AVL.withCachelayer db $ do
+                (proof1, tree2) <- AVL.withCacheLayer db $ do
                     AVL.delete k (AVL.ref root :: M)
                 
                 hash2 <- AVL.rootHash tree2
@@ -90,7 +90,7 @@ tests =
                     
                     let AVL.Proof db root = proof
                     
-                    (proof1, tree2) <- AVL.withCachelayer db $ do
+                    (proof1, tree2) <- AVL.withCacheLayer db $ do
                         AVL.delete k (AVL.ref root :: M)
 
                     AVL.checkProof hash1 proof1
