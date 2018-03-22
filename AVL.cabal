@@ -107,6 +107,7 @@ test-suite avl-tree-sanity
                      , lens
                      , test-framework
                      , test-framework-quickcheck2
+                     , transformers
                      , universum
                      , QuickCheck
                      , quickcheck-instances

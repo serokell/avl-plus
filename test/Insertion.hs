@@ -19,9 +19,6 @@ import Common
 import qualified Data.Tree.AVL as AVL
 import qualified Debug.Trace   as Debug
 
-unique  = nubBy  ((==) `on` fst)
-uniqued = sortBy (comparing fst) . unique . reverse
-
 prettyMuchBalanced :: Float -> M -> StorageMonad Bool
 prettyMuchBalanced delta tree = do
     size <- AVL.size tree

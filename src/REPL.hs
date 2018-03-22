@@ -111,6 +111,9 @@ type StorageMonad = AVL.HashMapStore InitialHash StringName Int AVL.NullStore
 
 type M = AVL.Map InitialHash StringName Int
 
+-- Replayability of insert proof fails on:
+-- (O,-12,[(O,21),(S,-63),(U,42)])
+-- (J,-68,[(E,44),(T,-30),(V,-86),(O,-38),(Q,-84),(T,67),(O,32),(Y,26),(B,58),(Q,-71),(G,-63),(D,23),(W,83),(L,-51),(P,43),(E,31),(J,63),(P,69),(V,79),(B,8),(N,28),(T,1),(Q,-44),(T,-91),(L,61),(X,-10),(Q,87),(T,64),(V,61),(O,89),(G,65),(L,14),(W,62),(E,92),(K,30),(P,43)
 test :: StorageMonad M
 test = AVL.fromList [("Y",0),("X",0),("W",0),("V",0),("U",0),("S",0),("T",0),("P",0),("Q",0),("R",0),("X",0),("B",0),("D",0),("G",0),("I",0)]
 

@@ -10,7 +10,7 @@ module Data.Tree.AVL.HashMapStore where
 
 import Control.Concurrent.STM
 
-import Control.Monad.Reader
+import Control.Monad.State
 import Control.Monad.Catch
 
 import Data.Hashable
@@ -24,13 +24,12 @@ type NullStore = IO
 
 type Storage h k v = HashMap h (MapLayer h k v h)
 
-type HashMapStore h k v = ReaderT (TVar (Storage h k v))
+type HashMapStore h k v = StateT (Storage h k v)
 
 instance (KVStoreMonad m h (MapLayer h k v h), MonadCatch m, MonadIO m, Eq h, Show h, Show k, Show v, Typeable h, Hashable h) => KVStoreMonad (HashMapStore h k v m) h (MapLayer h k v h) where
     retrieve k = do
         --liftIO $ print "retrieve"
-        mapVar <- ask
-        mapping <- liftIO $ atomically $ readTVar mapVar
+        mapping <- get
         case k `HM.lookup` mapping of
           Nothing -> do
             v <- lift $ retrieve k
@@ -42,19 +41,24 @@ instance (KVStoreMonad m h (MapLayer h k v h), MonadCatch m, MonadIO m, Eq h, Sh
 
     store k v = do
         --liftIO $ putStrLn $ "store " ++ show k ++ " " ++ show v
-        mapVar <- ask
-        liftIO $ atomically $ mapVar `modifyTVar` insert k v 
+        modify $ insert k v 
 
 instance (Show a, Typeable a) => KVStoreMonad NullStore a b where
     retrieve k = throwM (NotFound k)
     store _ _  = return ()
 
 runPureCache :: MonadIO m => Storage h k v -> HashMapStore h k v m a -> m (a, Storage h k v)
-runPureCache db action = do
-    cache <- liftIO $ newTVarIO db
-    a     <- runReaderT action cache
-    after <- liftIO $ atomically $ readTVar cache
-    return (a, after)
+runPureCache db action = runStateT action db
 
 runEmptyCache :: MonadIO m => HashMapStore h k v m a -> m (a, Storage h k v)
 runEmptyCache = runPureCache HM.empty
+
+withCachelayer :: MonadIO m => Storage h k v -> HashMapStore h k v (HashMapStore h k v m) a -> HashMapStore h k v m a
+withCachelayer db action = do
+    (res, _) <- runPureCache db action
+    return res
+
+dumpDatabase :: (Show h, Show k, Show v, MonadIO m) => HashMapStore h k v m ()
+dumpDatabase = do
+    st <- get
+    liftIO $ putStrLn (show st) 

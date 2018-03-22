@@ -25,7 +25,7 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.KVStoreMonad
 
 data Proof h k v = Proof { database :: HashMap h (MapLayer h k v h), root :: h }
-    deriving (Generic, Binary)
+    deriving (Show, Generic, Binary)
 
 instance (Hashable k, Eq k, Binary k, Binary v) => Binary (HM.HashMap k v) where
   get = HM.fromList <$> get

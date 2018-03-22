@@ -13,6 +13,9 @@
 module Common (module Common, module Control.Lens, module T) where
 
 import Control.Lens hiding (locus, elements, Empty)
+import Control.Monad.IO.Class               as T (liftIO)
+import Control.Monad.Trans.Class            as T (lift)
+import Control.Monad                        as T (when)
 
 import Data.Bits                                 (xor)
 import Data.Default                              (Default(def))
@@ -49,7 +52,7 @@ data InitialHash
     | Default
     deriving (Ord, Generic)
 
-type Layer = AVL.MapLayer InitialHash StringName Int InitialHash
+type Layer = AVL.MapLayer Int StringName Int Int
 
 instance Hashable InitialHash
 
@@ -145,3 +148,9 @@ scanM action accum (x : xs) = do
     (accum :) <$> do
         accum' <- action x accum
         scanM action accum' xs
+
+unique :: Eq a => [(a, b)] -> [(a, b)]
+unique = nubBy  ((==) `on` fst)
+
+uniqued :: Ord a => [(a, b)] -> [(a, b)]
+uniqued = sortBy (comparing fst) . unique . reverse

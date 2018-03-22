@@ -16,50 +16,87 @@ import qualified Data.Tree.AVL as AVL
 tests :: [Test]
 tests =
     [ testGroup "Proofs"
-        [ testProperty "Generated proofs are verified" $
-          \k v list ->
-            let
-                tree           = AVL.fromList list :: M
-                hash0          = tree^.AVL.rootHash
-                (proof, tree1) = AVL.insert k v tree
-            in
-                AVL.checkProof hash0 proof
+        [ 
+        testGroup "Insert"
+            [ cachedProperty "Insert proof is verifiable" $ \(k, v, list) -> do
+                tree            <- AVL.fromList list :: StorageMonad M
+                (proof, tree1)  <- AVL.insert k v tree
+                hash1           <- AVL.rootHash tree
+                
+                let AVL.Proof db root = proof
+                
+                (proof1, _) <- AVL.withCachelayer db $ do
+                    AVL.insert k v (AVL.ref root)
+                
+                AVL.checkProof hash1 proof1
 
-        , testProperty "Insert proof is verifiable" $
-          \k v list ->
-            let
-                tree            = AVL.fromList list :: M
-                (proof, tree1)  = AVL.insert k v tree
-                hash1           = tree1^.AVL.rootHash
-                AVL.Proof spine = proof
-                (_, inserted)   = AVL.insert k v spine
-            in
-                AVL.checkProof hash1 (AVL.Proof inserted)
+            , cachedProperty "Insert proof is replayable" $ \(k, v, list) -> do
+                tree            <- AVL.fromList list :: StorageMonad M
+                (proof, tree1)  <- AVL.insert k v tree
+                hash1           <- AVL.rootHash tree1
+                
+                let AVL.Proof db root = proof
+                
+                (proof1, tree2) <- AVL.withCachelayer db $ do
+                    AVL.insert k v (AVL.ref root)
+                
+                hash2 <- AVL.rootHash tree2
 
-        , testProperty "Delete proof is verifiable" $
-          \k v list ->
-            let
-                tree            = AVL.fromList ((k, v) : list) :: M
-                (proof, tree1)  = AVL.delete k tree
-                hash1           = tree1^.AVL.rootHash
-                AVL.Proof spine = proof
-                (_, deleted)    = AVL.delete k spine
+                lift $ when (hash1 /= hash2) $ do
+                    print ("tree1", tree1)
+                    print ("tree2", tree2)
 
-                check = AVL.checkProof hash1 (AVL.Proof deleted)
-            in
-                check
+                return (hash1 == hash2)
+            ]
 
-        , testProperty "Delete proof is verifiable (even if there's nothing to delete)" $
-          \k list ->
-            let
-                tree            = AVL.fromList list :: M
-                (proof, tree1)  = AVL.delete k tree
-                hash1           = tree1^.AVL.rootHash
-                AVL.Proof spine = proof
-                (_, deleted)    = AVL.delete k spine
+        , testGroup "Delete"
+            [ cachedProperty "Delete proof is verifiable" $ \(k, v, list) -> do
+                tree            <- AVL.fromList ((k, v) : list) :: StorageMonad M
+                (proof, tree1)  <- AVL.delete k tree
+                hash1           <- AVL.rootHash tree
+                
+                let AVL.Proof db root = proof
+                
+                (proof1, tree2) <- AVL.withCachelayer db $ do
+                    AVL.delete k (AVL.ref root :: M)
 
-                check = AVL.checkProof hash1 (AVL.Proof deleted)
-            in
-                check
+                AVL.checkProof hash1 proof1
+            
+
+            , cachedProperty "Delete proof is replayable" $ \(k, v, list) -> do
+                tree            <- AVL.fromList ((k, v) : list) :: StorageMonad M
+                (proof, tree1)  <- AVL.delete k tree
+                hash1           <- AVL.rootHash tree1
+                
+                let AVL.Proof db root = proof
+                
+                (proof1, tree2) <- AVL.withCachelayer db $ do
+                    AVL.delete k (AVL.ref root :: M)
+                
+                hash2 <- AVL.rootHash tree2
+
+                lift $ when (hash1 /= hash2) $ do
+                    print ("tree1", tree1)
+                    print ("tree2", tree2)
+
+                return (hash1 == hash2)
+
+            , cachedProperty "Delete proof is verifiable (even if there's nothing to delete)" $ \list -> do
+                case uniqued list of
+                  (k, v) : rest -> do
+                    tree            <- AVL.fromList rest :: StorageMonad M
+                    (proof, tree1)  <- AVL.delete k tree
+                    hash1           <- AVL.rootHash tree
+                    
+                    let AVL.Proof db root = proof
+                    
+                    (proof1, tree2) <- AVL.withCachelayer db $ do
+                        AVL.delete k (AVL.ref root :: M)
+
+                    AVL.checkProof hash1 proof1
+                  
+                  [] -> do
+                    return True
+            ]
         ]
     ]
