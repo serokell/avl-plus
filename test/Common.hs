@@ -18,7 +18,7 @@ import Control.Monad.Trans.Class            as T (lift)
 import Control.Monad                        as T (when)
 
 import Data.Bits                                 (xor)
-import Data.Default                              (Default(def))
+import Data.Default                         as T (Default(def))
 import Data.Foldable                             ()
 import Data.Function                             (on)
 import Data.List                                 (sortBy, nubBy)
@@ -77,7 +77,6 @@ instance Eq InitialHash where
 
 instance AVL.Hash Int StringName Int where
     hashOf tree = case tree of
-        AVL.MLPruned {} -> tree^.AVL.mlHash
         AVL.MLBranch r _ mk ck t l r' -> hash (hash r + hash mk + hash ck + hash t + l + r')
         AVL.MLLeaf   r _ k  v  n p    -> hash (hash r + hash k + hash v + hash n + hash p)
         AVL.MLEmpty  r _              -> hash r
@@ -136,11 +135,12 @@ type M = AVL.Map Int StringName Int
 cachedProperty :: (Testable a, Arbitrary b, Show b) => TestName -> (b -> StorageMonad a) -> Test
 cachedProperty msg prop =
     testProperty msg $
-        forAll arbitrary $ \b -> ioProperty $ do
-            (a, _st) <- AVL.runEmptyCache $ do
-                prop b
+        forAll arbitrary $ \b ->
+            ioProperty $ do
+                (a, _st) <- AVL.runEmptyCache $ do
+                    prop b
 
-            return a
+                return a
 
 scanM :: Monad m => (a -> b -> m b) -> b -> [a] -> m [b]
 scanM _      _     []       = return []

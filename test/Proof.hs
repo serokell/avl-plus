@@ -24,6 +24,8 @@ tests =
                 hash1           <- AVL.rootHash tree
                 
                 let AVL.Proof db root = proof
+
+                lift $ print ("proof", proof)
                 
                 (proof1, _) <- AVL.withCacheLayer db $ do
                     AVL.insert k v (AVL.ref root)

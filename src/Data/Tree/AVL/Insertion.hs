@@ -50,8 +50,7 @@ insertWithNoProof k v tree = do
 insertZ :: forall h k v m . Stores h k v m => k -> v -> Zipped h k v m ()
 insertZ k v = do
     goto k             -- teleport to a key (or near it if absent)
-    tree <- use locus
-    lift (open tree) >>= \case
+    withLocus $ \case
       MLEmpty {} -> do
         leaf0 <- createLeaf k v minBound maxBound
         replaceWith leaf0
@@ -65,7 +64,7 @@ insertZ k v = do
         if k == key0 then do  -- update case, replace with new value
             change $ do
                 here  <- use locus
-                here' <- lift $ setValue v here
+                here' <- setValue v here
                 locus .= here'
         else do
             if k `isInside` (prev, key0)
@@ -78,7 +77,7 @@ insertZ k v = do
                     goto prev
                     change $ do
                         here  <- use locus
-                        here' <- lift $ setNextKey k here
+                        here' <- setNextKey k here
                         locus .= here'
 
             else do
@@ -90,7 +89,7 @@ insertZ k v = do
                     goto next
                     change $ do
                         here  <- use locus
-                        here' <- lift $ setPrevKey k here
+                        here' <- setPrevKey k here
                         locus .= here'
       _ -> do
         error $ "insert: `goto k` ended in non-terminal node"
@@ -101,12 +100,12 @@ insertZ k v = do
     splitInsertBefore leaf0 = do
         tree <- use locus
         rev  <- newRevision
-        new  <- lift $ branch rev M leaf0 tree
+        new  <- branch rev M leaf0 tree
         replaceWith new
         descentRight
         change $ do
             here  <- use locus
-            here' <- lift $ setPrevKey k here
+            here' <- setPrevKey k here
             locus .= here'
         void up
 
@@ -119,14 +118,14 @@ insertZ k v = do
         descentLeft
         change $ do
             here  <- use locus
-            here' <- lift $ setNextKey k here
+            here' <- setNextKey k here
             locus .= here'
         void up
 
     createLeaf :: k -> v -> k -> k -> Zipped h k v m (Map h k v)
     createLeaf k0 v0 prev next = do
         rev <- newRevision
-        lift $ leaf rev k0 v0 prev next
+        leaf rev k0 v0 prev next
 
     isInside k0 (l, h) = k0 >= l && k0 <= h
 

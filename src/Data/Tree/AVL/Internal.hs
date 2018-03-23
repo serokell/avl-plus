@@ -97,13 +97,13 @@ data MapLayer h k v self
     { _mlRevision :: Revision
     , _mlHash     :: h
     }
-  | MLPruned  -- | Has to contain all this data to act as a proper subtree.
-    { _mlRevision  :: Revision
-    , _mlHash      :: h
-    , _mlTilt      :: Tilt
-    , _mlMinKey    :: k
-    , _mlCenterKey :: k
-    }
+  -- | MLPruned  -- | Has to contain all this data to act as a proper subtree.
+  --  { _mlRevision  :: Revision
+  --  , _mlHash      :: h
+  --  , _mlTilt      :: Tilt
+  --  , _mlMinKey    :: k
+  --  , _mlCenterKey :: k
+  --  }
     deriving (Eq, Functor, Foldable, Traversable, Generic, Binary)
 
 type Map h k v = Free (MapLayer h k v) h
@@ -125,7 +125,7 @@ showMap = drawTree . asTree
       Free (MLBranch r _ mk ck t l r') -> Tree.Node ("Branch " ++ show (r, mk, ck, t)) [asTree r', asTree l]
       Free (MLLeaf   r _ k  v  n p)    -> Tree.Node ("Leaf "   ++ show (r, k, v, n, p)) []
       Free (MLEmpty  r _)              -> Tree.Node "--" []
-      Free (MLPruned r _ t m c)        -> Tree.Node "++" []
+      --Free (MLPruned r _ t m c)        -> Tree.Node "++" []
       Pure  _                          -> Tree.Node "NOPE" []
 
     unfuck
@@ -140,17 +140,17 @@ instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
       MLBranch r _ mk ck t l r' -> "Branch" ++ show (t, l, r')
       MLLeaf   r _ k  v  n p    -> show k
       MLEmpty  r _              -> "--"
-      MLPruned r _ t m c        -> "??"
+      --MLPruned r _ t m c        -> "??"
 
 makeBranch :: Revision -> h -> k -> k -> Tilt -> Map h k v -> Map h k v -> Map h k v
 makeLeaf   :: Revision -> h -> k -> v -> k -> k -> Map h k v
 makeEmpty  :: Revision -> h -> Map h k v
-makePruned :: Revision -> h -> Tilt -> k -> k -> Map h k v
+--makePruned :: Revision -> h -> Tilt -> k -> k -> Map h k v
 
 makeBranch re hash mKey cKey t l r = Free $ MLBranch re hash mKey cKey t l r
 makeLeaf   r  hash key  val  n p   = Free $ MLLeaf   r  hash key  val  n p
 makeEmpty  r  hash                 = Free $ MLEmpty  r  hash
-makePruned r  hash t mKey cKey     = Free $ MLPruned r  hash t mKey cKey
+--makePruned r  hash t mKey cKey     = Free $ MLPruned r  hash t mKey cKey
 
 class    (Ord h, Typeable k, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
 instance (Ord h, Typeable k, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
@@ -197,7 +197,7 @@ onTopNode f tree = do
 save :: forall h k v m . Stores h k v m => Map h k v -> m ()
 save = \case
   Pure  _            -> return ()
-  Free (MLPruned {}) -> return ()
+  --Free (MLPruned {}) -> return ()
   
   Free  layer -> do    
     let hash = layer^.mlHash
@@ -321,16 +321,12 @@ setValue   v     = onTopNode (mlValue   .~ v)
 -- | Recalculate 'rootHash' of the node.
 --   Does nothing on 'Pruned' node.
 rehash :: Stores h k v m => Map h k v -> m (Map h k v)
-rehash tree =
-    open tree >>= \case
-      MLPruned {} ->
-        return tree
-      
-      layer -> do
-        isolated <- traverse rootHash layer
-        let tree = close $ layer & mlHash .~ hashOf (isolated & mlHash .~ def)
-        saveOne tree
-        return tree
+rehash tree = do
+    layer    <- open tree
+    isolated <- traverse rootHash layer
+    let tree = close $ layer & mlHash .~ hashOf (isolated & mlHash .~ def)
+    saveOne tree
+    return tree
 
 -- | Interface for calculating hash of the 'Map' node.
 class
@@ -359,18 +355,18 @@ empty = rehash $ close $ MLEmpty 0 def
 -- | Smart constructor for 'Pruned' node.
 --   Turns node into 'Pruned' one.
 --   Does nothing on already 'Pruned' node.
-pruned :: Stores h k v m => Map h k v -> m (Map h k v)
-pruned tree = do
-    open tree >>= \case
-      MLPruned {} -> do
-        return tree
-      layer -> do
-        return $ close $ MLPruned
-            (layer^.mlRevision)
-            (layer^.mlHash)
-            (layer^?mlTilt      `orElse` M)
-            (layer^?mlMinKey    `orElse` minBound)
-            (layer^?mlCenterKey `orElse` minBound)
+--pruned :: Stores h k v m => Map h k v -> m (Map h k v)
+--pruned tree = do
+--    open tree >>= \case
+--      --MLPruned {} -> do
+--      --  return tree
+--      layer -> do
+--        return $ close $ MLPruned
+--            (layer^.mlRevision)
+--            (layer^.mlHash)
+--            (layer^?mlTilt      `orElse` M)
+--            (layer^?mlMinKey    `orElse` minBound)
+--            (layer^?mlCenterKey `orElse` minBound)
 
 -- | Construct a branch from 2 subtrees.
 --   Recalculates 'rootHash', 'minKey' and 'centerKey'.

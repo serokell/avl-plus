@@ -40,8 +40,7 @@ deleteWithNoProof k tree = do
 -- | Deletion algorithm.
 deleteZ :: forall h k v m . Stores h k v m => k -> Zipped h k v m Bool
 deleteZ k = do
-    tree  <- use locus
-    lift (open tree) >>= \case
+    withLocus $ \case
       MLLeaf { _mlKey } -> do
         if _mlKey == k
         then do
@@ -59,8 +58,7 @@ deleteZ k = do
 
       _ -> do
         goto k
-        tree0  <- use locus
-        lift (open tree0) >>= \case
+        withLocus $ \case
           MLLeaf { _mlKey = key0, _mlPrevKey = prev, _mlNextKey = next } -> do
             if key0 /= k
             then do
@@ -74,8 +72,7 @@ deleteZ k = do
                   L -> descentRight >> mark >> up
                   R ->  descentLeft >> mark >> up
 
-                here    <- use locus
-                newTree <- lift (open here) >>= \case
+                newTree <- withLocus $ \case
                   MLBranch { _mlLeft = left, _mlRight = right } ->
                     return $ case side of
                       L -> right
@@ -89,14 +86,14 @@ deleteZ k = do
                     goto prev
                     change $ do
                       loc   <- use locus
-                      loc'  <- lift $ setNextKey next loc
+                      loc'  <- setNextKey next loc
                       locus .= loc'
 
                 unless (next == maxBound) $ do
                     goto next
                     change $ do
                       loc   <- use locus
-                      loc'  <- lift $ setPrevKey prev loc
+                      loc'  <- setPrevKey prev loc
                       locus .= loc'
 
                 return True

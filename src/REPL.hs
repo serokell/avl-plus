@@ -59,8 +59,7 @@ instance Eq InitialHash where
 
 instance AVL.Hash InitialHash StringName Int where
     hashOf tree = case tree of
-        AVL.MLPruned {} -> tree^.AVL.mlHash
-        other           -> InitialHash tree
+        other -> InitialHash tree
 
 -- newtype IntHash = IntHash { getIntHash :: Int }
 --     deriving (Show, Eq, Arbitrary)

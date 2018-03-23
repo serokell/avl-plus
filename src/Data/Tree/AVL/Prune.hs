@@ -23,27 +23,24 @@ import qualified Data.Set as Set
 -- | Prune all subtrees that haven't been touched.
 prune :: forall h k v m . (Ord h, Hashable h, MonadIO m, Stores h k v m) => Set Revision -> Map h k v -> m (Proof h k v)
 prune revs tree = do
-    start <- rootHash tree
-    ((), db) <- runEmptyCache $ do
-        whole <- go tree
-        lift $ save whole
-        return ()
+    start    <- rootHash tree
+    ((), db) <- runEmptyCache $ go tree
+
     return $ Proof db start
   where
-    go :: Map h k v -> HashMapStore h k v m (Map h k v)
+    go :: Map h k v -> HashMapStore h k v m ()
     go bush = do
-        rev  <- lift $ revision bush
+        saveOne bush
+        rev  <- revision bush
         if Set.notMember rev revs
         then do
-            pruned bush
+            return ()
 
         else do
-            lift (open bush) >>= \case
+            open bush >>= \case
               layer @ MLBranch {_mlLeft, _mlRight} -> do
-                left  <- go _mlLeft
-                right <- go _mlRight
-                return $ close $ layer
-                  & mlLeft  .~ left
-                  & mlRight .~ right
+                go _mlLeft
+                go _mlRight
+
               _other ->
-                return bush
+                return ()

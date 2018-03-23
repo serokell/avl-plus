@@ -34,6 +34,7 @@ import Data.Traversable (for)
 --import Debug.Trace as Debug (trace)
 
 import Data.Tree.AVL.Internal
+import Data.Tree.AVL.KVStoreMonad
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
 
@@ -102,6 +103,10 @@ tick     = tzRevision
 -- | The zipper is the state we maintain. Any operation can fail.
 type Zipped h k v m = StateT (TreeZipper h k v) m
 
+instance KVStoreMonad m h (MapLayer h k v h) => KVStoreMonad (Zipped h k v m) h (MapLayer h k v h) where
+    retrieve k   = lift $ retrieve k
+    store    k v = lift $ store    k v
+
 -- | Run zipper operation, collect prefabs to build proof.
 runZipped' :: Stores h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, RevSet)
 runZipped' action mode0 tree = do
@@ -128,6 +133,12 @@ runZipped action mode0 tree = do
       trails <- use trail
       return (res, tree', trails)
 
+withLocus :: Stores h k v m => (MapLayer h k v (Map h k v) -> Zipped h k v m a) -> Zipped h k v m a
+withLocus action = do
+    loc   <- use locus
+    layer <- open loc
+    action layer
+
 -- | Generate fresh revision.
 newRevision :: Monad m => Zipped h k v m Revision
 newRevision = do
@@ -150,7 +161,7 @@ newRevision = do
 mark :: Stores h k v m => Zipped h k v m ()
 mark = do
     tree <- use locus
-    rev0 <- lift $ revision tree
+    rev0 <- revision tree
     trail %= Set.insert rev0
 
 -- | Add given node identities to the set of nodes touched.
@@ -161,7 +172,7 @@ markAll revs = do
 rehashLocus :: Stores h k v m => Zipped h k v m ()
 rehashLocus = do
     loc <- use locus
-    new <- lift $ rehash loc
+    new <- rehash loc
     locus .= new
 
 data AlreadyOnTop = AlreadyOnTop deriving (Show, Typeable)
@@ -173,10 +184,10 @@ up :: forall h k m v . Stores h k v m => Zipped h k v m Side
 up = do
     ctx  <- use context
     loc  <- use locus :: Zipped h k v m (Map h k v)
-    rev1 <- lift $ revision loc -- retrive actual 'revision' of current node
+    rev1 <- revision loc -- retrive actual 'revision' of current node
     side <- case ctx of
       WentLeftFrom tree range rev0 : rest -> do
-        layer <- lift $ open tree
+        layer <- open tree
         case layer of
           MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
             became <- do
@@ -191,7 +202,7 @@ up = do
                     now   <- use locus
                     rev'  <- newRevision
                     tilt' <- correctTilt left now tilt0 L
-                    lift $ branch rev' tilt' now right
+                    branch rev' tilt' now right
 
             context  .= rest    -- pop parent layer from context stack
             keyRange .= range   -- restore parent 'keyRange'
@@ -210,7 +221,7 @@ up = do
             --error $ "up: zipper is broken " ++ show isolated1
 
       WentRightFrom tree range rev0 : rest -> do
-        layer <- lift $ open tree
+        layer <- open tree
         case layer of
           MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
             became <- do
@@ -223,7 +234,7 @@ up = do
                     now   <- use locus
                     rev'  <- newRevision
                     tilt' <- correctTilt right now tilt0 R
-                    lift $ branch rev' tilt' left now
+                    branch rev' tilt' left now
 
             context  .= rest
             keyRange .= range
@@ -288,15 +299,14 @@ descentLeft = do
     tree  <- use locus
     range <- use keyRange
     mark
-    layer <- lift $ open tree
-    case layer of
+    open tree >>= \case
       MLBranch { _mlLeft = left, _mlCenterKey } -> do
-          rev      <- lift $ revision left
+          rev      <- revision left
           context  %= (WentLeftFrom tree range rev :)
           locus    .= left
           keyRange .= refine L range _mlCenterKey
 
-      _ -> do
+      layer -> do
           throwM $ WentDownOnNonBranch (_mlHash layer)
 
 -- | Move into the right branch of the current node.
@@ -305,15 +315,14 @@ descentRight = do
     tree  <- use locus
     range <- use keyRange
     mark
-    layer <- lift $ open tree
-    case layer of
+    open tree >>= \case
       MLBranch { _mlRight = right, _mlCenterKey } -> do
-          rev      <- lift $ revision right
+          rev      <- revision right
           context  %= (WentRightFrom tree range rev :)
           locus    .= right
           keyRange .= refine R range _mlCenterKey
 
-      _ -> do
+      layer -> do
           throwM $ WentDownOnNonBranch (_mlHash layer)
 
 -- | Using side and current 'centerKey', select a key subrange we end in.
@@ -325,8 +334,8 @@ refine R (l, h) m = (max m l, h)
 correctTilt :: Stores h k v m => Map h k v -> Map h k v -> Tilt -> Side -> Zipped h k v m Tilt
 correctTilt was became tilt0 side = do
     modus   <- use mode
-    deeper  <- lift $ deepened  was became
-    shorter <- lift $ shortened was became
+    deeper  <- deepened  was became
+    shorter <- shortened was became
     let
       -- If we inserted and tree became deeper,  increase tilt to that side.
       -- if we deleted  and tree became shorter, decrease tilt to that side.
@@ -338,7 +347,7 @@ correctTilt was became tilt0 side = do
     return res
 
 -- | Find if tree became deeper.
-deepened :: Stores h k v m => Map h k v -> Map h k v -> m Bool
+deepened :: Stores h k v m => Map h k v -> Map h k v -> Zipped h k v m Bool
 deepened was became = do
     wasLayer    <- open was
     becameLayer <- open became
@@ -354,7 +363,7 @@ deepened was became = do
       _                          -> return False
 
 -- | Find if tree became shorter.
-shortened :: Stores h k v m => Map h k v -> Map h k v -> m Bool
+shortened :: Stores h k v m => Map h k v -> Map h k v -> Zipped h k v m Bool
 shortened was became = do
     wasLayer    <- open was
     becameLayer <- open became
@@ -379,21 +388,21 @@ roll tilt0 side =
 printLocus :: Stores h k v m => String -> Zipped h k v m ()
 printLocus str = do
     tree     <- use locus
-    isolated <- lift $ isolate tree
+    isolated <- isolate tree
     liftIO $ print $ str ++ ": " ++ show isolated
 
 dump :: Stores h k v m => String -> Zipped h k v m ()
 dump str = do
     tree     <- use locus
-    isolated <- lift $ isolate tree
+    isolated <- isolate tree
     ctx      <- use context
     lines <- for ctx $ \case
       WentRightFrom what krange rev -> do
-        res <- lift $ isolate what
+        res <- isolate what
         return $ show (krange, rev) ++ " <- " ++ show res
 
       WentLeftFrom what krange rev -> do
-        res <- lift $ isolate what
+        res <- isolate what
         return $ show (krange, rev) ++ " -> " ++ show res
 
       JustStarted rev -> do
@@ -416,7 +425,7 @@ change action = do
     res <- action
     rev <- newRevision
     loc <- use locus
-    new <- lift $ openAnd (mlRevision .~ rev) loc
+    new <- openAnd (mlRevision .~ rev) loc
     locus .= close new
     rehashLocus
     return res
@@ -440,12 +449,12 @@ rebalance = do
     rev3 <- newRevision
 
     let
-      shape1 = branch rev1 :: Tilt -> Map h k v -> Map h k v -> m (Map h k v)
+      shape1 = branch rev1 -- :: Tilt -> Map h k v -> Map h k v -> m (Map h k v)
       shape2 = branch rev2
       shape3 = branch rev3
 
     let
-      (|-) :: [Revision] -> m (Map h k v) -> m ([Revision], Map h k v)
+      --(|-) :: [Revision] -> m (Map h k v) -> m ([Revision], Map h k v)
       revs |- nodeGen = do
         gen <- nodeGen
         return (revs, gen)
@@ -456,9 +465,9 @@ rebalance = do
         r <- right
         fork l r
 
-    wasGood <- lift $ isBalancedToTheLeaves tree
+    wasGood <- isBalancedToTheLeaves tree
 
-    (revs, newTree) <- lift $ open tree >>= \case
+    (revs, newTree) <- open tree >>= \case
       Node r1 L2 left d -> do
         open left >>= \case
           Node r2 L1 a b     -> [r1, r2]     |- combine (shape1 M)  (pure a)        (shape1 M  b d)
@@ -487,7 +496,7 @@ rebalance = do
 
       _ -> return ([], tree)
 
-    isGood <- lift $ isBalancedToTheLeaves newTree
+    isGood <- isBalancedToTheLeaves newTree
 
     liftIO $ when (not isGood) $ do
         putStrLn $ "WAS " ++ showMap tree
@@ -531,8 +540,8 @@ descentOnto key0 = continueDescent
   where
     continueDescent = do
         loc      <- use locus
-        center   <- lift $ centerKey loc
-        isolated <- lift $ isolate   loc
+        center   <- centerKey loc
+        isolated <- isolate   loc
         if key0 >= center then descentRight else descentLeft
         continueDescent
       `catch` \(WentDownOnNonBranch (_ :: h)) -> do
