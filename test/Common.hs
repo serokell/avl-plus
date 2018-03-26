@@ -21,6 +21,7 @@ import Data.Bits                                 (xor)
 import Data.Default                         as T (Default(def))
 import Data.Foldable                             ()
 import Data.Function                             (on)
+import Data.HashMap.Strict                       (HashMap, fromList)
 import Data.List                                 (sortBy, nubBy)
 import Data.Monoid                               ((<>))
 import Data.Ord                                  (comparing)
@@ -98,6 +99,9 @@ instance Arbitrary StringName where
 instance Bounded StringName where
     minBound = StringName "A"
     maxBound = StringName "Z"
+
+instance (Eq k, Hashable k) => Default (HashMap k v) where
+    def = fromList []
 
 -- instance AVLPlus.Combined IntHash where
 --     emptyOne = IntHash 0

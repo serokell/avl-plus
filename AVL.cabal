@@ -109,6 +109,7 @@ test-suite avl-tree-sanity
                      , test-framework-quickcheck2
                      , transformers
                      , universum
+                     , unordered-containers
                      , QuickCheck
                      , quickcheck-instances
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N

@@ -8,6 +8,7 @@
 module Data.Tree.AVL.Prune where
 
 import Control.Lens ((.~), (&))
+import Control.Monad.Free
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 
@@ -23,24 +24,25 @@ import qualified Data.Set as Set
 -- | Prune all subtrees that haven't been touched.
 prune :: forall h k v m . (Ord h, Hashable h, MonadIO m, Stores h k v m) => Set Revision -> Map h k v -> m (Proof h k v)
 prune revs tree = do
-    start    <- rootHash tree
-    ((), db) <- runEmptyCache $ go tree
-
-    return $ Proof db start
+    liftIO $ print $ ("prune", revs, tree)
+    pruned <- go tree
+    liftIO $ print $ ("pruned", pruned)
+    return $ Proof pruned
   where
-    go :: Map h k v -> HashMapStore h k v m ()
+    go :: Map h k v -> m (Map h k v)
     go bush = do
         saveOne bush
         rev  <- revision bush
         if Set.notMember rev revs
         then do
-            return ()
+            isolate bush
 
         else do
             open bush >>= \case
-              layer @ MLBranch {_mlLeft, _mlRight} -> do
-                go _mlLeft
-                go _mlRight
+              layer @ MLBranch {_mlRevision = rev, _mlTilt = t, _mlLeft = l, _mlRight = r} -> do
+                l' <- go l
+                r' <- go r
+                branch rev t l' r'
 
               _other ->
-                return ()
+                return bush

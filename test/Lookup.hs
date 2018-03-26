@@ -27,10 +27,10 @@ tests =
             ((search, proof), _) <- AVL.lookup k tree
             hash1                <- AVL.rootHash tree
 
-            let AVL.Proof db root = proof
+            let AVL.Proof subtree = proof
 
-            search1 <- AVL.withCacheLayer db $ do
-                AVL.lookup k (AVL.ref root :: M)
+            search1 <- AVL.withCacheLayer def $ do
+                AVL.lookup k subtree
 
             AVL.checkProof hash1 proof
         ]

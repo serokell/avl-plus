@@ -182,6 +182,7 @@ instance Exception AlreadyOnTop
 -- | Move to the parent node; update & 'rebalance' it if required.
 up :: forall h k m v . Stores h k v m => Zipped h k v m Side
 up = do
+    dump "up"
     ctx  <- use context
     loc  <- use locus :: Zipped h k v m (Map h k v)
     rev1 <- revision loc -- retrive actual 'revision' of current node
@@ -212,7 +213,9 @@ up = do
                                 -- also, make parent dirty, so next 'up'
                                 -- will check if it needs to update
 
+            dump "up/rebalance"
             rebalance
+            dump "done up"
             return L            -- return the side we went from
 
           _other -> do
@@ -241,7 +244,9 @@ up = do
 
             replaceWith became
 
+            dump "up/rebalance"
             rebalance
+            dump "done up"
             return R
 
           _other -> do
@@ -467,7 +472,7 @@ rebalance = do
 
     wasGood <- isBalancedToTheLeaves tree
 
-    (revs, newTree) <- open tree >>= \case
+    (revs, newTree) <- (open tree >>= \case
       Node r1 L2 left d -> do
         open left >>= \case
           Node r2 L1 a b     -> [r1, r2]     |- combine (shape1 M)  (pure a)        (shape1 M  b d)
@@ -494,7 +499,9 @@ rebalance = do
 
           _ -> return ([], tree)
 
-      _ -> return ([], tree)
+      _ -> return ([], tree))
+     `catch` \(NotFound (_ :: h)) ->
+        error "Its the rebalance, dude"
 
     isGood <- isBalancedToTheLeaves newTree
 

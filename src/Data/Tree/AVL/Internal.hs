@@ -106,6 +106,9 @@ data MapLayer h k v self
   --  }
     deriving (Eq, Functor, Foldable, Traversable, Generic, Binary)
 
+deriving instance                                      Generic (Free t a)
+deriving instance (Binary (t (Free t a)), Binary a) => Binary  (Free t a)
+
 type Map h k v = Free (MapLayer h k v) h
 
 --instance (Show k, Show v, Show r) => Show (MapLayer h k v r) where
@@ -123,10 +126,10 @@ showMap = drawTree . asTree
   where
     asTree = \case
       Free (MLBranch r _ mk ck t l r') -> Tree.Node ("Branch " ++ show (r, mk, ck, t)) [asTree r', asTree l]
-      Free (MLLeaf   r _ k  v  n p)    -> Tree.Node ("Leaf "   ++ show (r, k, v, n, p)) []
+      Free (MLLeaf   r _ k  v  n p)    -> Tree.Node ("Leaf "   ++ show (r, k, n, p)) []
       Free (MLEmpty  r _)              -> Tree.Node "--" []
       --Free (MLPruned r _ t m c)        -> Tree.Node "++" []
-      Pure  _                          -> Tree.Node "NOPE" []
+      Pure  h                          -> Tree.Node ("Ref " ++ show h) []
 
     unfuck
         = replace "├" "+"
@@ -137,8 +140,8 @@ showMap = drawTree . asTree
 
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
-      MLBranch r _ mk ck t l r' -> "Branch" ++ show (t, l, r')
-      MLLeaf   r _ k  v  n p    -> show k
+      MLBranch r _ mk ck t l r' -> "Branch" ++ show (r, t, l, r')
+      MLLeaf   r _ k  v  n p    -> show (r, k)
       MLEmpty  r _              -> "--"
       --MLPruned r _ t m c        -> "??"
 
@@ -163,6 +166,12 @@ revision = openAnd (^.mlRevision)
 
 setRevision :: Stores h k v m => Revision -> Map h k v -> m (Map h k v)
 setRevision r = onTopNode (mlRevision .~ r)
+
+isolate :: Stores h k v m => Map h k v -> m (Map h k v)
+isolate tree = do
+    layer <- open tree
+    isolated <- traverse (fmap Pure . rootHash) layer
+    return (close isolated)
 
 --rootHash :: Getter (Map h k v) h
 --rootHash = _Fix . to (^.mlHash)
@@ -259,10 +268,10 @@ saveOne tree = do
 --materializeAnd :: Stores h k v m => (MapLayer m h k v -> a) -> m a
 --materializeAnd f tree = f <$> materialize tree
 
-isolate :: Stores h k v m => Map h k v -> m (MapLayer h k v h)
-isolate tree = do
-    layer <- open tree
-    traverse rootHash layer
+--isolate :: Stores h k v m => Map h k v -> m (MapLayer h k v h)
+--isolate tree = do
+--    layer <- open tree
+--    traverse rootHash layer
 
 minKey :: (Bounded k, Stores h k v m) => Map h k v -> m k
 minKey = openAnd $ \layer ->

@@ -68,7 +68,7 @@ tests =
         [ cachedProperty "Rebalance after DELETE quality" $ \list -> do
             tree  <- AVL.fromList list :: StorageMonad M
             trees <- scanM (AVL.deleteWithNoProof . fst) tree list
-            yes   <- allM (AVL.isBalancedToTheLeaves) trees
+            yes   <- allM  (AVL.isBalancedToTheLeaves)   trees
             
             for_ trees $ \tree -> do
                 balanced <- AVL.isBalancedToTheLeaves tree
