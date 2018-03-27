@@ -122,7 +122,7 @@ makeLenses ''MapLayer
 makePrisms ''MapLayer
 
 showMap :: (Show h, Show k, Show v) => Map h k v -> String
-showMap = drawTree . asTree 
+showMap = drawTree . asTree
   where
     asTree = \case
       Free (MLBranch r _ mk ck t l r') -> Tree.Node ("-< " ++ show (r, t)) [asTree r', asTree l]
@@ -130,13 +130,6 @@ showMap = drawTree . asTree
       Free (MLEmpty  r _)              -> Tree.Node "--" []
       --Free (MLPruned r _ t m c)        -> Tree.Node "++" []
       Pure  h                          -> Tree.Node ("Ref " ++ show h) []
-
-    unfuck
-        = replace "├" "+"
-        . replace "└" "\\"
-        . replace "│" "|"
-        . replace "╴" "-"
-        . replace "╴" "-"
 
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
@@ -209,10 +202,10 @@ save :: forall h k v m . Stores h k v m => Map h k v -> m ()
 save = \case
   Pure  _            -> return ()
   --Free (MLPruned {}) -> return ()
-  
-  Free  layer -> do    
+
+  Free  layer -> do
     let hash = layer^.mlHash
-    
+
     void (retrieve hash :: m (MapLayer h k v h))
       `catch` \(NotFound (_ :: h)) -> do
         isolated <- traverse rootHash layer
@@ -411,7 +404,7 @@ size = go
     go tree = do
         open tree >>= \case
           MLEmpty  {}                  -> return 0
-          MLBranch {_mlLeft, _mlRight} -> (+) <$> go _mlLeft <*> go _mlRight 
+          MLBranch {_mlLeft, _mlRight} -> (+) <$> go _mlLeft <*> go _mlRight
           _                            -> return 1
 
 -- | For testing purposes. Finds lengths of all paths to the leaves.
@@ -433,7 +426,7 @@ height = go
     go tree = do
         open tree >>= \case
           MLEmpty  {}                  -> return 0
-          MLBranch {_mlLeft, _mlRight} -> (\x y -> 1 + max x y) <$> go _mlLeft <*> go _mlRight 
+          MLBranch {_mlLeft, _mlRight} -> (\x y -> 1 + max x y) <$> go _mlLeft <*> go _mlRight
           _                            -> return 1
 
 isBalancedToTheLeaves :: forall h k v m . Stores h k v m => Map h k v -> m Bool
@@ -457,6 +450,6 @@ isBalancedToTheLeaves = go
             rightGood <- go _mlRight
 
             return $ localBalance && leftGood && rightGood
-          
+
           _ ->
             return True

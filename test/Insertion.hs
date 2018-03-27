@@ -40,29 +40,20 @@ prettyMuchBalanced delta tree = do
 
 tests :: [Test]
 tests =
-    [
-     testGroup "Order check"
+    [ testGroup "Order check"
         [ cachedProperty "toList . fromList == sort . unique" $ \list -> do
             tree <- AVL.fromList list :: StorageMonad M
             back <- AVL.toList tree
             let uniq = uniqued list
             return (back == uniq)
-        ],
-    testGroup "Rebalance after INSERT quality"
+        ]
+
+    , testGroup "Rebalance after INSERT quality"
         [ cachedProperty
             "forall tree, avg. height tree <= log2 (size tree) * 1.05" $ \list -> do
                 tree <- AVL.fromList list :: StorageMonad M
                 AVL.isBalancedToTheLeaves tree
         ]
-
-    --, testGroup "Pruning preserves hash"
-    --    [ cachedProperty "It does" $ \list -> do
-    --        tree   <- AVL.fromList list :: StorageMonad M
-    --        hash1  <- AVL.rootHash tree
-    --        pruned <- AVL.prune def tree
-    --        hash2  <- AVL.rootHash pruned
-    --        return $ hash1 == hash2
-    --    ]
 
     , testGroup "Deletion"
         [ cachedProperty "Rebalance after DELETE quality" $ \list -> do
@@ -84,10 +75,10 @@ tests =
 
             else do
                 let (k, _) : _  = list
-                tree   <- AVL.fromList list :: StorageMonad M
-                tree1  <- AVL.deleteWithNoProof k tree
-                list'  <- AVL.toList tree1
-                let diff   = uniqued list \\ list'
+                tree  <- AVL.fromList list :: StorageMonad M
+                tree1 <- AVL.deleteWithNoProof k tree
+                list' <- AVL.toList tree1
+                let diff = uniqued list \\ list'
                 return $ length diff == 1 && fst (head diff) == k
         ]
     ]
