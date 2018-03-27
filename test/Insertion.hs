@@ -32,7 +32,7 @@ prettyMuchBalanced delta tree = do
         let
           cast :: (Integral a, Num b) => a -> b
           cast = fromIntegral
-          
+
           averagePath  = cast (sum lengths) / cast (length lengths) :: Float
           sizeLog2plus = log (cast (size + 1)) / log 2 * (1 + delta)
 
@@ -69,19 +69,19 @@ tests =
             tree  <- AVL.fromList list :: StorageMonad M
             trees <- scanM (AVL.deleteWithNoProof . fst) tree list
             yes   <- allM  (AVL.isBalancedToTheLeaves)   trees
-            
+
             for_ trees $ \tree -> do
                 balanced <- AVL.isBalancedToTheLeaves tree
                 unless balanced $ do
                     lift $ print tree
 
             return yes
-        
+
         , cachedProperty "deletion is sane" $ \list -> do
             if length list == 0
             then do
                 return True
-            
+
             else do
                 let (k, _) : _  = list
                 tree   <- AVL.fromList list :: StorageMonad M

@@ -25,7 +25,7 @@ tests =
                 
                 let AVL.Proof subtree = proof
 
-                (proof1, _) <- AVL.withCacheLayer def $ do
+                (proof1, _) <- AVL.sandboxed $ do
                     AVL.insert k v subtree
                 
                 AVL.checkProof hash1 proof1
@@ -37,7 +37,7 @@ tests =
                 
                 let AVL.Proof subtree = proof
                 
-                (proof1, tree2) <- AVL.withCacheLayer def $ do
+                (proof1, tree2) <- AVL.sandboxed $ do
                     AVL.insert k v subtree
                 
                 hash2 <- AVL.rootHash tree2
@@ -58,7 +58,7 @@ tests =
                 
                 let AVL.Proof subtree = proof
                 
-                (proof1, tree2) <- AVL.withCacheLayer def $ do
+                (proof1, tree2) <- AVL.sandboxed $ do
                     AVL.delete k subtree
 
                 hash2 <- AVL.rootHash tree2
@@ -77,7 +77,7 @@ tests =
                 
                 let AVL.Proof subtree = proof
                 
-                (proof1, tree2) <- AVL.withCacheLayer def $ do
+                (proof1, tree2) <- AVL.sandboxed $ do
                     AVL.delete k subtree
                 
                 hash2 <- AVL.rootHash tree2
@@ -97,7 +97,7 @@ tests =
                     
                     let AVL.Proof subtree = proof
                     
-                    (proof1, tree2) <- AVL.withCacheLayer def $ do
+                    (proof1, tree2) <- AVL.sandboxed $ do
                         AVL.delete k subtree
 
                     AVL.checkProof hash1 proof1

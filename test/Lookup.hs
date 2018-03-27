@@ -29,7 +29,7 @@ tests =
 
             let AVL.Proof subtree = proof
 
-            search1 <- AVL.withCacheLayer def $ do
+            search1 <- AVL.sandboxed $ do
                 AVL.lookup k subtree
 
             AVL.checkProof hash1 proof
