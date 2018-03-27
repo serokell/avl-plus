@@ -50,11 +50,11 @@ deleteZ k = do
             return True
 
         else do
-            mark
+            mark "deleteZ/node exists"
             return False
 
       MLEmpty {} -> do
-        mark
+        --mark
         return False
 
       _ -> do
@@ -70,8 +70,8 @@ deleteZ k = do
 
                 -- we need to mark another child, so it ends in a proof
                 _ <- case side of
-                  L -> descentRight >> mark >> up
-                  R ->  descentLeft >> mark >> up
+                  L -> descentRight >> up
+                  R ->  descentLeft >> up
 
                 newTree <- withLocus $ \case
                   MLBranch { _mlLeft = left, _mlRight = right } ->
@@ -81,6 +81,7 @@ deleteZ k = do
 
                   _ ->
                       error "delete: successful `up` ended in non-Branch"
+
                 replaceWith newTree  -- replace with another child
 
                 unless (prev == minBound) $ do

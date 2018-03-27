@@ -158,8 +158,8 @@ newRevision = do
 --    return ()
 
 -- | Add current node identity to the set of nodes touched.
-mark :: Stores h k v m => Zipped h k v m ()
-mark = do
+mark :: Stores h k v m => String -> Zipped h k v m ()
+mark msg = do
     tree <- use locus
     rev0 <- revision tree
     trail %= Set.insert rev0
@@ -298,13 +298,14 @@ descentLeft :: Stores h k v m => Zipped h k v m ()
 descentLeft = do
     tree  <- use locus
     range <- use keyRange
-    mark
+    mark "descentLeft"
     open tree >>= \case
       MLBranch { _mlLeft = left, _mlCenterKey } -> do
           rev      <- revision left
           context  %= (WentLeftFrom tree range rev :)
           locus    .= left
           keyRange .= refine L range _mlCenterKey
+          mark "descentLeft/exit"
 
       layer -> do
           throwM $ WentDownOnNonBranch (_mlHash layer)
@@ -314,13 +315,14 @@ descentRight :: Stores h k v m => Zipped h k v m ()
 descentRight = do
     tree  <- use locus
     range <- use keyRange
-    mark
+    mark "descentRight"
     open tree >>= \case
       MLBranch { _mlRight = right, _mlCenterKey } -> do
           rev      <- revision right
           context  %= (WentRightFrom tree range rev :)
           locus    .= right
           keyRange .= refine R range _mlCenterKey
+          mark "descentRight/exit"
 
       layer -> do
           throwM $ WentDownOnNonBranch (_mlHash layer)
@@ -421,7 +423,7 @@ change action = do
     when (modus == ReadonlyMode) $ do
         error "change: calling this in ReadonlyMode is prohibited"
 
-    mark  -- automatically add node the list of touched
+    mark "change" -- automatically add node the list of touched
     res  <- action
     rev  <- newRevision
     loc  <- use locus
@@ -497,6 +499,8 @@ rebalance = do
       _ -> return ([], tree))
      `catch` \(NotFound (_ :: h)) ->
         return ([], tree)
+
+    markAll revs
 
     --isGood <- isBalancedToTheLeaves newTree
 

@@ -25,7 +25,6 @@ lookup k tree0 = do
 lookupZ :: Stores h k v m => k -> Zipped h k v m (Maybe v)
 lookupZ k = do
     goto k
-    mark
     tree  <- use locus
     lift (open tree) >>= \case
       MLLeaf {_mlKey, _mlValue} ->

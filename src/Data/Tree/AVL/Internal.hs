@@ -125,8 +125,8 @@ showMap :: (Show h, Show k, Show v) => Map h k v -> String
 showMap = drawTree . asTree 
   where
     asTree = \case
-      Free (MLBranch r _ mk ck t l r') -> Tree.Node ("-< " ++ show (r, mk, ck, t)) [asTree r', asTree l]
-      Free (MLLeaf   r _ k  v  n p)    -> Tree.Node ("<3- "   ++ show (r, k, n, p)) []
+      Free (MLBranch r _ mk ck t l r') -> Tree.Node ("-< " ++ show (r, t)) [asTree r', asTree l]
+      Free (MLLeaf   r _ k  v  n p)    -> Tree.Node ("<3- "   ++ show (r, k)) []
       Free (MLEmpty  r _)              -> Tree.Node "--" []
       --Free (MLPruned r _ t m c)        -> Tree.Node "++" []
       Pure  h                          -> Tree.Node ("Ref " ++ show h) []
