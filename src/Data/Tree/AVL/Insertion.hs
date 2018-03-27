@@ -49,77 +49,51 @@ insertWithNoProof k v tree = do
 -- | Insertion algorithm.
 insertZ :: forall h k v m . Stores h k v m => k -> v -> Zipped h k v m ()
 insertZ k v = do
-    liftIO $ print ("inserting", k, v)
     goto k             -- teleport to a key (or near it if absent)
-    liftIO $ print ("went to", k)
     withLocus $ \case
       MLEmpty {} -> do
-        liftIO $ print ("was empty")
         leaf0 <- createLeaf k v minBound maxBound
         replaceWith leaf0
         return ()
 
       MLLeaf {_mlKey, _mlPrevKey, _mlNextKey} -> do
-        liftIO $ print ("was leaf")
         let key0 = _mlKey
             prev = _mlPrevKey
             next = _mlNextKey
 
         if k == key0 then do  -- update case, replace with new value
-            liftIO $ print ("was existing leaf")
             change $ do
                 here  <- use locus
-                liftIO $ print ("locus", here)
                 here' <- setValue v here
-                liftIO $ print ("locus'", here')
                 locus .= here'
-                liftIO $ print ("done")
         else do
-            liftIO $ print ("was other leaf")
             if k `isInside` (prev, key0)
             then do
-                liftIO $ print ("was left leaf")
                 leaf0 <- createLeaf k v prev key0
                 
                 splitInsertBefore leaf0
                 
-                liftIO $ print ("inserted, prev is", prev)
                 unless (prev == minBound) $ do
-                    liftIO $ print ("going prev", prev)
                     goto prev
-                    mark
-                    liftIO $ print ("went prev")
                     change $ do
                         here  <- use locus
-                        liftIO $ print ("locus", here)
                         here' <- setNextKey k here
-                        liftIO $ print ("locus'", here')
                         locus .= here'
-                        liftIO $ print ("done")
 
             else do
-                liftIO $ print ("was right leaf")
                 leaf0 <- createLeaf k v key0 next
 
                 splitInsertAfter leaf0
                 
-                liftIO $ print ("inserted, next is", next)
                 unless (next == maxBound) $ do
-                    liftIO $ print ("going next", next)
                     goto next
-                    mark
-                    liftIO $ print ("went next")
                     change $ do
                         here  <- use locus
-                        liftIO $ print ("locus", here)
                         here' <- setPrevKey k here
-                        liftIO $ print ("locus'", here')
                         locus .= here'
-                        liftIO $ print ("done")
       _ -> do
         error $ "insert: `goto k` ended in non-terminal node"
 
-    liftIO $ print ("done inserting", k)
     return ()
   where
     splitInsertBefore :: Map h k v -> Zipped h k v m ()

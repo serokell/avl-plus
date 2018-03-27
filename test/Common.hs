@@ -53,7 +53,7 @@ data InitialHash
     | Default
     deriving (Ord, Generic)
 
-type Layer = AVL.MapLayer Int StringName Int Int
+type Layer = AVL.MapLayer InitialHash StringName Int InitialHash
 
 instance Hashable InitialHash
 
@@ -68,7 +68,7 @@ instance Hashable AVL.Tilt
 instance Show InitialHash where
     show = \case
         InitialHash m -> "#(" ++ show (m & AVL.mlHash .~ Default) ++ ")"
-        Default       -> "#DEFAULT"
+        Default       -> "#"
 
 instance Default InitialHash where
   def = Default
@@ -76,11 +76,14 @@ instance Default InitialHash where
 instance Eq InitialHash where
     x == y = show x == show y
 
-instance AVL.Hash Int StringName Int where
-    hashOf tree = case tree of
-        AVL.MLBranch r _ mk ck t l r' -> hash (hash r + hash mk + hash ck + hash t + l + r')
-        AVL.MLLeaf   r _ k  v  n p    -> hash (hash r + hash k + hash v + hash n + hash p)
-        AVL.MLEmpty  r _              -> hash r
+instance AVL.Hash InitialHash StringName Int where
+    hashOf = InitialHash
+
+--instance AVL.Hash Int StringName Int where
+--    hashOf tree = case tree of
+--        AVL.MLBranch r _ mk ck t l r' -> hash (hash r + hash mk + hash ck + hash t + l + r')
+--        AVL.MLLeaf   r _ k  v  n p    -> hash (hash r + hash k + hash v + hash n + hash p)
+--        AVL.MLEmpty  r _              -> hash r
 
 -- newtype IntHash = IntHash { getIntHash :: Int }
 --     deriving (Show, Eq, Arbitrary)
@@ -132,9 +135,9 @@ instance (Eq k, Hashable k) => Default (HashMap k v) where
 instance Show (a -> b) where
     show _ = "<function>"
 
-type StorageMonad = AVL.HashMapStore Int StringName Int AVL.NullStore
+type StorageMonad = AVL.HashMapStore InitialHash StringName Int AVL.NullStore
 
-type M = AVL.Map Int StringName Int
+type M = AVL.Map InitialHash StringName Int
 
 cachedProperty :: (Testable a, Arbitrary b, Show b) => TestName -> (b -> StorageMonad a) -> Test
 cachedProperty msg prop =

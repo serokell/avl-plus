@@ -43,16 +43,13 @@ checkProof :: forall h k v m . Stores h k v m => h -> Proof h k v -> m Bool
 checkProof ideal (Proof subtree) = do
     renewed <- fullRehash subtree
     theHash <- rootHash renewed
-    liftIO $ putStrLn "Done checkProof"    
     return $ theHash == ideal
   where
     -- | Apply 'rehash' recursively.
     fullRehash :: Map h k v -> m (Map h k v)
     fullRehash tree = do
-        liftIO $ putStrLn "into"
         open tree >>= \case
           layer @ MLBranch {_mlLeft, _mlRight} -> do
-            liftIO $ putStrLn "... done, branch"
             left  <- fullRehash _mlLeft
             right <- fullRehash _mlRight
             return $ close $ layer
@@ -60,8 +57,6 @@ checkProof ideal (Proof subtree) = do
               & mlRight .~ right
           
           _other -> do
-            liftIO $ putStrLn "... done, other"
             rehash tree
       `catch` \(NotFound (_ :: h)) -> do
-        liftIO $ putStrLn "catched!"
         return tree

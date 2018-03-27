@@ -125,8 +125,8 @@ showMap :: (Show h, Show k, Show v) => Map h k v -> String
 showMap = drawTree . asTree 
   where
     asTree = \case
-      Free (MLBranch r _ mk ck t l r') -> Tree.Node ("Branch " ++ show (r, mk, ck, t)) [asTree r', asTree l]
-      Free (MLLeaf   r _ k  v  n p)    -> Tree.Node ("Leaf "   ++ show (r, k, n, p)) []
+      Free (MLBranch r _ mk ck t l r') -> Tree.Node ("-< " ++ show (r, mk, ck, t)) [asTree r', asTree l]
+      Free (MLLeaf   r _ k  v  n p)    -> Tree.Node ("<3- "   ++ show (r, k, n, p)) []
       Free (MLEmpty  r _)              -> Tree.Node "--" []
       --Free (MLPruned r _ t m c)        -> Tree.Node "++" []
       Pure  h                          -> Tree.Node ("Ref " ++ show h) []
@@ -140,9 +140,9 @@ showMap = drawTree . asTree
 
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
-      MLBranch r _ mk ck t l r' -> "Branch" ++ show (r, t, l, r')
-      MLLeaf   r _ k  v  n p    -> show (r, k)
-      MLEmpty  r _              -> "--"
+      MLBranch r h mk ck t l r' -> "Branch" ++ show (r, h, t, l, r')
+      MLLeaf   r h k  v  n p    -> "Leaf" ++ show (r, h, k)
+      MLEmpty  r h              -> "--" ++ show (r, h)
       --MLPruned r _ t m c        -> "??"
 
 makeBranch :: Revision -> h -> k -> k -> Tilt -> Map h k v -> Map h k v -> Map h k v
@@ -159,7 +159,9 @@ class    (Ord h, Typeable k, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h
 instance (Ord h, Typeable k, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
 
 rootHash :: Stores h k v m => Map h k v -> m h
-rootHash = openAnd (^.mlHash)
+rootHash = \case
+  Pure h     -> return h
+  Free layer -> return (layer^.mlHash)
 
 revision :: Stores h k v m => Map h k v -> m Revision
 revision = openAnd (^.mlRevision)
@@ -201,7 +203,7 @@ ref = Pure
 onTopNode :: Stores h k v m => (MapLayer h k v (Map h k v) -> MapLayer h k v (Map h k v)) -> Map h k v -> m (Map h k v)
 onTopNode f tree = do
     layer <- open tree
-    return $ close (f layer)
+    rehash $ close (f layer)
 
 save :: forall h k v m . Stores h k v m => Map h k v -> m ()
 save = \case

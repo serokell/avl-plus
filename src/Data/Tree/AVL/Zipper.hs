@@ -182,7 +182,6 @@ instance Exception AlreadyOnTop
 -- | Move to the parent node; update & 'rebalance' it if required.
 up :: forall h k m v . Stores h k v m => Zipped h k v m Side
 up = do
-    dump "up"
     ctx  <- use context
     loc  <- use locus :: Zipped h k v m (Map h k v)
     rev1 <- revision loc -- retrive actual 'revision' of current node
@@ -213,9 +212,7 @@ up = do
                                 -- also, make parent dirty, so next 'up'
                                 -- will check if it needs to update
 
-            dump "up/rebalance"
             rebalance
-            dump "done up"
             return L            -- return the side we went from
 
           _other -> do
@@ -244,9 +241,7 @@ up = do
 
             replaceWith became
 
-            dump "up/rebalance"
             rebalance
-            dump "done up"
             return R
 
           _other -> do
@@ -427,12 +422,12 @@ change action = do
         error "change: calling this in ReadonlyMode is prohibited"
 
     mark  -- automatically add node the list of touched
-    res <- action
-    rev <- newRevision
-    loc <- use locus
-    new <- openAnd (mlRevision .~ rev) loc
-    locus .= close new
-    rehashLocus
+    res  <- action
+    rev  <- newRevision
+    loc  <- use locus
+    new  <- openAnd (mlRevision .~ rev) loc
+    new' <- rehash $ close new
+    locus .= new'
     return res
 
 replaceWith :: Stores h k v m => Map h k v -> Zipped h k v m ()
@@ -470,7 +465,7 @@ rebalance = do
         r <- right
         fork l r
 
-    wasGood <- isBalancedToTheLeaves tree
+    --wasGood <- isBalancedToTheLeaves tree
 
     (revs, newTree) <- (open tree >>= \case
       Node r1 L2 left d -> do
@@ -501,13 +496,13 @@ rebalance = do
 
       _ -> return ([], tree))
      `catch` \(NotFound (_ :: h)) ->
-        error "Its the rebalance, dude"
+        return ([], tree)
 
-    isGood <- isBalancedToTheLeaves newTree
+    --isGood <- isBalancedToTheLeaves newTree
 
-    liftIO $ when (not isGood) $ do
-        putStrLn $ "WAS " ++ showMap tree
-        putStrLn $ "NOW " ++ showMap newTree
+    --liftIO $ when (not isGood) $ do
+    --    putStrLn $ "WAS " ++ showMap tree
+    --    putStrLn $ "NOW " ++ showMap newTree
 
     replaceWith newTree
 

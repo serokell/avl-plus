@@ -24,25 +24,26 @@ import qualified Data.Set as Set
 -- | Prune all subtrees that haven't been touched.
 prune :: forall h k v m . (Ord h, Hashable h, MonadIO m, Stores h k v m) => Set Revision -> Map h k v -> m (Proof h k v)
 prune revs tree = do
-    liftIO $ print $ ("prune", revs, tree)
     pruned <- go tree
-    liftIO $ print $ ("pruned", pruned)
     return $ Proof pruned
   where
     go :: Map h k v -> m (Map h k v)
     go bush = do
-        saveOne bush
-        rev  <- revision bush
-        if Set.notMember rev revs
-        then do
-            isolate bush
+        case bush of
+          Pure h     -> return $ Pure h
+          Free layer -> do
+            saveOne bush
+            rev  <- revision bush
+            if Set.notMember rev revs
+            then do
+                isolate bush
 
-        else do
-            open bush >>= \case
-              layer @ MLBranch {_mlRevision = rev, _mlTilt = t, _mlLeft = l, _mlRight = r} -> do
-                l' <- go l
-                r' <- go r
-                branch rev t l' r'
+            else do
+                case layer of
+                  MLBranch {_mlRevision = rev, _mlTilt = t, _mlLeft = l, _mlRight = r} -> do
+                    l' <- go l
+                    r' <- go r
+                    branch rev t l' r'
 
-              _other ->
-                return bush
+                  _other ->
+                    return bush
