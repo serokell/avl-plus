@@ -33,14 +33,14 @@ tests =
             , cachedProperty "Insert proof is replayable" $ \(k, v, list) -> do
                 tree            <- AVL.fromList list :: StorageMonad M
                 (proof, tree1)  <- AVL.insert k v tree
-                let hash1        = AVL.rootHash tree
+                let hash1        = AVL.rootHash tree1
 
                 let AVL.Proof subtree = proof
 
                 (proof1, tree2) <- AVL.sandboxed $ do
                     AVL.insert k v subtree
 
-                let hash2        = AVL.rootHash tree2
+                let hash2        = AVL.rootHash tree1
 
                 lift $ when (hash1 /= hash2) $ do
                     print ("tree1", tree1)
@@ -73,7 +73,7 @@ tests =
             , cachedProperty "Delete proof is replayable" $ \(k, v, list) -> do
                 tree            <- AVL.fromList ((k, v) : list) :: StorageMonad M
                 (proof, tree1)  <- AVL.delete k tree
-                let hash1        = AVL.rootHash tree
+                let hash1        = AVL.rootHash tree1
 
                 let AVL.Proof subtree = proof
 
