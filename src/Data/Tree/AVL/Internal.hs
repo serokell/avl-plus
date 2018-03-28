@@ -21,10 +21,12 @@
 
 module Data.Tree.AVL.Internal where
 
+import Control.Exception (Exception)
+
 import Control.Lens (makeLenses, makePrisms, (&), (.~), (^.), (^?))
 
 import Control.Monad (void, when)
-import Control.Monad.Catch (catch)
+import Control.Monad.Catch (catch, MonadCatch)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Free
@@ -107,6 +109,14 @@ type Map h k v = Free (MapLayer h k v) h
 makeLenses ''MapLayer
 makePrisms ''MapLayer
 
+class (MonadCatch m, MonadIO m, Show h, Show k, Show v, Typeable h) => KVStoreMonad h k v m where
+    retrieve :: h -> m (MapLayer h k v h)
+    store    :: h -> MapLayer h k v h -> m ()
+
+data NotFound k = NotFound k
+    deriving (Show, Typeable)
+
+instance (Show k, Typeable k) => Exception (NotFound k) where
 showMap :: (Show h, Show k, Show v) => Map h k v -> String
 showMap = drawTree . asTree
   where
@@ -131,8 +141,8 @@ makeBranch hash mKey cKey t l r = Free $ MLBranch hash mKey cKey t l r
 makeLeaf   hash key  val  n p   = Free $ MLLeaf   hash key  val  n p
 makeEmpty  hash                 = Free $ MLEmpty  hash
 
-class    (Ord h, Typeable k, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
-instance (Ord h, Typeable k, MonadIO m, Hash h k v, KVStoreMonad m h (MapLayer h k v h)) => Stores h k v m where
+class    (Ord h, Typeable k, Hash h k v, KVStoreMonad h k v m) => Stores h k v m where
+instance (Ord h, Typeable k, Hash h k v, KVStoreMonad h k v m) => Stores h k v m where
 
 rootHash :: Map h k v -> h
 rootHash = \case

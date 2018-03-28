@@ -43,6 +43,7 @@ extra-deps:
 - pretty-tree-0.1.0.0
 - universum-1.1.0
 - tree-view-0.5
+- rocksdb-haskell-1.0.1
 # Override default flag values for local packages and extra-deps
 flags: {}
 
@@ -66,3 +67,5 @@ extra-package-dbs: []
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
+nix:
+    packages: [rocksdb]

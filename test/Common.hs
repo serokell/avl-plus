@@ -13,6 +13,7 @@
 module Common (module Common, module Control.Lens, module T) where
 
 import Control.Lens hiding (locus, elements, Empty)
+import Control.Monad.Catch                  as T (catch)
 import Control.Monad.IO.Class               as T (liftIO)
 import Control.Monad.Trans.Class            as T (lift)
 import Control.Monad                        as T (when)
@@ -136,6 +137,7 @@ instance Show (a -> b) where
     show _ = "<function>"
 
 type StorageMonad = AVL.HashMapStore Int StringName Int AVL.NullStore
+type CachedStorageMonad = AVL.HashMapStore Int StringName Int StorageMonad
 
 type M = AVL.Map Int StringName Int
 
@@ -144,7 +146,7 @@ cachedProperty msg prop =
     testProperty msg $
         forAll arbitrary $ \b ->
             ioProperty $ do
-                (a, _st) <- AVL.runEmptyCache $ do
+                (a, _st) <- AVL.runOnEmptyCache $ do
                     prop b
 
                 return a

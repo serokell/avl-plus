@@ -98,7 +98,7 @@ trail    = tzTouched
 -- | The zipper is the state we maintain. Any operation can fail.
 type Zipped h k v m = StateT (TreeZipper h k v) m
 
-instance KVStoreMonad m h (MapLayer h k v h) => KVStoreMonad (Zipped h k v m) h (MapLayer h k v h) where
+instance KVStoreMonad h k v m => KVStoreMonad h k v (Zipped h k v m) where
     retrieve k   = lift $ retrieve k
     store    k v = lift $ store    k v
 

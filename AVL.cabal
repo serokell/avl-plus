@@ -27,6 +27,7 @@ library
                , Data.Tree.AVL.Zipper
                , Data.Tree.AVL.HashMapStore
                , Data.Tree.AVL.KVStoreMonad
+               , Data.Tree.AVL.RocksDBStore
   -- other-extensions:
   build-depends:       base >=4.9 && <4.10
                      , binary
@@ -44,6 +45,7 @@ library
                      , mtl
                      , pretty-tree
                      , random
+                     , rocksdb-haskell
                      , stm
                      , transformers
                      , tree-view
@@ -61,6 +63,7 @@ test-suite avl-tree-sanity
   build-depends:       base >= 0.4 && < 5
                      , AVL
                      , data-default
+                     , exceptions
                      , hashable
                      , lens
                      , test-framework

@@ -26,7 +26,7 @@ type Storage h k v = HashMap h (MapLayer h k v h)
 
 type HashMapStore h k v = StateT (Storage h k v)
 
-instance (KVStoreMonad m h (MapLayer h k v h), MonadCatch m, MonadIO m, Eq h, Show h, Show k, Show v, Typeable h, Hashable h) => KVStoreMonad (HashMapStore h k v m) h (MapLayer h k v h) where
+instance (KVStoreMonad h k v m, Eq h, Show h, Typeable h, Hashable h, Show k, Show v) => KVStoreMonad h k v (HashMapStore h k v m) where
     retrieve k = do
         --liftIO $ print "retrieve"
         mapping <- get
@@ -35,32 +35,30 @@ instance (KVStoreMonad m h (MapLayer h k v h), MonadCatch m, MonadIO m, Eq h, Sh
             v <- lift $ retrieve k
             store k v
             return v
-          
+
           Just it -> do
             return it
 
     store k v = do
         --liftIO $ putStrLn $ "store " ++ show k ++ " " ++ show v
-        modify $ insert k v 
+        modify $ insert k v
 
-instance (Show a, Typeable a) => KVStoreMonad NullStore a b where
+instance (Show a, Show b, Show c, Typeable a) => KVStoreMonad a b c NullStore where
     retrieve k = throwM (NotFound k)
     store _ _  = return ()
 
-runPureCache :: MonadIO m => Storage h k v -> HashMapStore h k v m a -> m (a, Storage h k v)
-runPureCache db action = runStateT action db
+runWithCache :: KVStoreMonad h k v m => Storage h k v -> HashMapStore h k v m a -> m (a, Storage h k v)
+runWithCache db action = runStateT action db
 
-runEmptyCache :: MonadIO m => HashMapStore h k v m a -> m (a, Storage h k v)
-runEmptyCache = runPureCache HM.empty
+runOnEmptyCache :: KVStoreMonad h k v m => HashMapStore h k v m a -> m (a, Storage h k v)
+runOnEmptyCache = runWithCache HM.empty
 
-sandboxed :: MonadIO m => HashMapStore h k v NullStore a -> HashMapStore h k v m a
+sandboxed :: KVStoreMonad h k v m => HashMapStore h k v NullStore a -> HashMapStore h k v m a
 sandboxed action = do
-    (res, _) <- liftIO $ runEmptyCache action
+    (res, _) <- liftIO $ runOnEmptyCache action
     return res
 
 dumpDatabase :: (Show h, Show k, Show v, MonadIO m) => HashMapStore h k v m ()
 dumpDatabase = do
     st <- get
-    liftIO $ putStrLn (show st) 
-
---instance Stores h k v m => Stores h k v (HashMapStore h k v m)
+    liftIO $ putStrLn (show st)
