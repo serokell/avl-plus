@@ -24,8 +24,8 @@ resolver: lts-9.14
 # - some-directory
 # - https://example.com/foo/bar/baz-0.0.2.tar.gz
 # - location:
-#    git: https://github.com/commercialhaskell/stack.git
-#    commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
+#    git: https://github.com/Heimdell/rocksdb-haskell.git
+#    commit: 0c1f446799d3738598a5d51ebc031bbbfd2d78f8
 # - location: https://github.com/commercialhaskell/stack/commit/e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #   extra-dep: true
 #  subdirs:
@@ -43,7 +43,8 @@ extra-deps:
 - pretty-tree-0.1.0.0
 - universum-1.1.0
 - tree-view-0.5
-- rocksdb-haskell-1.0.1
+- git: https://github.com/Heimdell/rocksdb-haskell.git
+  commit: 0c1f446799d3738598a5d51ebc031bbbfd2d78f8
 # Override default flag values for local packages and extra-deps
 flags: {}
 

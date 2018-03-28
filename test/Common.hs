@@ -18,6 +18,7 @@ import Control.Monad.IO.Class               as T (liftIO)
 import Control.Monad.Trans.Class            as T (lift)
 import Control.Monad                        as T (when)
 
+import Data.Binary                               (Binary)
 import Data.Bits                                 (xor)
 import Data.Default                         as T (Default(def))
 import Data.Foldable                             ()
@@ -61,7 +62,6 @@ type Layer = AVL.MapLayer Int StringName Int Int
 deriving instance Ord Layer
 instance Hashable Layer
 
-deriving instance Generic  StringName
 instance Hashable StringName
 
 instance Hashable AVL.Tilt
@@ -90,7 +90,7 @@ instance AVL.Hash Int StringName Int where
 --     deriving (Show, Eq, Arbitrary)
 --
 newtype StringName = StringName { getStringName :: String }
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Generic, Binary)
 
 instance Show StringName where
     show = getStringName

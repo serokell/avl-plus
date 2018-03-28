@@ -109,7 +109,7 @@ type Map h k v = Free (MapLayer h k v) h
 makeLenses ''MapLayer
 makePrisms ''MapLayer
 
-class (MonadCatch m, MonadIO m, Show h, Show k, Show v, Typeable h) => KVStoreMonad h k v m where
+class (MonadCatch m, MonadIO m) => KVStoreMonad h k v m where
     retrieve :: h -> m (MapLayer h k v h)
     store    :: h -> MapLayer h k v h -> m ()
 
@@ -124,7 +124,7 @@ showMap = drawTree . asTree
       Free (MLBranch _ mk ck t l r') -> Tree.Node ("-< " ++ show (t)) [asTree r', asTree l]
       Free (MLLeaf   _ k  v  n p)    -> Tree.Node ("<3- "   ++ show (k)) []
       Free (MLEmpty  _)              -> Tree.Node "--" []
-      Pure  h                          -> Tree.Node ("Ref " ++ show h) []
+      Pure  h                        -> Tree.Node ("Ref " ++ show h) []
 
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
@@ -141,8 +141,8 @@ makeBranch hash mKey cKey t l r = Free $ MLBranch hash mKey cKey t l r
 makeLeaf   hash key  val  n p   = Free $ MLLeaf   hash key  val  n p
 makeEmpty  hash                 = Free $ MLEmpty  hash
 
-class    (Ord h, Typeable k, Hash h k v, KVStoreMonad h k v m) => Stores h k v m where
-instance (Ord h, Typeable k, Hash h k v, KVStoreMonad h k v m) => Stores h k v m where
+class    (Ord h, Typeable k, Hash h k v, Binary h, Binary k, Binary v, KVStoreMonad h k v m) => Stores h k v m where
+instance (Ord h, Typeable k, Hash h k v, Binary h, Binary k, Binary v, KVStoreMonad h k v m) => Stores h k v m where
 
 rootHash :: Map h k v -> h
 rootHash = \case
