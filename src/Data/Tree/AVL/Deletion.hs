@@ -12,12 +12,13 @@ import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 
+import Data.Set (Set)
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 -- | Endpoint that allows to merge proofs for some sequental operations.
-delete' :: Stores h k v m => k -> Map h k v -> m (RevSet, Map h k v)
+delete' :: Stores h k v m => k -> Map h k v -> m (Set h, Map h k v)
 delete' k tree = do
     (_yes, res, trails) <- runZipped' (deleteZ k) DeleteMode tree
     return (trails, res)

@@ -20,7 +20,7 @@
 module Data.Tree.AVL.Zipper where
 
 import Control.Exception(Exception)
-import Control.Lens (Getter, Lens', makeLenses, use, (%=), (.=), (+=), (^.), (.~))
+import Control.Lens (Getter, Lens', makeLenses, use, uses, (%=), (.=), (+=), (^.), (.~))
 
 import Control.Monad (unless, when, liftM2)
 import Control.Monad.Catch (throwM, catch)
@@ -61,20 +61,17 @@ data TreeZipper h k v = TreeZipper
     , _tzHere     :: Map h k v              -- current point
     , _tzKeyRange :: (k, k)                 -- the diapasone of keys below locus
     , _tzMode     :: Mode
-    , _tzRevision :: Revision               -- the incremented counter for rev
-    , _tzTouched  :: RevSet                 -- set of nodes we touched
+    , _tzTouched  :: Set h                  -- set of nodes we touched
     }
-
-type RevSet = Set Revision
 
 -- | Tree layers.
 data TreeZipperCxt h k v
     = WentRightFrom
         (Map h k v)  -- the node we came from (parent)
         (k, k)       -- the key diapasone of parent
-        Revision     -- previous revision of _current_ (AFAIR) node
-    | WentLeftFrom  (Map h k v) (k, k) Revision
-    | JustStarted                        Revision
+        h            -- previous revision of _current_ (AFAIR) node
+    | WentLeftFrom  (Map h k v) (k, k) h
+    | JustStarted                      h
 
 --deriving instance Stores h k v => Show (TreeZipperCxt h k v)
 
@@ -90,15 +87,13 @@ context  :: Lens'  (TreeZipper h k v) [TreeZipperCxt h k v]
 locus    :: Lens'  (TreeZipper h k v) (Map h k v)
 keyRange :: Lens'  (TreeZipper h k v) (k, k)
 mode     :: Getter (TreeZipper h k v)  Mode
-trail    :: Lens'  (TreeZipper h k v) (Set Revision)
-tick     :: Lens'  (TreeZipper h k v) Revision
+trail    :: Lens'  (TreeZipper h k v) (Set h)
 
 mode     = tzMode
 keyRange = tzKeyRange
 locus    = tzHere
 context  = tzContext
 trail    = tzTouched
-tick     = tzRevision
 
 -- | The zipper is the state we maintain. Any operation can fail.
 type Zipped h k v m = StateT (TreeZipper h k v) m
@@ -108,7 +103,7 @@ instance KVStoreMonad m h (MapLayer h k v h) => KVStoreMonad (Zipped h k v m) h 
     store    k v = lift $ store    k v
 
 -- | Run zipper operation, collect prefabs to build proof.
-runZipped' :: Stores h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, RevSet)
+runZipped' :: Stores h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Set h)
 runZipped' action mode0 tree = do
     zipper <- enter mode0 tree
     action' `evalStateT` zipper
@@ -139,33 +134,14 @@ withLocus action = do
     layer <- open loc
     action layer
 
--- | Generate fresh revision.
-newRevision :: Monad m => Zipped h k v m Revision
-newRevision = do
-    rev <- use tick
-    tick += 1
-    return rev
-
----- | For debug.
---dump :: Stores h k v m => String -> Zipped h k v m ()
---dump msg = do
---    st <- use context
---    track ("==== " <> msg <> " BEGIN ====") ()
---    track ("ctx\n") st
---    l  <- use locus
---    track ("lcs\n") l
---    track ("==== " <> msg <> " END ====") ()
---    return ()
-
 -- | Add current node identity to the set of nodes touched.
 mark :: Stores h k v m => String -> Zipped h k v m ()
 mark msg = do
-    tree <- use locus
-    rev0 <- revision tree
-    trail %= Set.insert rev0
+    hash <- uses locus rootHash
+    trail %= Set.insert hash
 
 -- | Add given node identities to the set of nodes touched.
-markAll :: Stores h k v m => [Revision] -> Zipped h k v m ()
+markAll :: Stores h k v m => [h] -> Zipped h k v m ()
 markAll revs = do
     trail %= (<> Set.fromList revs)
 
@@ -182,27 +158,24 @@ instance Exception AlreadyOnTop
 -- | Move to the parent node; update & 'rebalance' it if required.
 up :: forall h k m v . Stores h k v m => Zipped h k v m Side
 up = do
-    ctx  <- use context
-    loc  <- use locus :: Zipped h k v m (Map h k v)
-    rev1 <- revision loc -- retrive actual 'revision' of current node
-    side <- case ctx of
-      WentLeftFrom tree range rev0 : rest -> do
-        layer <- open tree
-        case layer of
+    rehashLocus
+    ctx   <- use context
+    hash1 <- uses locus rootHash :: Zipped h k v m h
+    side  <- case ctx of
+      WentLeftFrom tree range hash0 : rest -> do
+        open tree >>= \case
           MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
             became <- do
-                if rev0 == rev1  -- if current node didn't 'change'
+                if hash0 == hash1  -- if current node didn't change
                 then do
                     return tree  -- return unchanged parent one
 
                 else do
                     -- install current node inside parent
                     -- prepare it to 'rebalance'
-                    rehashLocus
                     now   <- use locus
-                    rev'  <- newRevision
                     tilt' <- correctTilt left now tilt0 L
-                    branch rev' tilt' now right
+                    branch tilt' now right
 
             context  .= rest    -- pop parent layer from context stack
             keyRange .= range   -- restore parent 'keyRange'
@@ -220,21 +193,18 @@ up = do
             --isolated1 <- lift $ traverse rootHash _other
             --error $ "up: zipper is broken " ++ show isolated1
 
-      WentRightFrom tree range rev0 : rest -> do
-        layer <- open tree
-        case layer of
+      WentRightFrom tree range hash0 : rest -> do
+        open tree >>= \case
           MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
             became <- do
-                if rev0 == rev1
+                if hash0 == hash1
                 then do
                     return tree
 
                 else do
-                    rehashLocus
                     now   <- use locus
-                    rev'  <- newRevision
                     tilt' <- correctTilt right now tilt0 R
-                    branch rev' tilt' left now
+                    branch tilt' left now
 
             context  .= rest
             keyRange .= range
@@ -251,7 +221,6 @@ up = do
             --error "up: zipper is broken"
 
       [JustStarted _rev0] -> do
-          rehashLocus  -- removing this causes tests to fail
           rebalance        -- TODO: investigate
           context .= []
           return L
@@ -279,13 +248,11 @@ exit = uplift
 -- | Acts like "Tree.rootIterator()" in Java.
 enter :: Stores h k v m => Mode -> Map h k v -> m (TreeZipper h k v)
 enter mode0 tree = do
-  rev <- revision tree
   return TreeZipper
-    { _tzContext  = [JustStarted rev]
+    { _tzContext  = [JustStarted (rootHash tree)]
     , _tzHere     = tree
     , _tzKeyRange = (minBound, maxBound)
     , _tzMode     = mode0
-    , _tzRevision = rev + 1
     , _tzTouched  = Set.empty
     }
 
@@ -300,15 +267,14 @@ descentLeft = do
     range <- use keyRange
     mark "descentLeft"
     open tree >>= \case
-      MLBranch { _mlLeft = left, _mlCenterKey } -> do
-          rev      <- revision left
-          context  %= (WentLeftFrom tree range rev :)
+      MLBranch { _mlLeft = left, _mlCenterKey = center } -> do
+          context  %= (WentLeftFrom tree range (rootHash left) :)
           locus    .= left
-          keyRange .= refine L range _mlCenterKey
+          keyRange .= refine L range center
           mark "descentLeft/exit"
 
       layer -> do
-          throwM $ WentDownOnNonBranch (_mlHash layer)
+          throwM $ WentDownOnNonBranch (rootHash tree)
 
 -- | Move into the right branch of the current node.
 descentRight :: Stores h k v m => Zipped h k v m ()
@@ -317,15 +283,14 @@ descentRight = do
     range <- use keyRange
     mark "descentRight"
     open tree >>= \case
-      MLBranch { _mlRight = right, _mlCenterKey } -> do
-          rev      <- revision right
-          context  %= (WentRightFrom tree range rev :)
+      MLBranch { _mlRight = right, _mlCenterKey = center } -> do
+          context  %= (WentRightFrom tree range (rootHash right) :)
           locus    .= right
-          keyRange .= refine R range _mlCenterKey
+          keyRange .= refine R range center
           mark "descentRight/exit"
 
       layer -> do
-          throwM $ WentDownOnNonBranch (_mlHash layer)
+          throwM $ WentDownOnNonBranch (rootHash tree)
 
 -- | Using side and current 'centerKey', select a key subrange we end in.
 refine :: Ord key => Side -> (key, key) -> key -> (key, key)
@@ -361,7 +326,7 @@ deepened was became = do
       (MLBranch {}, MLBranch {}) -> return $
             wasTilt      ==    M
         &&  becameTilt `elem` [L1, R1]
-      
+
       _                          -> return False
 
 -- | Find if tree became shorter.
@@ -377,7 +342,7 @@ shortened was became = do
       (MLBranch {}, MLBranch {}) -> return $
             becameTilt   ==    M
         &&  wasTilt    `elem` [L1, R1]
-      
+
       _                          -> return False
 
 -- | Change tilt depending on grown side.
@@ -424,13 +389,7 @@ change action = do
         error "change: calling this in ReadonlyMode is prohibited"
 
     mark "change" -- automatically add node the list of touched
-    res  <- action
-    rev  <- newRevision
-    loc  <- use locus
-    new  <- openAnd (mlRevision .~ rev) loc
-    new' <- rehash $ close new
-    locus .= new'
-    return res
+    action
 
 replaceWith :: Stores h k v m => Map h k v -> Zipped h k v m ()
 replaceWith newTree = do
@@ -446,20 +405,12 @@ replaceWith newTree = do
 rebalance :: forall h k v m . Stores h k v m => Zipped h k v m ()
 rebalance = do
     tree <- use locus
-    rev1 <- newRevision  -- up to 3 nodes could be touched
-    rev2 <- newRevision
-    rev3 <- newRevision
-
-    let
-      shape1 = branch rev1 -- :: Tilt -> Map h k v -> Map h k v -> m (Map h k v)
-      shape2 = branch rev2
-      shape3 = branch rev3
 
     let
       --(|-) :: [Revision] -> m (Map h k v) -> m ([Revision], Map h k v)
-      revs |- nodeGen = do
+      hashes |- nodeGen = do
         gen <- nodeGen
-        return (revs, gen)
+        return (hashes, gen)
 
     let
       combine fork left right = do
@@ -472,26 +423,26 @@ rebalance = do
     (revs, newTree) <- (open tree >>= \case
       Node r1 L2 left d -> do
         open left >>= \case
-          Node r2 L1 a b     -> [r1, r2]     |- combine (shape1 M)  (pure a)        (shape1 M  b d)
-          Node r2 M  a b     -> [r1, r2]     |- combine (shape2 R1) (pure a)        (shape3 L1 b d)
+          Node r2 L1 a b     -> [r1, r2]     |- combine (branch M)  (pure a)        (branch M  b d)
+          Node r2 M  a b     -> [r1, r2]     |- combine (branch R1) (pure a)        (branch L1 b d)
           Node r2 R1 a right -> do
             open right >>= \case
-              Node r3 R1 b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 L1 a b) (shape3 M  c d)
-              Node r3 L1 b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 M  a b) (shape3 R1 c d)
-              Node r3 M  b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 M  a b) (shape3 M  c d)
+              Node r3 R1 b c -> [r1, r2, r3] |- combine (branch M)  (branch L1 a b) (branch M  c d)
+              Node r3 L1 b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch R1 c d)
+              Node r3 M  b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch M  c d)
               _              -> return ([], tree)
 
           _ -> return ([], tree)
 
       Node r1 R2 a right -> do
         open right >>= \case
-          Node r2 R1 b c     -> [r1, r2]     |- combine (shape1 M)  (shape2 M  a b) (pure c)
-          Node r2 M  b c     -> [r1, r2]     |- combine (shape2 L1) (shape3 R1 a b) (pure c)
+          Node r2 R1 b c     -> [r1, r2]     |- combine (branch M)  (branch M  a b) (pure c)
+          Node r2 M  b c     -> [r1, r2]     |- combine (branch L1) (branch R1 a b) (pure c)
           Node r2 L1 left d  -> do
             open left >>= \case
-              Node r3 R1 b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 L1 a b) (shape2 M  c d)
-              Node r3 L1 b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 M  a b) (shape3 R1 c d)
-              Node r3 M  b c -> [r1, r2, r3] |- combine (shape1 M)  (shape2 M  a b) (shape3 M  c d)
+              Node r3 R1 b c -> [r1, r2, r3] |- combine (branch M)  (branch L1 a b) (branch M  c d)
+              Node r3 L1 b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch R1 c d)
+              Node r3 M  b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch M  c d)
               _              -> return ([], tree)
 
           _ -> return ([], tree)

@@ -8,11 +8,13 @@ module Data.Tree.AVL.Lookup where
 import Control.Lens (use)
 import Control.Monad.Trans.Class (lift)
 
+import Data.Set (Set)
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
-lookup' :: Stores h k v m => k -> Map h k v -> m ((Maybe v, RevSet), Map h k v)
+
+lookup' :: Stores h k v m => k -> Map h k v -> m ((Maybe v, Set h), Map h k v)
 lookup' k tree0 = do
     (mv, tree, trails) <- runZipped' (lookupZ k) UpdateMode tree0
     return ((mv, trails), tree)

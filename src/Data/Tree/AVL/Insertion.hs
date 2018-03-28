@@ -17,6 +17,7 @@ import Control.Monad (unless, foldM, void)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.IO.Class (liftIO)
 
+import Data.Set (Set)
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
@@ -24,7 +25,7 @@ import Data.Tree.AVL.Zipper
 import qualified Debug.Trace as Debug
 
 -- | Endpoint that allows to merge proofs for some sequental operations.
-insert' :: Stores h k v m => k -> v -> Map h k v -> m (RevSet, Map h k v)
+insert' :: Stores h k v m => k -> v -> Map h k v -> m (Set h, Map h k v)
 insert' k v tree = do
     ((), res, trails) <- runZipped' (insertZ k v) UpdateMode tree
     return (trails, res)
@@ -70,9 +71,9 @@ insertZ k v = do
             if k `isInside` (prev, key0)
             then do
                 leaf0 <- createLeaf k v prev key0
-                
+
                 splitInsertBefore leaf0
-                
+
                 unless (prev == minBound) $ do
                     goto prev
                     change $ do
@@ -84,7 +85,7 @@ insertZ k v = do
                 leaf0 <- createLeaf k v key0 next
 
                 splitInsertAfter leaf0
-                
+
                 unless (next == maxBound) $ do
                     goto next
                     change $ do

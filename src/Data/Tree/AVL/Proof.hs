@@ -42,8 +42,7 @@ makePrisms ''Proof
 checkProof :: forall h k v m . Stores h k v m => h -> Proof h k v -> m Bool
 checkProof ideal (Proof subtree) = do
     renewed <- fullRehash subtree
-    theHash <- rootHash renewed
-    return $ theHash == ideal
+    return $ rootHash renewed == ideal
   where
     -- | Apply 'rehash' recursively.
     fullRehash :: Map h k v -> m (Map h k v)
@@ -52,10 +51,10 @@ checkProof ideal (Proof subtree) = do
           layer @ MLBranch {_mlLeft, _mlRight} -> do
             left  <- fullRehash _mlLeft
             right <- fullRehash _mlRight
-            return $ close $ layer
+            rehash $ close $ layer
               & mlLeft  .~ left
               & mlRight .~ right
-          
+
           _other -> do
             rehash tree
       `catch` \(NotFound (_ :: h)) -> do
