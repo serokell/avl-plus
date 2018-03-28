@@ -53,7 +53,7 @@ insertZ k v = do
     goto k             -- teleport to a key (or near it if absent)
     withLocus $ \case
       MLEmpty {} -> do
-        leaf0 <- createLeaf k v minBound maxBound
+        leaf0 <- leaf k v minBound maxBound
         replaceWith leaf0
         return ()
 
@@ -70,7 +70,7 @@ insertZ k v = do
         else do
             if k `isInside` (prev, key0)
             then do
-                leaf0 <- createLeaf k v prev key0
+                leaf0 <- leaf k v prev key0
 
                 splitInsertBefore leaf0
 
@@ -82,7 +82,7 @@ insertZ k v = do
                         locus .= here'
 
             else do
-                leaf0 <- createLeaf k v key0 next
+                leaf0 <- leaf k v key0 next
 
                 splitInsertAfter leaf0
 
@@ -100,8 +100,7 @@ insertZ k v = do
     splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
         tree <- use locus
-        rev  <- newRevision
-        new  <- branch rev M leaf0 tree
+        new  <- branch M leaf0 tree
         replaceWith new
         descentRight
         change $ do
@@ -113,8 +112,7 @@ insertZ k v = do
     splitInsertAfter :: Map h k v -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
         tree <- use locus
-        rev  <- newRevision
-        new  <- lift $ branch rev M tree leaf0
+        new  <- branch M tree leaf0
         replaceWith new
         descentLeft
         change $ do
@@ -122,11 +120,6 @@ insertZ k v = do
             here' <- setNextKey k here
             locus .= here'
         void up
-
-    createLeaf :: k -> v -> k -> k -> Zipped h k v m (Map h k v)
-    createLeaf k0 v0 prev next = do
-        rev <- newRevision
-        leaf rev k0 v0 prev next
 
     isInside k0 (l, h) = k0 >= l && k0 <= h
 

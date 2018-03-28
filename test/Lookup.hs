@@ -19,19 +19,18 @@ tests =
         [ cachedProperty "Generated proofs are verified" $ \(k, list) -> do
             tree                 <- AVL.fromList list :: StorageMonad M
             ((search, proof), _) <- AVL.lookup k tree
-            hash1                <- AVL.rootHash tree
-            AVL.checkProof hash1 proof
+
+            AVL.checkProof (AVL.rootHash tree) proof
 
         , cachedProperty "Generated proofs are replayable" $ \(k, list) -> do
             tree                 <- AVL.fromList list :: StorageMonad M
             ((search, proof), _) <- AVL.lookup k tree
-            hash1                <- AVL.rootHash tree
 
             let AVL.Proof subtree = proof
 
             search1 <- AVL.sandboxed $ do
                 AVL.lookup k subtree
 
-            AVL.checkProof hash1 proof
+            AVL.checkProof (AVL.rootHash tree) proof
         ]
     ]
