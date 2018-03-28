@@ -9,22 +9,20 @@
 
 module Data.Tree.AVL.RocksDBStore where
 
-import Control.Concurrent.STM
+import Control.Monad.State              ()
+import Control.Monad.Reader             (ReaderT, runReaderT, ask)
+import Control.Monad.Catch              (bracket, throwM)
+import Control.Monad.IO.Class           (liftIO)
 
-import Control.Monad.State
-import Control.Monad.Reader
-import Control.Monad.Catch
+import Data.Binary                      (Binary)
+import Data.Default                     (def)
+import Data.Hashable                    (Hashable)
+import Data.HashMap.Strict      as HM   (toList)
+import Data.Typeable                    (Typeable)
 
-import Data.Binary
-import Data.Default
-import Data.Hashable
-import Data.HashMap.Strict as HM
-import Data.Typeable
-
-import Database.RocksDB as RDB
+import Database.RocksDB         as RDB  (DB, open, close, getBinary, BatchOp(Put), write, binaryToBS)
 
 import Data.Tree.AVL.Internal
-import Data.Tree.AVL.KVStoreMonad
 import Data.Tree.AVL.HashMapStore
 
 type RocksDBStore = ReaderT DB IO
@@ -37,26 +35,25 @@ instance (Eq h, Typeable h, Hashable h, Show h, Show k, Show v, Binary h, Binary
           Just it -> return it
           Nothing -> throwM (NotFound k)
 
-    store k v = do
+    store _k _v = do
         error "Attempt to perform a single-value write"
 
 type RDBM h k v = HashMapStore h k v RocksDBStore
 
-transacted :: Stores h k v RocksDBStore => RDBM h k v a -> RocksDBStore a
+transacted :: Stores h k v (RDBM h k v) => RDBM h k v a -> RocksDBStore a
 transacted action = do
     (res, cache) <- runOnEmptyCache action
+    massStore cache
     return res
 
-runRocksDBWithCache :: forall h k v a . Stores h k v (RDBM h k v) => FilePath -> RDBM h k v a -> IO a
+runRocksDBWithCache :: FilePath -> RocksDBStore a -> IO a
 runRocksDBWithCache dbName action = do
-    bracket (RDB.open dbName def) RDB.close $ \db -> do
-        (res, writes) <- runOnEmptyCache action `runReaderT` db
-        massStore db writes
-        return res
+    bracket (RDB.open dbName def) RDB.close $ runReaderT action
 
-massStore :: Stores h k v RocksDBStore => DB -> Storage h k v -> IO ()
-massStore db storage = do
+massStore :: Stores h k v RocksDBStore => Storage h k v -> RocksDBStore ()
+massStore storage = do
     let pairs = HM.toList storage
-    write db def $ put <$> pairs
+    db <- ask
+    liftIO $ write db def $ put <$> pairs
   where
     put (k, v) = Put (binaryToBS k) (binaryToBS v)

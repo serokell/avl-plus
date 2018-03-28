@@ -12,17 +12,16 @@ module Data.Tree.AVL.Insertion
   , insert'
   ) where
 
-import Control.Lens (use, (%=), (.=))
-import Control.Monad (unless, foldM, void)
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.IO.Class (liftIO)
+import Control.Lens               (use, (.=))
+import Control.Monad              (unless, foldM, void)
 
-import Data.Set (Set)
+import Data.Set                   (Set)
+
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
-import qualified Debug.Trace as Debug
+--import qualified Debug.Trace as Debug
 
 -- | Endpoint that allows to merge proofs for some sequental operations.
 insert' :: Stores h k v m => k -> v -> Map h k v -> m (Set h, Map h k v)

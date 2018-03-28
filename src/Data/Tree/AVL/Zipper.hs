@@ -19,28 +19,27 @@
 
 module Data.Tree.AVL.Zipper where
 
-import Control.Exception(Exception)
-import Control.Lens (Getter, Lens', makeLenses, use, uses, (%=), (.=), (+=), (^.), (.~))
+import Control.Exception          (Exception)
+import Control.Lens               (Getter, Lens', makeLenses, use, uses, (%=), (.=))
 
-import Control.Monad (unless, when, liftM2)
-import Control.Monad.Catch (throwM, catch)
-import Control.Monad.State.Strict (StateT, evalStateT, get, put, modify, lift, liftIO)
+import Control.Monad              (unless, when)
+import Control.Monad.Catch        (throwM, catch)
+import Control.Monad.State.Strict (StateT, evalStateT, get, put, lift, liftIO)
 
-import Data.Monoid ((<>))
-import Data.Set (Set)
-import Data.Typeable (Typeable)
-import Data.Traversable (for)
+import Data.Monoid                ((<>))
+import Data.Set                   (Set)
+import Data.Typeable              (Typeable)
+import Data.Traversable           (for)
 
 --import Debug.Trace as Debug (trace)
 
 import Data.Tree.AVL.Internal
-import Data.Tree.AVL.KVStoreMonad
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
 
-import qualified Debug.Trace as Debug
+--import qualified Debug.Trace as Debug
 
-import qualified Data.Set as Set
+import qualified Data.Set as Set (fromList, empty, insert)
 
 -- | Zipper representation.
 --   Zipper is pair of _locus_ and _context stack_.
@@ -136,7 +135,7 @@ withLocus action = do
 
 -- | Add current node identity to the set of nodes touched.
 mark :: Stores h k v m => String -> Zipped h k v m ()
-mark msg = do
+mark _msg = do
     hash <- uses locus rootHash
     trail %= Set.insert hash
 
@@ -273,7 +272,7 @@ descentLeft = do
           keyRange .= refine L range center
           mark "descentLeft/exit"
 
-      layer -> do
+      _layer -> do
           throwM $ WentDownOnNonBranch (rootHash tree)
 
 -- | Move into the right branch of the current node.
@@ -289,7 +288,7 @@ descentRight = do
           keyRange .= refine R range center
           mark "descentRight/exit"
 
-      layer -> do
+      _layer -> do
           throwM $ WentDownOnNonBranch (rootHash tree)
 
 -- | Using side and current 'centerKey', select a key subrange we end in.
@@ -363,7 +362,7 @@ dump str = do
     tree     <- use locus
     isolated <- isolate tree
     ctx      <- use context
-    lines <- for ctx $ \case
+    ls <- for ctx $ \case
       WentRightFrom what krange rev -> do
         res <- isolate what
         return $ show (krange, rev) ++ " <- " ++ show res
@@ -375,7 +374,7 @@ dump str = do
       JustStarted rev -> do
         return $ "start " ++ show rev
 
-    liftIO $ putStrLn $ str ++ ":\n  " ++ show isolated ++ "\n   --\n" ++ unlines (map ("  " ++) lines)
+    liftIO $ putStrLn $ str ++ ":\n  " ++ show isolated ++ "\n   --\n" ++ unlines (map ("  " ++) ls)
 
 -- | Perform a zipper action upon current node, then update set its revision
 --   to be a new one.
@@ -498,8 +497,9 @@ descentOnto key0 = continueDescent
     continueDescent = do
         loc      <- use locus
         center   <- centerKey loc
-        isolated <- isolate   loc
-        if key0 >= center then descentRight else descentLeft
+        if key0 >= center
+            then descentRight
+            else descentLeft
         continueDescent
       `catch` \(WentDownOnNonBranch (_ :: h)) -> do
         return ()

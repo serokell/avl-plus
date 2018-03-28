@@ -10,7 +10,6 @@ module Proof (tests) where
 
 import Common
 
-import qualified Debug.Trace   as Debug
 import qualified Data.Tree.AVL as AVL
 
 tests :: [Test]
@@ -19,9 +18,9 @@ tests =
         [
         testGroup "Insert"
             [ cachedProperty "Insert proof is verifiable" $ \(k, v, list) -> do
-                tree            <- AVL.fromList list :: StorageMonad M
-                (proof, tree1)  <- AVL.insert k v tree
-                let hash1        = AVL.rootHash tree
+                tree        <- AVL.fromList list :: StorageMonad M
+                (proof, _)  <- AVL.insert k v tree
+                let hash1    = AVL.rootHash tree
 
                 let AVL.Proof subtree = proof
 
@@ -37,7 +36,7 @@ tests =
 
                 let AVL.Proof subtree = proof
 
-                (proof1, tree2) <- AVL.sandboxed $ do
+                (_, tree2) <- AVL.sandboxed $ do
                     AVL.insert k v subtree
 
                 let hash2        = AVL.rootHash tree1
@@ -52,20 +51,14 @@ tests =
         ,
         testGroup "Delete"
             [ cachedProperty "Delete proof is verifiable" $ \(k, v, list) -> do
-                tree            <- AVL.fromList ((k, v) : list) :: StorageMonad M
-                let hash1        = AVL.rootHash tree
-                (proof, tree1)  <- AVL.delete k tree
+                tree        <- AVL.fromList ((k, v) : list) :: StorageMonad M
+                let hash1    = AVL.rootHash tree
+                (proof, _)  <- AVL.delete k tree
 
                 let AVL.Proof subtree = proof
 
-                (proof1, tree2) <- AVL.sandboxed $ do
+                (proof1, _) <- AVL.sandboxed $ do
                     AVL.delete k subtree
-
-                let hash2        = AVL.rootHash tree2
-
-                --lift $ when (hash1 /= hash2) $ do
-                --    print ("hash1", hash1)
-                --    print ("hash2", hash2)
 
                 yes <- AVL.checkProof hash1 proof1
                 return yes
@@ -77,7 +70,7 @@ tests =
 
                 let AVL.Proof subtree = proof
 
-                (proof1, tree2) <- AVL.sandboxed $ do
+                (_, tree2) <- AVL.sandboxed $ do
                     AVL.delete k subtree
 
                 let hash2        = AVL.rootHash tree2
@@ -90,14 +83,14 @@ tests =
 
             , cachedProperty "Delete proof is verifiable (even if there's nothing to delete)" $ \list -> do
                 case uniqued list of
-                  (k, v) : rest -> do
-                    tree            <- AVL.fromList rest :: StorageMonad M
-                    (proof, tree1)  <- AVL.delete k tree
-                    let hash1        = AVL.rootHash tree
+                  (k, _) : rest -> do
+                    tree        <- AVL.fromList rest :: StorageMonad M
+                    (proof, _)  <- AVL.delete k tree
+                    let hash1    = AVL.rootHash tree
 
                     let AVL.Proof subtree = proof
 
-                    (proof1, tree2) <- AVL.sandboxed $ do
+                    (proof1, _) <- AVL.sandboxed $ do
                         AVL.delete k subtree
 
                     AVL.checkProof hash1 proof1

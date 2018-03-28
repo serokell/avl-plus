@@ -4,8 +4,9 @@ import qualified Proof
 import qualified Lookup
 import qualified Cache
 
-import           Test.Framework (Test, defaultMain, testGroup)
+import           Test.Framework (defaultMain)
 
+main :: IO ()
 main = defaultMain
     (   []
     ++  Proof.tests

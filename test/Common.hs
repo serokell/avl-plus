@@ -19,13 +19,11 @@ import Control.Monad.Trans.Class            as T (lift)
 import Control.Monad                        as T (when)
 
 import Data.Binary                               (Binary)
-import Data.Bits                                 (xor)
 import Data.Default                         as T (Default(def))
 import Data.Foldable                             ()
 import Data.Function                             (on)
 import Data.HashMap.Strict                       (HashMap, fromList)
 import Data.List                                 (sortBy, nubBy)
-import Data.Monoid                               ((<>))
 import Data.Ord                                  (comparing)
 import Data.Hashable                             (Hashable, hash)
 

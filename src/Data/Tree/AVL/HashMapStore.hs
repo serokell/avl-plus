@@ -8,8 +8,6 @@
 
 module Data.Tree.AVL.HashMapStore where
 
-import Control.Concurrent.STM
-
 import Control.Monad.State
 import Control.Monad.Catch
 
@@ -18,7 +16,6 @@ import Data.HashMap.Strict as HM
 import Data.Typeable
 
 import Data.Tree.AVL.Internal
-import Data.Tree.AVL.KVStoreMonad
 
 type NullStore = IO
 

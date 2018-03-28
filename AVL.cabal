@@ -26,7 +26,6 @@ library
                , Data.Tree.AVL.Prune
                , Data.Tree.AVL.Zipper
                , Data.Tree.AVL.HashMapStore
-               , Data.Tree.AVL.KVStoreMonad
                , Data.Tree.AVL.RocksDBStore
   -- other-extensions:
   build-depends:       base >=4.9 && <4.10
@@ -40,7 +39,6 @@ library
                      , hashable
                      , lens
                      , lens-action
-                     , MissingH
                      , MonadRandom
                      , mtl
                      , pretty-tree
@@ -53,7 +51,7 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:
-    -- -Wall -Werror -fno-warn-orphans
+    -Wall -Werror -fno-warn-orphans
 
 test-suite avl-tree-sanity
   type:                exitcode-stdio-1.0
@@ -76,3 +74,5 @@ test-suite avl-tree-sanity
                      , quickcheck-instances
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
+  ghc-options:
+    -Wall -Werror -fno-warn-orphans

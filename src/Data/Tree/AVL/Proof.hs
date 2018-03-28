@@ -11,22 +11,17 @@
 
 module Data.Tree.AVL.Proof where
 
-import Control.Lens (makePrisms, (.~), (&))
-import Control.Monad.Catch
-import Control.Monad.Free
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Class
+import Control.Lens               (makePrisms, (.~), (&))
+import Control.Monad.Catch        (catch)
 
-import Data.Binary
-import Data.Hashable
-import Data.Fix (Fix (..))
-import Data.HashMap.Strict as HM
+import Data.Binary                (Binary(get, put))
+import Data.Hashable              (Hashable)
+import Data.Fix                   (Fix (..))
+import Data.HashMap.Strict as HM  (HashMap, fromList, toList)
 
-import GHC.Generics
+import GHC.Generics               (Generic)
 
 import Data.Tree.AVL.Internal
-import Data.Tree.AVL.KVStoreMonad
-import Data.Tree.AVL.HashMapStore
 
 data Proof h k v = Proof { subtree :: Map h k v }
     deriving (Show, Generic, Binary)

@@ -11,5 +11,4 @@ import Data.Tree.AVL.Proof     as M
 import Data.Tree.AVL.Prune     as M
 import Data.Tree.AVL.Zipper    as M
 import Data.Tree.AVL.HashMapStore as M
-import Data.Tree.AVL.KVStoreMonad as M
 import Data.Tree.AVL.RocksDBStore as M

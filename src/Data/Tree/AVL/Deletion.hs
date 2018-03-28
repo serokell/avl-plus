@@ -7,12 +7,12 @@
 
 module Data.Tree.AVL.Deletion (delete, deleteWithNoProof, delete') where
 
-import Control.Lens (use, (.=))
-import Control.Monad (unless)
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Class (lift)
+import Control.Lens               (use, (.=))
+import Control.Monad              (unless)
+import Control.Monad.Trans.Class  (lift)
 
-import Data.Set (Set)
+import Data.Set                   (Set)
+
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper

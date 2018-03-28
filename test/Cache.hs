@@ -10,7 +10,6 @@ module Cache (tests) where
 
 import Common
 
-import qualified Debug.Trace   as Debug
 import qualified Data.Tree.AVL as AVL
 
 tests :: [Test]

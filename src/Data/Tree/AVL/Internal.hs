@@ -21,30 +21,25 @@
 
 module Data.Tree.AVL.Internal where
 
-import Control.Exception (Exception)
+import Control.Exception                  (Exception)
 
-import Control.Lens (makeLenses, makePrisms, (&), (.~), (^.), (^?))
+import Control.Lens                       (makeLenses, makePrisms, (&), (.~), (^.), (^?))
 
-import Control.Monad (void, when)
-import Control.Monad.Catch (catch, MonadCatch)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Control.Monad.Free
+import Control.Monad                      (void)
+import Control.Monad.Catch                (catch, MonadCatch)
+import Control.Monad.IO.Class             (MonadIO)
+import Control.Monad.Free                 (Free(Pure, Free))
 
 import Data.Binary
-import Data.String.Utils (replace)
-import Data.Default (Default (..))
-import Data.Hashable (Hashable)
-import Data.Foldable (for_)
-import Data.Typeable (Typeable)
-import Data.Tree as Tree (Tree(Node), drawTree)
---import Data.Tree.View (showTree)
+import Data.Default                       (Default (..))
+import Data.Hashable                      (Hashable)
+import Data.Foldable                      (for_)
+import Data.Typeable                      (Typeable)
+import Data.Tree                  as Tree (Tree(Node), drawTree)
 
 import GHC.Generics (Generic)
 
-import Data.Tree.AVL.KVStoreMonad
-
-import qualified Debug.Trace as Debug
+--import qualified Debug.Trace as Debug
 
 data Side = L | R deriving (Eq, Show, Generic, Binary)
 
@@ -121,17 +116,16 @@ showMap :: (Show h, Show k, Show v) => Map h k v -> String
 showMap = drawTree . asTree
   where
     asTree = \case
-      Free (MLBranch _ mk ck t l r') -> Tree.Node ("-< " ++ show (t)) [asTree r', asTree l]
-      Free (MLLeaf   _ k  v  n p)    -> Tree.Node ("<3- "   ++ show (k)) []
-      Free (MLEmpty  _)              -> Tree.Node "--" []
-      Pure  h                        -> Tree.Node ("Ref " ++ show h) []
+      Free (MLBranch _ _mk _ck t  l r) -> Tree.Node ("-< "  ++ show (t)) [asTree r, asTree l]
+      Free (MLLeaf   _  k  _v _n _p)   -> Tree.Node ("<3- " ++ show (k)) []
+      Free (MLEmpty  _)                -> Tree.Node ("--")               []
+      Pure  h                          -> Tree.Node ("Ref " ++ show h)   []
 
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
-      MLBranch h mk ck t l r' -> "Branch" ++ show (h, t, l, r')
-      MLLeaf   h k  v  n p    -> "Leaf" ++ show (h, k)
-      MLEmpty  h              -> "--" ++ show (h)
-      --MLPruned r _ t m c        -> "??"
+      MLBranch h _mk _ck  t  l r -> "Branch" ++ show (h, t, l, r)
+      MLLeaf   h  k  _v  _n _p   -> "Leaf"   ++ show (h, k)
+      MLEmpty  h                 -> "--"     ++ show (h)
 
 makeBranch :: h -> k -> k -> Tilt -> Map h k v -> Map h k v -> Map h k v
 makeLeaf   :: h -> k -> v -> k -> k -> Map h k v
@@ -192,13 +186,12 @@ save = \case
 
     return ()
 
-saveOne :: forall h k v m . Stores h k v m => Map h k v -> m h
+saveOne :: forall h k v m . Stores h k v m => Map h k v -> m ()
 saveOne tree = do
     layer    <- open tree
     let rHash = layer^.mlHash
 
     store rHash (rootHash <$> layer)
-    return rHash
 
 minKey :: (Bounded k, Stores h k v m) => Map h k v -> m k
 minKey = openAnd $ \layer ->
@@ -229,17 +222,16 @@ setPrevKey k     = onTopNode (mlPrevKey .~ k)
 setValue   v     = onTopNode (mlValue   .~ v)
 
 -- | Recalculate 'rootHash' of the node.
---   Does nothing on 'Pruned' node.
 rehash :: Stores h k v m => Map h k v -> m (Map h k v)
 rehash tree = do
     layer <- open tree
 
     let isolated = rootHash <$> layer
     let cleaned  = isolated & mlHash .~ def
-    let tree     = close $ layer & mlHash .~ hashOf cleaned
+    let newTree  = close $ layer & mlHash .~ hashOf cleaned
 
-    saveOne tree
-    return tree
+    saveOne newTree
+    return newTree
 
 -- | Interface for calculating hash of the 'Map' node.
 class
@@ -285,8 +277,6 @@ empty = rehash $ close $ MLEmpty def
 --   Recalculates 'rootHash', 'minKey' and 'centerKey'.
 branch :: Stores h k v m => Tilt -> Map h k v -> Map h k v -> m (Map h k v)
 branch tilt0 left right = do
-    left0        <- open left
-    right0       <- open right
     [minL, minR] <- traverse minKey [left, right]
     rehash $ close $ MLBranch def (min minL minR) minR tilt0 left right
 
