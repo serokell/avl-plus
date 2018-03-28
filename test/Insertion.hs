@@ -37,23 +37,21 @@ import qualified Data.Tree.AVL as AVL
 
 tests :: [Test]
 tests =
-    [ testGroup "Order check"
+    [ testGroup "Insert"
         [ cachedProperty "toList . fromList == sort . unique" $ \list -> do
             tree <- AVL.fromList list :: StorageMonad M
             back <- AVL.toList tree
             let uniq = uniqued list
             return (back == uniq)
-        ]
 
-    , testGroup "Rebalance after INSERT quality"
-        [ cachedProperty
-            "forall tree, avg. height tree <= log2 (size tree) * 1.05" $ \list -> do
+        , cachedProperty
+            "Tree is as balanced as possible" $ \list -> do
                 tree <- AVL.fromList list :: StorageMonad M
                 AVL.isBalancedToTheLeaves tree
         ]
 
     , testGroup "Deletion"
-        [ cachedProperty "Rebalance after DELETE quality" $ \list -> do
+        [ cachedProperty "Tree is still balanced after delete" $ \list -> do
             tree  <- AVL.fromList list :: StorageMonad M
             trees <- scanM (AVL.deleteWithNoProof . fst) tree list
             yes   <- allM  (AVL.isBalancedToTheLeaves)   trees
@@ -62,7 +60,7 @@ tests =
 
             return yes
 
-        , cachedProperty "deletion is sane" $ \list -> do
+        , cachedProperty "Deletion deletes" $ \list -> do
             if length list == 0
             then do
                 return True
