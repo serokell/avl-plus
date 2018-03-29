@@ -34,7 +34,7 @@ import Data.Default                       (Default (..))
 import Data.Hashable                      (Hashable)
 import Data.Foldable                      (for_)
 import Data.Typeable                      (Typeable)
-import Data.Tree                  as Tree (Tree(Node), drawTree)
+--import Data.Tree                  as Tree (Tree(Node), drawTree)
 
 import GHC.Generics (Generic)
 
@@ -103,14 +103,14 @@ data NotFound k = NotFound k
 instance (Show k, Typeable k) => Exception (NotFound k)
 
 -- | Debug preview of the tree.
-showMap :: (Show h, Show k, Show v) => Map h k v -> String
-showMap = drawTree . asTree
-  where
-    asTree = \case
-      Free (MLBranch _ _mk _ck t  l r) -> Tree.Node ("-< "  ++ show (t)) [asTree r, asTree l]
-      Free (MLLeaf   _  k  _v _n _p)   -> Tree.Node ("<3- " ++ show (k)) []
-      Free (MLEmpty  _)                -> Tree.Node ("--")               []
-      Pure  h                          -> Tree.Node ("Ref " ++ show h)   []
+--showMap :: (Show h, Show k, Show v) => Map h k v -> String
+--showMap = drawTree . asTree
+--  where
+--    asTree = \case
+--      Free (MLBranch _ _mk _ck t  l r) -> Tree.Node ("-< "  ++ show (t)) [asTree r, asTree l]
+--      Free (MLLeaf   _  k  _v _n _p)   -> Tree.Node ("<3- " ++ show (k)) []
+--      Free (MLEmpty  _)                -> Tree.Node ("--")               []
+--      Pure  h                          -> Tree.Node ("Ref " ++ show h)   []
 
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
