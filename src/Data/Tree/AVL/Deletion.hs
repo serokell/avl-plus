@@ -9,7 +9,6 @@ module Data.Tree.AVL.Deletion (delete, deleteWithNoProof, delete') where
 
 import Control.Lens               (use, (.=))
 import Control.Monad              (unless)
-import Control.Monad.Trans.Class  (lift)
 
 import Data.Set                   (Set)
 
@@ -46,8 +45,7 @@ deleteZ k = do
       MLLeaf { _mlKey } -> do
         if _mlKey == k
         then do
-            e <- lift empty
-            replaceWith (e :: Map h k v)
+            replaceWith (empty :: Map h k v)
             return True
 
         else do

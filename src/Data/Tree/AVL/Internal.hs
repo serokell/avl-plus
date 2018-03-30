@@ -249,8 +249,8 @@ pattern Node :: h -> Tilt -> a -> a -> MapLayer h k v a
 pattern Node h d l r <- MLBranch h _ _ d l r
 
 -- | Create empty tree.
-empty :: Stores h k v m => m (Map h k v)
-empty = rehash $ close $ MLEmpty def
+empty :: forall h k v . Hash h k v => Map h k v
+empty = close $ MLEmpty $ hashOf (MLEmpty def :: MapLayer h k v h)
 
 -- | Construct a branch from 2 subtrees.
 branch :: Stores h k v m => Tilt -> Map h k v -> Map h k v -> m (Map h k v)
