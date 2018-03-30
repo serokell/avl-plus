@@ -27,7 +27,7 @@ import Data.Tree.AVL.HashMapStore
 
 type RocksDBStore = ReaderT DB IO
 
-instance (Eq h, Typeable h, Hashable h, Show h, Show k, Show v, Binary h, Binary k, Binary v) => KVStoreMonad h k v RocksDBStore where
+instance (Eq h, Typeable h, Hashable h, Show h, Binary h) => KVStoreMonad h RocksDBStore where
     retrieve k = do
         db   <- ask
         mres <- liftIO $ getBinary db def k
@@ -38,9 +38,9 @@ instance (Eq h, Typeable h, Hashable h, Show h, Show k, Show v, Binary h, Binary
     store _k _v = do
         error "Attempt to perform a single-value write"
 
-type RDBM h k v = HashMapStore h k v RocksDBStore
+type RDBM h = HashMapStore h RocksDBStore
 
-transacted :: Stores h k v (RDBM h k v) => RDBM h k v a -> RocksDBStore a
+transacted :: (Eq h, Show h, Binary h, Typeable h, Hashable h, KVStoreMonad h (RDBM h)) => RDBM h a -> RocksDBStore a
 transacted action = do
     (res, cache) <- runOnEmptyCache action
     massStore cache
@@ -50,7 +50,7 @@ runRocksDBWithCache :: FilePath -> RocksDBStore a -> IO a
 runRocksDBWithCache dbName action = do
     bracket (RDB.open dbName def) RDB.close $ runReaderT action
 
-massStore :: Stores h k v RocksDBStore => Storage h k v -> RocksDBStore ()
+massStore :: (Binary h, KVStoreMonad h RocksDBStore) => Storage h -> RocksDBStore ()
 massStore storage = do
     let pairs = HM.toList storage
     db <- ask

@@ -30,6 +30,7 @@ library
   -- other-extensions:
   build-depends:       base >=4.9 && <4.10
                      , binary
+                     , bytestring
                      , containers
                      , composition
                      , data-default

@@ -92,9 +92,9 @@ makeLenses ''MapLayer
 
 -- | Class, representing DB layer, capable of storing 'isolate'd nodes.
 --   The 'store' is an idempotent operation.
-class (MonadCatch m, MonadIO m) => KVStoreMonad h k v m where
-    retrieve :: h -> m (MapLayer h k v h)
-    store    :: h -> MapLayer h k v h -> m ()
+class (MonadCatch m, MonadIO m) => KVStoreMonad h m where
+    retrieve :: Binary v => h -> m v
+    store    :: Binary v => h -> v -> m ()
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
@@ -127,8 +127,8 @@ class
     hashOf :: MapLayer h k v h -> h
 
 -- | Umbrella class to grab all the required capabilities for tree to operate (and be debugged!).
-class    (Ord h, Typeable k, Hash h k v, Binary h, Binary k, Binary v, KVStoreMonad h k v m) => Stores h k v m where
-instance (Ord h, Typeable k, Hash h k v, Binary h, Binary k, Binary v, KVStoreMonad h k v m) => Stores h k v m where
+class    (Ord h, Typeable k, Hash h k v, Binary h, Binary k, Binary v, KVStoreMonad h m) => Stores h k v m where
+instance (Ord h, Typeable k, Hash h k v, Binary h, Binary k, Binary v, KVStoreMonad h m) => Stores h k v m where
 
 -- | Get hash of the root node for the tree.
 rootHash :: Map h k v -> h

@@ -134,8 +134,8 @@ instance (Eq k, Hashable k) => Default (HashMap k v) where
 instance Show (a -> b) where
     show _ = "<function>"
 
-type StorageMonad = AVL.HashMapStore Int StringName Int AVL.NullStore
-type CachedStorageMonad = AVL.HashMapStore Int StringName Int StorageMonad
+type StorageMonad = AVL.HashMapStore Int AVL.NullStore
+type CachedStorageMonad = AVL.HashMapStore Int StorageMonad
 
 type M = AVL.Map Int StringName Int
 
