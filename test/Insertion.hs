@@ -8,75 +8,69 @@
 
 module Insertion (tests) where
 
-import Data.Ord                             (comparing)
-import Data.Function                        (on)
-import Data.List                            (sortBy, nubBy, (\\))
+import Universum (allM, for_)
+
+import Data.List ((\\))
 
 import Common
 
 import qualified Data.Tree.AVL as AVL
-import qualified Debug.Trace   as Debug
 
-unique  = nubBy  ((==) `on` fst)
-uniqued = sortBy (comparing fst) . unique . reverse
+--prettyMuchBalanced :: Float -> M -> StorageMonad Bool
+--prettyMuchBalanced delta tree = do
+--    size <- AVL.size tree
+--    if size == 0
+--    then do
+--        return True
 
-prettyMuchBalanced :: Float -> M -> Bool
-prettyMuchBalanced delta tree =
-    AVL.size tree == 0 ||
-    let
-        lengths =
-            AVL.pathLengths tree
+--    else do
+--        lengths <- AVL.pathLengths tree
+--        size    <- AVL.size tree
+--        let
+--          cast :: (Integral a, Num b) => a -> b
+--          cast = fromIntegral
 
-        averagePath =
-            fromIntegral (sum lengths) / fromIntegral (length lengths) :: Float
+--          averagePath  = cast (sum lengths) / cast (length lengths) :: Float
+--          sizeLog2plus = log (cast (size + 1)) / log 2 * (1 + delta)
 
-        sizeLog2plus =
-            log (fromIntegral (AVL.size tree + 1)) / log 2 * (1 + delta)
-    in
-        averagePath <= sizeLog2plus
+--        return $ averagePath <= sizeLog2plus
 
 tests :: [Test]
 tests =
-    [ testGroup "Order check"
-        [ testProperty "toList . fromList == sort . unique" $ \list ->
-            let
-                tree = AVL.fromList list :: M
-                back = AVL.toList tree
-                uniq = uniqued list
-            in
-                back == uniq
-        ]
-    , testGroup "Rebalance quality"
-        [ testProperty
-            "forall tree, avg. height tree <= log2 (size tree) * 1.05" $
-            prettyMuchBalanced 0.05 . AVL.fromList
-        ]
+    [ testGroup "Insert"
+        [ cachedProperty "toList . fromList == sort . unique" $ \list -> do
+            tree <- AVL.fromList list :: StorageMonad M
+            back <- AVL.toList tree
+            let uniq = uniqued list
+            return (back == uniq)
 
-    , testGroup "Pruning preserves hash"
-        [ testProperty "It does" $ \tree ->
-            tree^.AVL.rootHash == (AVL.pruned tree :: M)^.AVL.rootHash
-
+        , cachedProperty
+            "Tree is as balanced as possible" $ \list -> do
+                tree <- AVL.fromList list :: StorageMonad M
+                AVL.isBalancedToTheLeaves tree
         ]
 
     , testGroup "Deletion"
-        [ testProperty "deletion keeps balance" $
-          \list ->
-            let
-                tree = AVL.fromList list
-                trees = scanl (flip (AVL.deleteWithNoProof . fst)) tree list
-            in if
-                all (prettyMuchBalanced 0.06) trees
-            then True else
-              Debug.traceShow list False
-        , testProperty "deletion is sane" $
-          \list -> length list == 0 ||
-            let
-                (k, _) : _  = list
-                tree   = AVL.fromList list :: M
-                tree1  = AVL.deleteWithNoProof k tree
-                list'  = AVL.toList tree1
-                diff   = uniqued list \\ list'
-            in
-                length diff == 1 && fst (head diff) == k
+        [ cachedProperty "Tree is still balanced after delete" $ \list -> do
+            tree  <- AVL.fromList list :: StorageMonad M
+            trees <- scanM (AVL.deleteWithNoProof . fst) tree list
+            yes   <- allM  (AVL.isBalancedToTheLeaves)   trees
+
+            for_ trees $ AVL.isBalancedToTheLeaves
+
+            return yes
+
+        , cachedProperty "Deletion deletes" $ \list -> do
+            if length list == 0
+            then do
+                return True
+
+            else do
+                let (k, _) : _  = list
+                tree  <- AVL.fromList list :: StorageMonad M
+                tree1 <- AVL.deleteWithNoProof k tree
+                list' <- AVL.toList tree1
+                let diff = uniqued list \\ list'
+                return $ length diff == 1 && fst (head diff) == k
         ]
     ]

@@ -1,66 +1,65 @@
 
 {-# LANGUAGE MultiWayIf     #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Data.Tree.AVL.Deletion (delete, deleteWithNoProof, delete') where
 
-import Control.Lens (use, (.=), (^.))
-import Control.Monad (unless)
+import Control.Lens               (use, (.=))
+import Control.Monad              (unless)
+
+import Data.Set                   (Set)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 -- | Endpoint that allows to merge proofs for some sequental operations.
-delete' :: Hash h k v => k -> Map h k v -> (RevSet, Map h k v)
-delete' k tree = (trails, res)
-  where
-    (_yes, res, trails) = runZipped' (deleteZ k) DeleteMode tree
+delete' :: Stores h k v m => k -> Map h k v -> m (Set h, Map h k v)
+delete' k tree = do
+    (_yes, res, trails) <- runZipped' (deleteZ k) DeleteMode tree
+    return (trails, res)
 
 -- | Endpoint that generates proof.
-delete :: Hash h k v => k -> Map h k v -> (Proof h k v, Map h k v)
-delete k tree = (proof, res)
-  where
-    (_yes, res, proof) = runZipped (deleteZ k) DeleteMode tree
+delete :: Stores h k v m => k -> Map h k v -> m (Proof h k v, Map h k v )
+delete k tree = do
+    (_yes, res, proof) <- runZipped (deleteZ k) DeleteMode tree
+    return (proof, res)
 
 -- | Endpoint that generates no proof.
 deleteWithNoProof
-    :: Hash h k v
+    :: Stores h k v m
     => k
     -> Map h k v
-    -> Map h k v
-deleteWithNoProof k tree = res
-  where
-    (_yes, res, _proof) = runZipped (deleteZ k) DeleteMode tree
+    -> m (Map h k v)
+deleteWithNoProof k tree = do
+    (_yes, res, _proof) <- runZipped (deleteZ k) DeleteMode tree
+    return res
 
 -- | Deletion algorithm.
-deleteZ :: Hash h k v => k -> Zipped h k v Bool
+deleteZ :: forall h k v m . Stores h k v m => k -> Zipped h k v m Bool
 deleteZ k = do
-    tree <- use locus
-    if  -- corner cases for degenerate trees
-      | Just term <- tree^.terminal -> do
-        if term^.key == k
+    withLocus $ \case
+      MLLeaf { _mlKey } -> do
+        if _mlKey == k
         then do
-            replaceWith empty
+            replaceWith (empty :: Map h k v)
             return True
 
         else do
-            mark
+            mark "deleteZ/node exists"
             return False
 
-      | Just Vacuous <- tree^.vacuous -> do
-        mark
+      MLEmpty {} -> do
+        --mark
         return False
 
-      | otherwise -> do
+      _ -> do
         goto k
-        tree0 <- use locus
-        if
-          | Just term <- tree0^.terminal -> do
-            let key0 = term^.key
-                prev = term^.prevKey
-                next = term^.nextKey
-
+        withLocus $ \case
+          MLLeaf { _mlKey = key0, _mlPrevKey = prev, _mlNextKey = next } -> do
             if key0 /= k
             then do
                 return False
@@ -70,32 +69,36 @@ deleteZ k = do
 
                 -- we need to mark another child, so it ends in a proof
                 _ <- case side of
-                  L -> descentRight >> mark >> up
-                  R ->  descentLeft >> mark >> up
+                  L -> descentRight >> up
+                  R ->  descentLeft >> up
 
-                here <- use locus
-                let
-                  newTree
-                    | Just fork <- here^.branching =
-                      case side of
-                        L -> fork^.right
-                        R -> fork^.left
+                newTree <- withLocus $ \case
+                  MLBranch { _mlLeft = left, _mlRight = right } ->
+                    return $ case side of
+                      L -> right
+                      R -> left
 
-                    | otherwise =
-                        error "delete: successful `up` ended in non-Branch"
+                  _ ->
+                      error "delete: successful `up` ended in non-Branch"
 
                 replaceWith newTree  -- replace with another child
 
                 unless (prev == minBound) $ do
                     goto prev
-                    change (locus.setNextKey .= next)
+                    change $ do
+                      loc   <- use locus
+                      loc'  <- setNextKey next loc
+                      locus .= loc'
 
                 unless (next == maxBound) $ do
                     goto next
-                    change (locus.setPrevKey .= prev)
+                    change $ do
+                      loc   <- use locus
+                      loc'  <- setPrevKey prev loc
+                      locus .= loc'
 
                 return True
 
-          | otherwise -> do
-            error $ "insert: `goto k` ended in non-terminal node - " ++ show tree0
+          _ -> do
+            error $ "insert: `goto " ++ show k ++ "` ended in non-terminal node"
 

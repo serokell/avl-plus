@@ -1,40 +1,42 @@
 
 {-# LANGUAGE MultiWayIf      #-}
 {-# LANGUAGE NamedFieldPuns  #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Data.Tree.AVL.Lookup where
 
-import Control.Lens (to, use, (^.))
+import Control.Lens (use)
+import Control.Monad.Trans.Class (lift)
 
+import Data.Set (Set)
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
-lookup' :: Hash h k v => k -> Map h k v -> ((Maybe v, RevSet), Map h k v)
-lookup' k tree0 = ((mv, trails), tree)
-  where
-    (mv, tree, trails) = runZipped' (lookupZ k) UpdateMode tree0
 
-lookup :: Hash h k v => k -> Map h k v -> ((Maybe v, Proof h k v), Map h k v)
-lookup k tree0 = ((mv, proof), tree)
-  where
-    (mv, tree, proof) = runZipped (lookupZ k) UpdateMode tree0
+lookup' :: Stores h k v m => k -> Map h k v -> m ((Maybe v, Set h), Map h k v)
+lookup' k tree0 = do
+    (mv, tree, trails) <- runZipped' (lookupZ k) UpdateMode tree0
+    return ((mv, trails), tree)
 
-lookupZ :: Hash h k v => k -> Zipped h k v (Maybe v)
+lookup :: Stores h k v m => k -> Map h k v -> m ((Maybe v, Proof h k v), Map h k v)
+lookup k tree0 = do
+    (mv, tree, proof) <- runZipped (lookupZ k) UpdateMode tree0
+    return ((mv, proof), tree)
+
+lookupZ :: Stores h k v m => k -> Zipped h k v m (Maybe v)
 lookupZ k = do
     goto k
-    tree <- use locus
-    mark
-    if
-      | Just end <- tree^.terminal ->
-        if end^.key == k
-        then return (end^.value.to Just)
+    tree  <- use locus
+    lift (open tree) >>= \case
+      MLLeaf {_mlKey, _mlValue} ->
+        if _mlKey == k
+        then return (Just _mlValue)
         else return Nothing
 
-      | Just Vacuous <- tree^.vacuous ->
+      MLEmpty {} ->
         return Nothing
 
-      | otherwise ->
+      _ ->
         error $ "lookup: `goto " ++ show k ++ "` ended in non-terminal node"
 

@@ -1,5 +1,8 @@
 
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Data.Tree.AVL.Insertion
   ( insert
@@ -9,109 +12,126 @@ module Data.Tree.AVL.Insertion
   , insert'
   ) where
 
-import Control.Lens (use, (.=), (^.))
-import Control.Monad (unless)
+import Control.Lens               (use, (.=))
+import Control.Monad              (unless, foldM, void)
 
-import Data.List (foldl')
+import Data.Set                   (Set)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
+--import qualified Debug.Trace as Debug
+
 -- | Endpoint that allows to merge proofs for some sequental operations.
-insert' :: Hash h k v => k -> v -> Map h k v -> (RevSet, Map h k v)
-insert' k v tree = (trails, res)
-  where
-    ((), res, trails) = runZipped' (insertZ k v) UpdateMode tree
+insert' :: Stores h k v m => k -> v -> Map h k v -> m (Set h, Map h k v)
+insert' k v tree = do
+    ((), res, trails) <- runZipped' (insertZ k v) UpdateMode tree
+    return (trails, res)
 
 -- | Endpoint that generates proof.
-insert :: Hash h k v => k -> v -> Map h k v -> (Proof h k v, Map h k v)
-insert k v tree = (proof, res)
-  where
-    ((), res, proof) = runZipped (insertZ k v) UpdateMode tree
+insert :: Stores h k v m => k -> v -> Map h k v -> m (Proof h k v, Map h k v)
+insert k v tree = do
+    ((), res, proof) <- runZipped (insertZ k v) UpdateMode tree
+    return (proof, res)
 
 -- | Endpoint that generates no proof.
 insertWithNoProof
-    :: Hash h k v
+    :: Stores h k v m
     => k
     -> v
     -> Map h k v
-    -> Map h k v
-insertWithNoProof k v tree = res
-  where
-    ((), res, _) = runZipped (insertZ k v) UpdateMode tree
+    -> m (Map h k v)
+insertWithNoProof k v tree = do
+    ((), res, _) <- runZipped (insertZ k v) UpdateMode tree
+    return res
 
 -- | Insertion algorithm.
-insertZ :: Hash h k v => k -> v -> Zipped h k v ()
+insertZ :: forall h k v m . Stores h k v m => k -> v -> Zipped h k v m ()
 insertZ k v = do
     goto k             -- teleport to a key (or near it if absent)
-    tree <- use locus
-    case tree of
-      Empty {} -> do
-        leaf0 <- makeLeaf k v minBound maxBound
+    withLocus $ \case
+      MLEmpty {} -> do
+        leaf0 <- leaf k v minBound maxBound
         replaceWith leaf0
+        return ()
 
-      leaf1 | Just term <- leaf1^.terminal -> do
-        let key0 = term^.key
-            prev = term^.prevKey
-            next = term^.nextKey
+      MLLeaf {_mlKey, _mlPrevKey, _mlNextKey} -> do
+        let key0 = _mlKey
+            prev = _mlPrevKey
+            next = _mlNextKey
 
         if k == key0 then do  -- update case, replace with new value
             change $ do
-                locus.setValue .= v
+                here  <- use locus
+                here' <- setValue v here
+                locus .= here'
         else do
             if k `isInside` (prev, key0)
             then do
-                leaf0 <- makeLeaf k v prev key0
+                leaf0 <- leaf k v prev key0
 
                 splitInsertBefore leaf0
+
                 unless (prev == minBound) $ do
                     goto prev
                     change $ do
-                        locus.setNextKey .= k
+                        here  <- use locus
+                        here' <- setNextKey k here
+                        locus .= here'
 
             else do
-                leaf0 <- makeLeaf k v key0 next
+                leaf0 <- leaf k v key0 next
 
                 splitInsertAfter leaf0
+
                 unless (next == maxBound) $ do
                     goto next
                     change $ do
-                        locus.setPrevKey .= k
-      other -> do
-        error $ "insert: `goto k` ended in non-terminal node - " ++ show other
+                        here  <- use locus
+                        here' <- setPrevKey k here
+                        locus .= here'
+      _ -> do
+        error $ "insert: `goto k` ended in non-terminal node"
 
     return ()
   where
+    splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
         tree <- use locus
-        rev  <- newRevision
-        replaceWith (branch rev M leaf0 tree)
+        new  <- branch M leaf0 tree
+        replaceWith new
         descentRight
         change $ do
-            locus.setPrevKey .= k
+            here  <- use locus
+            here' <- setPrevKey k here
+            locus .= here'
+        void up
 
-
+    splitInsertAfter :: Map h k v -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
         tree <- use locus
-        rev  <- newRevision
-        replaceWith (branch rev M tree leaf0)
+        new  <- branch M tree leaf0
+        replaceWith new
         descentLeft
         change $ do
-            locus.setNextKey .= k
-
-    makeLeaf k0 v0 prev next = do
-        rev <- newRevision
-        return $ leaf rev k0 v0 prev next
+            here  <- use locus
+            here' <- setNextKey k here
+            locus .= here'
+        void up
 
     isInside k0 (l, h) = k0 >= l && k0 <= h
 
-fromList :: Hash h k v
+fromList :: Stores h k v m
     => [(k, v)]
-    -> Map h k v
+    -> m (Map h k v)
 -- | Monomorphised version.
 fromList = fromFoldable
 
-fromFoldable :: Hash h k v => Foldable f => f (k, v) -> Map h k v
+fromFoldable :: forall h k v m f . Stores h k v m => Foldable f => f (k, v) -> m (Map h k v)
 -- | Construct a tree from any Foldable (and calculate all hashes).
-fromFoldable = foldl' (flip $ uncurry insertWithNoProof) empty
+fromFoldable list = do
+    foldM push empty list
+  where
+    push :: Map h k v -> (k, v) -> m (Map h k v)
+    push tree (k, v) = insertWithNoProof k v tree

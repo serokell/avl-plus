@@ -11,20 +11,36 @@ module Lookup (tests) where
 import Common
 
 import qualified Data.Tree.AVL as AVL
-import qualified Debug.Trace   as Debug
 
 tests :: [Test]
 tests =
     [ testGroup "Lookup"
-        [ testProperty "Generated proofs are verified" $
-          \k list ->
-            let
-                tree                        = AVL.fromList list :: M
-                scan @ ((search, proof), _) = AVL.lookup k tree
-                proofIsGood                 = AVL.checkProof (tree^.AVL.rootHash) proof
-                exists                      = lookup k (reverse list)
-            in
-                proofIsGood
-            &&  search == exists
+        [ cachedProperty "Generated proofs are verified" $ \(k, list) -> do
+            tree            <- AVL.fromList list :: StorageMonad M
+            ((_, proof), _) <- AVL.lookup k tree
+
+            AVL.checkProof (AVL.rootHash tree) proof
+
+        , cachedProperty "Generated proofs are replayable" $ \(k, list) -> do
+            tree            <- AVL.fromList list :: StorageMonad M
+            ((_, proof), _) <- AVL.lookup k tree
+
+            let AVL.Proof subtree = proof
+
+            _ <- AVL.sandboxed $ do
+                AVL.lookup k subtree
+
+            AVL.checkProof (AVL.rootHash tree) proof
+
+        , cachedProperty "Lookup actually works" $ \(list) -> do
+            case uniqued list of
+              [] -> do
+                return True
+
+              (k, v) : rest -> do
+                tree              <- AVL.fromList ((k, v) : rest) :: StorageMonad M
+                ((Just v1, _), _) <- AVL.lookup k tree
+
+                return (v == v1)
         ]
     ]

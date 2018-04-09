@@ -1,35 +1,56 @@
 
+{-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 
 module Data.Tree.AVL.Proof where
 
-import Control.Lens (makePrisms, (%~), (&), (^.))
+import Control.Lens               (makePrisms, (.~), (&))
+import Control.Monad.Catch        (catch)
 
-import Data.Binary
+import Data.Binary                (Binary(get, put))
+import Data.Hashable              (Hashable)
+import Data.Fix                   (Fix (..))
+import Data.HashMap.Strict as HM  (HashMap, fromList, toList)
 
-import GHC.Generics
+import GHC.Generics               (Generic)
 
 import Data.Tree.AVL.Internal
 
-newtype Proof h k v = Proof { getProof :: Map h k v }
-    deriving (Eq, Show, Generic, Binary)
+data Proof h k v = Proof { subtree :: Map h k v }
+    deriving (Show, Generic, Binary)
+
+instance (Hashable k, Eq k, Binary k, Binary v) => Binary (HM.HashMap k v) where
+  get = HM.fromList <$> get
+  put = put . HM.toList
+
+deriving instance Binary (f (Fix f)) => Binary (Fix f)
 
 makePrisms ''Proof
 
-checkProof :: Hash h k v => h -> Proof h k v -> Bool
-checkProof ideal (Proof proof) = fullRehash proof^.rootHash == ideal
+checkProof :: forall h k v m . Stores h k v m => h -> Proof h k v -> m Bool
+checkProof ideal (Proof subtree) = do
+    renewed <- fullRehash subtree
+    return $ rootHash renewed == ideal
+  where
+    -- | Apply 'rehash' recursively.
+    fullRehash :: Map h k v -> m (Map h k v)
+    fullRehash tree = do
+        open tree >>= \case
+          layer @ MLBranch {_mlLeft, _mlRight} -> do
+            left  <- fullRehash _mlLeft
+            right <- fullRehash _mlRight
+            rehash $ close $ layer
+              & mlLeft  .~ left
+              & mlRight .~ right
 
--- | Apply 'rehash' recursively.
-fullRehash :: Hash h k v => Map h k v -> Map h k v
-fullRehash tree = case tree of
-  Empty  {} -> rehash tree
-  Leaf   {} -> rehash tree
-  Branch {} -> tree
-    & setLeft  %~ fullRehash
-    & setRight %~ fullRehash
-    & rehash
-  _other    -> tree
-
+          _other -> do
+            rehash tree
+      `catch` \(NotFound (_ :: h)) -> do
+        return tree
