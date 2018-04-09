@@ -28,7 +28,7 @@ library
                , Data.Tree.AVL.Prune
                , Data.Tree.AVL.Zipper
   -- other-extensions:
-  build-depends:       base >=4.9 && <4.10
+  build-depends:       base >=4.9 && <5
                      , binary
                      , containers
                      , data-default
