@@ -1,9 +1,10 @@
 
+{-# LANGUAGE ConstraintKinds        #-}
 {-# LANGUAGE DeriveAnyClass         #-}
-{-# LANGUAGE DeriveFunctor          #-}
 {-# LANGUAGE DeriveFoldable         #-}
-{-# LANGUAGE DeriveTraversable      #-}
+{-# LANGUAGE DeriveFunctor          #-}
 {-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE DeriveTraversable      #-}
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -22,18 +23,18 @@
 
 module Data.Tree.AVL.Internal where
 
-import Control.Exception                  (Exception)
-import Control.Lens                       (makeLenses, (&), (.~), (^.), (^?))
-import Control.Monad                      (void)
-import Control.Monad.Catch                (catch, MonadCatch)
-import Control.Monad.IO.Class             (MonadIO)
-import Control.Monad.Free                 (Free(Pure, Free))
+import Control.Exception (Exception)
+import Control.Lens (makeLenses, (&), (.~), (^.), (^?))
+import Control.Monad (void)
+import Control.Monad.Catch (MonadCatch, catch)
+import Control.Monad.Free (Free (Free, Pure))
+import Control.Monad.IO.Class (MonadIO)
 
 import Data.Binary
-import Data.Default                       (Default (..))
-import Data.Hashable                      (Hashable)
-import Data.Foldable                      (for_)
-import Data.Typeable                      (Typeable)
+import Data.Default (Default (..))
+import Data.Foldable (for_)
+import Data.Hashable (Hashable)
+import Data.Typeable (Typeable)
 --import Data.Tree                  as Tree (Tree(Node), drawTree)
 
 import GHC.Generics (Generic)
@@ -72,11 +73,11 @@ data MapLayer h k v self
     , _mlRight     :: self
     }
   | MLLeaf
-    { _mlHash     :: h
-    , _mlKey      :: k
-    , _mlValue    :: v
-    , _mlNextKey  :: k
-    , _mlPrevKey  :: k
+    { _mlHash    :: h
+    , _mlKey     :: k
+    , _mlValue   :: v
+    , _mlNextKey :: k
+    , _mlPrevKey :: k
     }
   | MLEmpty
     { _mlHash     :: h
@@ -127,8 +128,15 @@ class
     hashOf :: MapLayer h k v h -> h
 
 -- | Umbrella class to grab all the required capabilities for tree to operate (and be debugged!).
-class    (Ord h, Typeable k, Hash h k v, Binary h, Binary k, Binary v, KVStoreMonad h m) => Stores h k v m where
-instance (Ord h, Typeable k, Hash h k v, Binary h, Binary k, Binary v, KVStoreMonad h m) => Stores h k v m where
+type Stores h k v m =
+    ( Ord h
+    , Typeable k
+    , Hash h k v
+    , Binary h
+    , Binary k
+    , Binary v
+    , KVStoreMonad h m
+    )
 
 -- | Get hash of the root node for the tree.
 rootHash :: Map h k v -> h
