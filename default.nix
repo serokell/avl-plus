@@ -9,6 +9,6 @@ in
 with nixpkgs;
 
 buildStack {
-  package = "auth-data-structures";
+  package = "AVL";
   src = lib.cleanSource ./.;
 }
