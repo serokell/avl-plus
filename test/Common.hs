@@ -1,14 +1,15 @@
 
-{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE PartialTypeSignatures      #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Common (module Common, module Control.Lens, module T) where
 
@@ -18,7 +19,8 @@ import Control.Monad.IO.Class               as T (liftIO)
 import Control.Monad.Trans.Class            as T (lift)
 import Control.Monad                        as T (when)
 
-import Data.Binary                               (Binary)
+import Data.Binary                               (Binary, encode, decodeOrFail)
+import Data.ByteString.Lazy                      (toStrict, fromStrict)
 import Data.Default                         as T (Default(def))
 import Data.Foldable                             ()
 import Data.Function                             (on)
@@ -38,6 +40,14 @@ import Test.QuickCheck.Instances            as T ()
 
 import qualified Data.Tree.AVL as AVL
 
+instance Binary x => AVL.Serializable x where
+    serialise   = toStrict . encode
+    deserialise = decodeErrorToMaybe . decodeOrFail . fromStrict
+      where
+        decodeErrorToMaybe = either
+            (const Nothing)
+            (\(_, _, it) -> Just it)
+
 -- | Extensional equality combinator.
 (.=.) :: (Eq b, Show b, Arbitrary a) => (a -> b) -> (a -> b) -> a -> Property
 f .=. g = \a ->
@@ -55,13 +65,14 @@ infixr 5 .=.
 
 type Layer = AVL.MapLayer Int StringName Int Int
 
---instance Hashable InitialHash
+instance Binary Layer
 
 deriving instance Ord Layer
 instance Hashable Layer
 
 instance Hashable StringName
 
+instance Binary   AVL.Tilt
 instance Hashable AVL.Tilt
 
 --instance Show InitialHash where

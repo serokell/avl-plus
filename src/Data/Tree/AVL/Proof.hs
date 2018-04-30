@@ -1,36 +1,26 @@
 
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE NamedFieldPuns             #-}
-{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Data.Tree.AVL.Proof where
 
 import Control.Lens               (makePrisms, (.~), (&))
 import Control.Monad.Catch        (catch)
 
-import Data.Binary                (Binary(get, put))
-import Data.Hashable              (Hashable)
-import Data.Fix                   (Fix (..))
-import Data.HashMap.Strict as HM  (HashMap, fromList, toList)
-
 import GHC.Generics               (Generic)
 
 import Data.Tree.AVL.Internal
 
 data Proof h k v = Proof { subtree :: Map h k v }
-    deriving (Show, Generic, Binary)
-
-instance (Hashable k, Eq k, Binary k, Binary v) => Binary (HM.HashMap k v) where
-  get = HM.fromList <$> get
-  put = put . HM.toList
-
-deriving instance Binary (f (Fix f)) => Binary (Fix f)
+    deriving (Show, Generic)
 
 makePrisms ''Proof
 

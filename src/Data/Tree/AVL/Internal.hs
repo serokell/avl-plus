@@ -17,6 +17,7 @@
 {-# LANGUAGE StandaloneDeriving     #-}
 {-# LANGUAGE StrictData             #-}
 {-# LANGUAGE TemplateHaskell        #-}
+{-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE UndecidableInstances   #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -30,7 +31,7 @@ import Control.Monad.Catch (MonadCatch, catch)
 import Control.Monad.Free (Free (Free, Pure))
 import Control.Monad.IO.Class (MonadIO)
 
-import Data.Binary
+import Data.ByteString (ByteString)
 import Data.Default (Default (..))
 import Data.Foldable (for_)
 import Data.Hashable (Hashable)
@@ -44,7 +45,7 @@ import GHC.Generics (Generic)
 data Side
     = L
     | R
-    deriving (Eq, Show, Generic, Binary)
+    deriving (Eq, Show, Generic)
 
 -- | "Tilt" is a difference in branch heights.
 --   We have only +2/-2 as our limits for the rebalance, lets make enum.
@@ -56,7 +57,7 @@ data Tilt
     | M   -- Balanced
     | R1  -- BalancedRight
     | R2  -- UnbalancedRight
-    deriving (Eq, Ord, Show, Enum, Generic, Binary)
+    deriving (Eq, Ord, Show, Enum, Generic)
 
 -- | Representation of AVL+ tree with data in leaves.
 
@@ -82,20 +83,23 @@ data MapLayer h k v self
   | MLEmpty
     { _mlHash     :: h
     }
-    deriving (Eq, Functor, Foldable, Traversable, Generic, Binary)
+    deriving (Eq, Functor, Foldable, Traversable, Generic)
 
 type Map h k v = Free (MapLayer h k v) h
 
-deriving instance                                      Generic (Free t a)
-deriving instance (Binary (t (Free t a)), Binary a) => Binary  (Free t a)
+deriving instance Generic (Free t a)
 
 makeLenses ''MapLayer
 
+class Serializable a where
+    serialise   :: a -> ByteString
+    deserialise :: ByteString -> Maybe a
+
 -- | Class, representing DB layer, capable of storing 'isolate'd nodes.
 --   The 'store' is an idempotent operation.
-class (MonadCatch m, MonadIO m) => KVStoreMonad h m where
-    retrieve :: Binary v => h -> m v
-    store    :: Binary v => h -> v -> m ()
+class (MonadCatch m, MonadIO m, Serializable k) => KVStoreMonad k m where
+    retrieve :: Serializable v => k -> m v
+    store    :: Serializable v => k -> v -> m ()
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
@@ -132,10 +136,9 @@ type Stores h k v m =
     ( Ord h
     , Typeable k
     , Hash h k v
-    , Binary h
-    , Binary k
-    , Binary v
     , KVStoreMonad h m
+    , Serializable (MapLayer h k v h)
+    , Serializable h
     )
 
 -- | Get hash of the root node for the tree.

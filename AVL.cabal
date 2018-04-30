@@ -32,6 +32,7 @@ library
                      , binary
                      , bytestring
                      , containers
+                     , constraints
                      , composition
                      , data-default
                      , data-fix
@@ -61,6 +62,7 @@ test-suite avl-tree-sanity
   build-depends:       base >= 0.4 && < 5
                      , AVL
                      , binary
+                     , bytestring
                      , data-default
                      , exceptions
                      , hashable

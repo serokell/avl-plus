@@ -1,7 +1,8 @@
 
-{-# LANGUAGE MultiWayIf      #-}
-{-# LANGUAGE NamedFieldPuns  #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase       #-}
+{-# LANGUAGE MultiWayIf       #-}
+{-# LANGUAGE NamedFieldPuns   #-}
 
 module Data.Tree.AVL.Lookup where
 
