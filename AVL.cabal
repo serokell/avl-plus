@@ -29,7 +29,6 @@ library
                , Data.Tree.AVL.RocksDBStore
   -- other-extensions:
   build-depends:       base >=4.9 && <5
-                     , binary
                      , bytestring
                      , containers
                      , composition
