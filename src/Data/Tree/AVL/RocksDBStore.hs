@@ -25,7 +25,7 @@ import Data.Tree.AVL.Internal
 
 type RocksDBStore = ReaderT DB IO
 
-instance (Eq h, Typeable h, Hashable h, Show h, Serializable h) => KVStoreMonad h RocksDBStore where
+instance (Eq h, Typeable h, Hashable h, Show h, Serialisable h) => KVStoreMonad h RocksDBStore where
     retrieve k = do
         db   <- ask
         mres <- liftIO $ get db def (serialise k)
@@ -38,7 +38,7 @@ instance (Eq h, Typeable h, Hashable h, Show h, Serializable h) => KVStoreMonad 
 
 type RDBM h = HashMapStore h RocksDBStore
 
-transacted :: (Eq h, Show h, Serializable h, Typeable h, Hashable h) => RDBM h a -> RocksDBStore a
+transacted :: (Eq h, Show h, Serialisable h, Typeable h, Hashable h) => RDBM h a -> RocksDBStore a
 transacted action = do
     (res, cache) <- runOnEmptyCache action
     massStore cache
@@ -48,7 +48,7 @@ runRocksDBWithCache :: FilePath -> RocksDBStore a -> IO a
 runRocksDBWithCache dbName action = do
     bracket (RDB.open dbName def) RDB.close $ runReaderT action
 
-massStore :: Serializable h => Storage h -> RocksDBStore ()
+massStore :: Serialisable h => Storage h -> RocksDBStore ()
 massStore storage = do
     let pairs = HM.toList storage
     db <- ask

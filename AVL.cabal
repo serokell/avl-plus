@@ -32,7 +32,6 @@ library
                      , binary
                      , bytestring
                      , containers
-                     , constraints
                      , composition
                      , data-default
                      , data-fix

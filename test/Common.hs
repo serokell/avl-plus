@@ -40,7 +40,7 @@ import Test.QuickCheck.Instances            as T ()
 
 import qualified Data.Tree.AVL as AVL
 
-instance Binary x => AVL.Serializable x where
+instance Binary x => AVL.Serialisable x where
     serialise   = toStrict . encode
     deserialise = decodeErrorToMaybe . decodeOrFail . fromStrict
       where

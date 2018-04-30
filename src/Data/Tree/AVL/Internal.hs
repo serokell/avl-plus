@@ -1,5 +1,4 @@
 
-{-# LANGUAGE ConstraintKinds        #-}
 {-# LANGUAGE DeriveAnyClass         #-}
 {-# LANGUAGE DeriveFoldable         #-}
 {-# LANGUAGE DeriveFunctor          #-}
@@ -91,15 +90,15 @@ deriving instance Generic (Free t a)
 
 makeLenses ''MapLayer
 
-class Serializable a where
+class Serialisable a where
     serialise   :: a -> ByteString
     deserialise :: ByteString -> Maybe a
 
 -- | Class, representing DB layer, capable of storing 'isolate'd nodes.
 --   The 'store' is an idempotent operation.
-class (MonadCatch m, MonadIO m, Serializable k) => KVStoreMonad k m where
-    retrieve :: Serializable v => k -> m v
-    store    :: Serializable v => k -> v -> m ()
+class (MonadCatch m, MonadIO m, Serialisable k) => KVStoreMonad k m where
+    retrieve :: Serialisable v => k -> m v
+    store    :: Serialisable v => k -> v -> m ()
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
@@ -137,8 +136,8 @@ type Stores h k v m =
     , Typeable k
     , Hash h k v
     , KVStoreMonad h m
-    , Serializable (MapLayer h k v h)
-    , Serializable h
+    , Serialisable (MapLayer h k v h)
+    , Serialisable h
     )
 
 -- | Get hash of the root node for the tree.

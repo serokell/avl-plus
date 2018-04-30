@@ -25,7 +25,7 @@ type Storage k = HashMap k ByteString
 
 type HashMapStore k = StateT (Storage k)
 
-instance (Serializable k, KVStoreMonad k m, Eq k, Typeable k, Hashable k, Show k) => KVStoreMonad k (HashMapStore k m) where
+instance (Serialisable k, KVStoreMonad k m, Eq k, Typeable k, Hashable k, Show k) => KVStoreMonad k (HashMapStore k m) where
     retrieve k = do
         --liftIO $ print "retrieve"
         mapping <- get
@@ -42,7 +42,7 @@ instance (Serializable k, KVStoreMonad k m, Eq k, Typeable k, Hashable k, Show k
         --liftIO $ putStrLn $ "store " ++ show k ++ " " ++ show v
         modify $ insert k (serialise v)
 
-instance (Show k, Typeable k, Serializable k) => KVStoreMonad k NullStore where
+instance (Show k, Typeable k, Serialisable k) => KVStoreMonad k NullStore where
     retrieve k = throwM (NotFound k)
     store _ _  = return ()
 
