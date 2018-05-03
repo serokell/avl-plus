@@ -1,9 +1,6 @@
 
 {-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ExplicitForAll      #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE LambdaCase          #-}
 
 module Data.Tree.AVL.Insertion
   ( insert

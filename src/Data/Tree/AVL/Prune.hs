@@ -1,9 +1,6 @@
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE NamedFieldPuns         #-}
-{-# LANGUAGE ExplicitForAll         #-}
-{-# LANGUAGE ScopedTypeVariables         #-}
-{-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ExplicitForAll #-}
 
 module Data.Tree.AVL.Prune where
 

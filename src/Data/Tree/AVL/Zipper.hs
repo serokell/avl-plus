@@ -1,14 +1,11 @@
 
-{-# LANGUAGE NamedFieldPuns     #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell    #-}
-{-# LANGUAGE FlexibleContexts       #-}
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE ExplicitForAll  #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE LambdaCase  #-}
-{-# LANGUAGE TupleSections  #-}
+{-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ExplicitForAll        #-}
+{-# LANGUAGE TupleSections         #-}
 
 -- | This module represents zipper layer.
 --   It allows us represent all operations using
