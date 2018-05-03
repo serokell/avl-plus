@@ -29,8 +29,15 @@ instance (Eq h, Typeable h, Hashable h, Show h, Serialisable h) => KVStoreMonad 
     retrieve k = do
         db   <- ask
         mres <- liftIO $ get db def (serialise k)
-        case mres >>= deserialise of
-          Just it -> return it
+        case mres of
+          Just it ->
+            case deserialise it of
+              Left err -> do
+                throwM (DeserialisationError err)
+
+              Right res -> do
+                return res
+
           Nothing -> throwM (NotFound k)
 
     store _k _v = do

@@ -28,14 +28,19 @@ instance (Serialisable k, KVStoreMonad k m, Eq k, Typeable k, Hashable k, Show k
     retrieve k = do
         --liftIO $ print "retrieve"
         mapping <- get
-        case k `HM.lookup` mapping >>= deserialise of
+        case k `HM.lookup` mapping of
           Nothing -> do
             v <- lift $ retrieve k
             store k v
             return v
 
           Just it -> do
-            return it
+            case deserialise it of
+              Left err -> do
+                throwM (DeserialisationError err)
+
+              Right res -> do
+                return res
 
     store k v = do
         --liftIO $ putStrLn $ "store " ++ show k ++ " " ++ show v
@@ -45,13 +50,13 @@ instance (Show k, Typeable k, Serialisable k) => KVStoreMonad k NullStore where
     retrieve k = throwM (NotFound k)
     store _ _  = return ()
 
-runWithCache :: forall k m a. KVStoreMonad k m => Storage k -> HashMapStore k m a -> m (a, Storage k)
+runWithCache :: KVStoreMonad k m => Storage k -> HashMapStore k m a -> m (a, Storage k)
 runWithCache db action = runStateT action db
 
-runOnEmptyCache :: forall k m a. KVStoreMonad k m => HashMapStore k m a -> m (a, Storage k)
+runOnEmptyCache :: KVStoreMonad k m => HashMapStore k m a -> m (a, Storage k)
 runOnEmptyCache = runWithCache HM.empty
 
-sandboxed :: forall k m a. (Show k, Eq k, Typeable k, KVStoreMonad k m) => HashMapStore k NullStore a -> HashMapStore k m a
+sandboxed :: (Show k, Eq k, Typeable k, KVStoreMonad k m) => HashMapStore k NullStore a -> HashMapStore k m a
 sandboxed action = do
     (res, _) <- liftIO $ runOnEmptyCache action
     return res

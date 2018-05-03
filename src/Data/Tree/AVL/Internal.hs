@@ -1,20 +1,14 @@
 
-{-# LANGUAGE ConstraintKinds        #-}
 {-# LANGUAGE DeriveAnyClass         #-}
 {-# LANGUAGE DeriveFoldable         #-}
 {-# LANGUAGE DeriveFunctor          #-}
-{-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE DeriveTraversable      #-}
-{-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE NamedFieldPuns         #-}
 {-# LANGUAGE PatternSynonyms        #-}
 {-# LANGUAGE RankNTypes             #-}
-{-# LANGUAGE ScopedTypeVariables    #-}
-{-# LANGUAGE StandaloneDeriving     #-}
 {-# LANGUAGE StrictData             #-}
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE UndecidableInstances   #-}
@@ -90,9 +84,10 @@ deriving instance Generic (Free t a)
 
 makeLenses ''MapLayer
 
+-- | Class, representing an ability for type to be [de]serialised.
 class Serialisable a where
     serialise   :: a -> ByteString
-    deserialise :: ByteString -> Maybe a
+    deserialise :: ByteString -> Either String a
 
 -- | Class, representing DB layer, capable of storing 'isolate'd nodes.
 --   The 'store' is an idempotent operation.
@@ -103,6 +98,12 @@ class (MonadCatch m, MonadIO m, Serialisable k) => KVStoreMonad k m where
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
     deriving (Show, Typeable)
+
+-- | Excepton to be thrown if deserialisation is failed.
+data DeserialisationError = DeserialisationError String
+    deriving (Show, Typeable)
+
+instance Exception DeserialisationError
 
 instance (Show k, Typeable k) => Exception (NotFound k)
 

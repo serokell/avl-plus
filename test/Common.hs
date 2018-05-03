@@ -45,8 +45,8 @@ instance Binary x => AVL.Serialisable x where
     deserialise = decodeErrorToMaybe . decodeOrFail . fromStrict
       where
         decodeErrorToMaybe = either
-            (const Nothing)
-            (\(_, _, it) -> Just it)
+            (\(_, _, err) -> Left err)
+            (\(_, _, it)  -> Right it)
 
 -- | Extensional equality combinator.
 (.=.) :: (Eq b, Show b, Arbitrary a) => (a -> b) -> (a -> b) -> a -> Property
