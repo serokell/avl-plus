@@ -1,7 +1,6 @@
 
-{-# LANGUAGE MultiWayIf      #-}
-{-# LANGUAGE NamedFieldPuns  #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf       #-}
+{-# LANGUAGE NamedFieldPuns   #-}
 
 module Data.Tree.AVL.Lookup where
 
