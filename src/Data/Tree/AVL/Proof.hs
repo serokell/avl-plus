@@ -11,14 +11,14 @@ module Data.Tree.AVL.Proof where
 import Control.Lens               (makePrisms, (.~), (&))
 import Control.Monad.Catch        (catch)
 
+import Data.Functor.Classes
+
 import GHC.Generics               (Generic)
 
 import Data.Tree.AVL.Internal
 
 data Proof h k v = Proof { subtree :: Map h k v }
-    deriving (Generic)
-
-deriving instance (Show h, Show k, Show v) => Show (Proof h k v)
+    deriving (Show, Show1, Generic)
 
 makePrisms ''Proof
 
