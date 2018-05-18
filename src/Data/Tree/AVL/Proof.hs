@@ -16,7 +16,9 @@ import GHC.Generics               (Generic)
 import Data.Tree.AVL.Internal
 
 data Proof h k v = Proof { subtree :: Map h k v }
-    deriving (Show, Generic)
+    deriving (Generic)
+
+deriving instance (Show h, Show k, Show v) => Show (Proof h k v)
 
 makePrisms ''Proof
 
