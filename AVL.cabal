@@ -26,7 +26,7 @@ library
                , Data.Tree.AVL.Prune
                , Data.Tree.AVL.Zipper
                , Data.Tree.AVL.HashMapStore
-               , Data.Tree.AVL.RocksDBStore
+               -- , Data.Tree.AVL.RocksDBStore
   build-depends:       base >=4.9 && <5
                      , bytestring
                      , containers
@@ -42,7 +42,7 @@ library
                      , mtl
                      , pretty-tree
                      , random
-                     , rocksdb-haskell
+                     -- , rocksdb-haskell
                      , stm
                      , transformers
                      , unordered-containers
