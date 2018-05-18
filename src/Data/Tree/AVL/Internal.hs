@@ -33,6 +33,8 @@ import Data.Typeable (Typeable)
 
 import GHC.Generics (Generic)
 
+import Text.Show.Deriving (deriveShow1)
+
 --import qualified Debug.Trace as Debug
 
 data Side
@@ -77,6 +79,8 @@ data MapLayer h k v self
     { _mlHash     :: h
     }
     deriving (Eq, Functor, Foldable, Traversable, Generic)
+
+deriveShow1 ''MapLayer
 
 type Map h k v = Free (MapLayer h k v) h
 

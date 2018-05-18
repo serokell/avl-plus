@@ -33,6 +33,7 @@ library
                      , composition
                      , data-default
                      , data-fix
+                     , deriving-compat
                      , exceptions
                      , free
                      , hashable
