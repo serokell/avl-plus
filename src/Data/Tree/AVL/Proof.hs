@@ -1,5 +1,6 @@
 
 {-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE MonoLocalBinds             #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE StandaloneDeriving         #-}
