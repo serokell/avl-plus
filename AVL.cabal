@@ -40,7 +40,7 @@ library
                      , lens-action
                      , MonadRandom
                      , mtl
-                     , pretty-tree
+                     -- , pretty-tree
                      , random
                      -- , rocksdb-haskell
                      , stm
