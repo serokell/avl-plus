@@ -22,7 +22,6 @@ import Control.Lens (makeLenses, (&), (.~), (^.), (^?))
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch, catch)
 import Control.Monad.Free (Free (Free, Pure))
-import Control.Monad.IO.Class (MonadIO)
 
 import Data.ByteString (ByteString)
 import Data.Default (Default (..))
@@ -91,7 +90,7 @@ class Serialisable a where
 
 -- | Class, representing DB layer, capable of storing 'isolate'd nodes.
 --   The 'store' is an idempotent operation.
-class (MonadCatch m, MonadIO m, Serialisable k) => KVStoreMonad k m where
+class (MonadCatch m, Serialisable k) => KVStoreMonad k m where
     retrieve :: Serialisable v => k -> m v
     store    :: Serialisable v => k -> v -> m ()
 

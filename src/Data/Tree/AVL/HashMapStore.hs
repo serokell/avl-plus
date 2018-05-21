@@ -1,7 +1,8 @@
 
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Data.Tree.AVL.HashMapStore where
 
@@ -16,6 +17,9 @@ import Data.Typeable
 import Data.Tree.AVL.Internal
 
 type NullStore = IO
+
+newtype NullStoreT m a = NullStoreT { runNullStoreT :: m a }
+    deriving (Functor, Applicative, Monad, MonadThrow, MonadCatch)
 
 type Storage k = HashMap k ByteString
 
@@ -47,15 +51,19 @@ instance (Show k, Typeable k, Serialisable k) => KVStoreMonad k NullStore where
     retrieve k = throwM (NotFound k)
     store _ _  = return ()
 
+instance (Show k, Typeable k, Serialisable k, MonadCatch m) => KVStoreMonad k (NullStoreT m) where
+    retrieve k = throwM (NotFound k)
+    store _ _  = return ()
+
 runWithCache :: KVStoreMonad k m => Storage k -> HashMapStore k m a -> m (a, Storage k)
 runWithCache db action = runStateT action db
 
 runOnEmptyCache :: KVStoreMonad k m => HashMapStore k m a -> m (a, Storage k)
 runOnEmptyCache = runWithCache HM.empty
 
-sandboxed :: (Show k, Eq k, Typeable k, KVStoreMonad k m) => HashMapStore k NullStore a -> HashMapStore k m a
+sandboxed :: (Show k, Eq k, Typeable k, Serialisable k, MonadCatch m) => HashMapStore k (NullStoreT m) a -> HashMapStore k m a
 sandboxed action = do
-    (res, _) <- liftIO $ runOnEmptyCache action
+    (res, _) <- lift $ runNullStoreT $ runOnEmptyCache action
     return res
 
 dumpDatabase :: (Show k, MonadIO m) => HashMapStore k m ()

@@ -21,12 +21,11 @@ import Control.Lens               (Getter, Lens', makeLenses, use, uses, (%=), (
 
 import Control.Monad              (unless, when)
 import Control.Monad.Catch        (throwM, catch)
-import Control.Monad.State.Strict (StateT, evalStateT, get, put, lift, liftIO)
+import Control.Monad.State.Strict (StateT, evalStateT, get, put, lift)
 
 import Data.Monoid                ((<>))
 import Data.Set                   (Set)
 import Data.Typeable              (Typeable)
-import Data.Traversable           (for)
 
 --import Debug.Trace as Debug (trace)
 
@@ -348,30 +347,30 @@ roll tilt0 side =
       L -> pred tilt0
       R -> succ tilt0
 
-printLocus :: Stores h k v m => String -> Zipped h k v m ()
-printLocus str = do
-    tree     <- use locus
-    isolated <- isolate tree
-    liftIO $ print $ str ++ ": " ++ show isolated
+-- printLocus :: Stores h k v m => String -> Zipped h k v m ()
+-- printLocus str = do
+--     tree     <- use locus
+--     isolated <- isolate tree
+--     liftIO $ print $ str ++ ": " ++ show isolated
 
-dump :: Stores h k v m => String -> Zipped h k v m ()
-dump str = do
-    tree     <- use locus
-    isolated <- isolate tree
-    ctx      <- use context
-    ls <- for ctx $ \case
-      WentRightFrom what krange rev -> do
-        res <- isolate what
-        return $ show (krange, rev) ++ " <- " ++ show res
+-- dump :: Stores h k v m => String -> Zipped h k v m ()
+-- dump str = do
+--     tree     <- use locus
+--     isolated <- isolate tree
+--     ctx      <- use context
+--     ls <- for ctx $ \case
+--       WentRightFrom what krange rev -> do
+--         res <- isolate what
+--         return $ show (krange, rev) ++ " <- " ++ show res
 
-      WentLeftFrom what krange rev -> do
-        res <- isolate what
-        return $ show (krange, rev) ++ " -> " ++ show res
+--       WentLeftFrom what krange rev -> do
+--         res <- isolate what
+--         return $ show (krange, rev) ++ " -> " ++ show res
 
-      JustStarted rev -> do
-        return $ "start " ++ show rev
+--       JustStarted rev -> do
+--         return $ "start " ++ show rev
 
-    liftIO $ putStrLn $ str ++ ":\n  " ++ show isolated ++ "\n   --\n" ++ unlines (map ("  " ++) ls)
+--     liftIO $ putStrLn $ str ++ ":\n  " ++ show isolated ++ "\n   --\n" ++ unlines (map ("  " ++) ls)
 
 -- | Perform a zipper action upon current node, then update set its revision
 --   to be a new one.
