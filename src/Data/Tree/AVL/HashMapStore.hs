@@ -19,11 +19,14 @@ import Data.Tree.AVL.Internal
 type NullStore = IO
 
 newtype NullStoreT m a = NullStoreT { runNullStoreT :: m a }
-    deriving (Functor, Applicative, Monad, MonadThrow, MonadCatch, MonadTrans)
+    deriving (Functor, Applicative, Monad, MonadThrow, MonadCatch)
 
 type Storage k = HashMap k ByteString
 
 type HashMapStore k = StateT (Storage k)
+
+instance MonadTrans NullStoreT where
+    lift = NullStoreT
 
 instance (Serialisable k, KVStoreMonad k m, Eq k, Typeable k, Hashable k, Show k) => KVStoreMonad k (HashMapStore k m) where
     retrieve k = do
