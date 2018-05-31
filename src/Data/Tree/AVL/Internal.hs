@@ -27,12 +27,16 @@ import Data.ByteString (ByteString)
 import Data.Default (Default (..))
 import Data.Foldable (for_)
 import Data.Hashable (Hashable)
+import Data.Monoid ((<>))
 import Data.Typeable (Typeable)
+import Data.Set (Set)
 --import Data.Tree                  as Tree (Tree(Node), drawTree)
 
 import GHC.Generics (Generic)
 
 import Text.Show.Deriving (deriveShow1)
+
+import qualified Data.Set as Set (singleton)
 
 --import qualified Debug.Trace as Debug
 
@@ -150,6 +154,18 @@ rootHash = \case
   Pure h     -> h
   Free layer -> layer^.mlHash
 
+allRootHashes :: Stores h k v m => Map h k v -> m (Set h)
+allRootHashes = openAndM collectHashes
+  where
+    collectHashes = \case
+      MLBranch { _mlHash = hash, _mlLeft = l, _mlRight = r } -> do
+        lHashes <- allRootHashes l
+        rHashes <- allRootHashes r
+        return $ Set.singleton hash <> lHashes <> rHashes
+
+      other ->
+        return $ Set.singleton (_mlHash other)
+
 -- | Replace direct children with references on them.
 isolate :: Stores h k v m => Map h k v -> m (Map h k v)
 isolate = openAnd $ close . fmap (Pure . rootHash)
@@ -166,6 +182,10 @@ open = \case
 -- | Unwrap the tree and apply a function.
 openAnd :: Stores h k v m => (MapLayer h k v (Map h k v) -> a) -> Map h k v -> m a
 openAnd f tree = f <$> open tree
+
+-- | Unwrap the tree and apply a monadic action.
+openAndM :: Stores h k v m => (MapLayer h k v (Map h k v) -> m a) -> Map h k v -> m a
+openAndM f tree = f =<< open tree
 
 -- | Wrap node layer into the tree.
 close :: MapLayer h k v (Map h k v) -> Map h k v
