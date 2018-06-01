@@ -27,7 +27,7 @@ import Data.ByteString (ByteString)
 import Data.Default (Default (..))
 import Data.Foldable (for_)
 import Data.Hashable (Hashable)
-import Data.Monoid ((<>))
+-- import Data.Monoid ((<>))
 import Data.Typeable (Typeable)
 import Data.Set (Set)
 --import Data.Tree                  as Tree (Tree(Node), drawTree)
@@ -36,7 +36,7 @@ import GHC.Generics (Generic)
 
 import Text.Show.Deriving (deriveShow1)
 
-import qualified Data.Set as Set (singleton)
+import qualified Data.Set as Set (fromList)
 
 --import qualified Debug.Trace as Debug
 
@@ -154,32 +154,47 @@ rootHash = \case
   Pure h     -> h
   Free layer -> layer^.mlHash
 
-fold :: Stores h k v m => (b, (k, v) -> b -> b, b -> res) -> Map h k v -> m res
-fold (start, add, finish) tree = finish <$> go start tree
+walkDFS
+  :: forall h k v m b res
+  .  Stores h k v m
+  =>  ( b
+      , MapLayer h k v h -> b -> b
+      , b -> res
+      )
+  -> Map h k v
+  -> m res
+walkDFS (start, add, finish) tree = finish <$> go start tree
   where
+    -- We're doing it in DSF matter to save space.
+    go :: b -> Map h k v -> m b
     go acc mapping = do
-        open mapping >>= \case
-          MLBranch { _mlLeft = l, _mlRight = r } -> do
-            acc' <- go acc l
-            go acc' r
+        open mapping >>= \point -> do
+            let point' = rootHash <$> point
+            case point of
+              MLBranch { _mlLeft = l, _mlRight = r } -> do
+                acc' <- go (add point' acc) l
+                go acc' r
 
-          MLLeaf { _mlKey = k, _mlValue = v } -> do
-            return $ add (k, v) acc
+              MLLeaf {} -> do
+                return $ add point' acc
 
-          MLEmpty {} -> do
-            return acc
+              MLEmpty {} -> do
+                return acc
 
-allRootHashes :: Stores h k v m => Map h k v -> m (Set h)
-allRootHashes = openAndM collectHashes
+-- | Fold the tree in the order of keys acsending.
+fold :: Stores h k v m => (b, (k, v) -> b -> b, b -> res) -> Map h k v -> m res
+fold (start, add, finish) = walkDFS (start, collectKVAnd add, finish)
   where
-    collectHashes = \case
-      MLBranch { _mlHash = hash, _mlLeft = l, _mlRight = r } -> do
-        lHashes <- allRootHashes l
-        rHashes <- allRootHashes r
-        return $ Set.singleton hash <> lHashes <> rHashes
+    -- We're doing it in DSF matter to save space.
+    collectKVAnd act = \case
+        MLLeaf { _mlKey = k, _mlValue = v } -> act (k, v)
+        _other                              -> id
 
-      other ->
-        return $ Set.singleton (_mlHash other)
+-- | Get set of all node hashes from a tree.
+allRootHashes :: Stores h k v m => Map h k v -> m (Set h)
+allRootHashes = walkDFS ([], addHash, Set.fromList)
+  where
+    addHash layer = (_mlHash layer :)
 
 -- | Replace direct children with references on them.
 isolate :: Stores h k v m => Map h k v -> m (Map h k v)
