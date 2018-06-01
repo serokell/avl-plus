@@ -154,6 +154,21 @@ rootHash = \case
   Pure h     -> h
   Free layer -> layer^.mlHash
 
+fold :: Stores h k v m => (b, (k, v) -> b -> b, b -> res) -> Map h k v -> m res
+fold (start, add, finish) tree = finish <$> go start tree
+  where
+    go acc mapping = do
+        open mapping >>= \case
+          MLBranch { _mlLeft = l, _mlRight = r } -> do
+            acc' <- go acc l
+            go acc' r
+
+          MLLeaf { _mlKey = k, _mlValue = v } -> do
+            return $ add (k, v) acc
+
+          MLEmpty {} -> do
+            return acc
+
 allRootHashes :: Stores h k v m => Map h k v -> m (Set h)
 allRootHashes = openAndM collectHashes
   where

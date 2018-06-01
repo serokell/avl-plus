@@ -64,9 +64,14 @@ runWithCache db action = runStateT action db
 runOnEmptyCache :: KVStoreMonad k m => HashMapStore k m a -> m (a, Storage k)
 runOnEmptyCache = runWithCache HM.empty
 
-sandboxed :: (Show k, Eq k, Typeable k, Serialisable k, MonadCatch m) => HashMapStore k (NullStoreT m) a -> HashMapStore k m a
-sandboxed action = do
+sandboxedT :: (Show k, Eq k, Typeable k, Serialisable k, MonadCatch m) => HashMapStore k (NullStoreT m) a -> HashMapStore k m a
+sandboxedT action = do
     (res, _) <- lift $ runNullStoreT $ runOnEmptyCache action
+    return res
+
+sandboxed :: (Show k, Eq k, Typeable k, Serialisable k, MonadIO m) => HashMapStore k NullStore a -> HashMapStore k m a
+sandboxed action = do
+    (res, _) <- liftIO $ runOnEmptyCache action
     return res
 
 dumpDatabase :: (Show k, MonadIO m) => HashMapStore k m ()
