@@ -19,6 +19,7 @@ library
   exposed-modules: Data.Tree.AVL
   other-modules:
                  Data.Tree.AVL.Internal
+               , Data.Tree.AVL.Iteration
                , Data.Tree.AVL.Deletion
                , Data.Tree.AVL.Insertion
                , Data.Tree.AVL.Lookup
@@ -69,7 +70,7 @@ test-suite avl-tree-sanity
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Main.hs
-  other-modules:       Proof, Insertion, Common, Lookup, Cache
+  other-modules:       Proof, Insertion, Common, Lookup, Cache, Algorithm
   build-depends:       base >= 0.4 && < 5
                      , AVL
                      , binary

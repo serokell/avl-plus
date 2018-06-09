@@ -5,6 +5,7 @@ module Data.Tree.AVL
 
 import Data.Tree.AVL.Deletion  as M
 import Data.Tree.AVL.Insertion as M
+import Data.Tree.AVL.Iteration as M
 import Data.Tree.AVL.Internal  as M
 import Data.Tree.AVL.Lookup    as M
 import Data.Tree.AVL.Proof     as M
