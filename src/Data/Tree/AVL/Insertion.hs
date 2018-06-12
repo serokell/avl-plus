@@ -129,6 +129,7 @@ fromList = fromFoldable
 fromFoldable :: forall h k v m f . Stores h k v m => Foldable f => f (k, v) -> m (Map h k v)
 -- | Construct a tree from any Foldable (and calculate all hashes).
 fromFoldable list = do
+    _ <- rehash (empty :: Map h k v)
     foldM push empty list
   where
     push :: Map h k v -> (k, v) -> m (Map h k v)

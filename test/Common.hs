@@ -14,20 +14,21 @@
 module Common (module Common, module Control.Lens, module T) where
 
 import Control.Lens hiding (locus, elements, Empty)
+import Control.Monad                        as T (when)
 import Control.Monad.Catch                  as T (catch)
 import Control.Monad.IO.Class               as T (liftIO)
 import Control.Monad.Trans.Class            as T (lift)
-import Control.Monad                        as T (when)
 
 import Data.Binary                               (Binary, encode, decodeOrFail)
 import Data.ByteString.Lazy                      (toStrict, fromStrict)
 import Data.Default                         as T (Default(def))
 import Data.Foldable                             ()
 import Data.Function                             (on)
+import Data.Hashable                             (Hashable, hash)
 import Data.HashMap.Strict                       (HashMap, fromList)
 import Data.List                                 (sortBy, nubBy)
 import Data.Ord                                  (comparing)
-import Data.Hashable                             (Hashable, hash)
+import Data.String                               (IsString(fromString))
 
 import GHC.Generics                              (Generic)
 
@@ -40,7 +41,7 @@ import Test.QuickCheck.Instances            as T ()
 
 import qualified Data.Tree.AVL as AVL
 
-instance Binary x => AVL.Serialisable x where
+instance (Binary x, Eq x, Show x) => AVL.Serialisable x where
     serialise   = toStrict . encode
     deserialise = decodeErrorToMaybe . decodeOrFail . fromStrict
       where
@@ -101,6 +102,9 @@ instance AVL.Hash Int StringName Int where
 newtype StringName = StringName { getStringName :: String }
     deriving (Eq, Ord, Generic, Binary)
 
+instance IsString StringName where
+    fromString = StringName
+
 instance Show StringName where
     show = getStringName
 
@@ -145,7 +149,7 @@ instance (Eq k, Hashable k) => Default (HashMap k v) where
 instance Show (a -> b) where
     show _ = "<function>"
 
-type StorageMonad = AVL.HashMapStore Int AVL.NullStore
+type StorageMonad       = AVL.HashMapStore Int AVL.NullStore
 type CachedStorageMonad = AVL.HashMapStore Int StorageMonad
 
 type M = AVL.Map Int StringName Int

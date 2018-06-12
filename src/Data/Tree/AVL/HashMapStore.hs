@@ -19,7 +19,7 @@ import Data.Tree.AVL.Internal
 type NullStore = IO
 
 newtype NullStoreT m a = NullStoreT { runNullStoreT :: m a }
-    deriving (Functor, Applicative, Monad, MonadThrow, MonadCatch)
+    deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch)
 
 type Storage k = HashMap k ByteString
 
@@ -48,13 +48,17 @@ instance (Serialisable k, KVStoreMonad k m, Eq k, Typeable k, Hashable k, Show k
 
     store k v = do
         --liftIO $ putStrLn $ "store " ++ show k ++ " " ++ show v
+        v' <- retrieve k `catch` \(NotFound (_ :: k)) -> return v
+        when (v /= v') $ do
+            liftIO $ putStrLn $ "Collision" ++ show k ++ "    \n" ++ show v ++ "    \n" ++ show v'
+
         modify $ insert k (serialise v)
 
 instance (Show k, Typeable k, Serialisable k) => KVStoreMonad k NullStore where
     retrieve k = throwM (NotFound k)
     store _ _  = return ()
 
-instance (Show k, Typeable k, Serialisable k, MonadCatch m) => KVStoreMonad k (NullStoreT m) where
+instance (Show k, Typeable k, Serialisable k, MonadCatch m, MonadIO m) => KVStoreMonad k (NullStoreT m) where
     retrieve k = throwM (NotFound k)
     store _ _  = return ()
 
@@ -64,7 +68,7 @@ runWithCache db action = runStateT action db
 runOnEmptyCache :: KVStoreMonad k m => HashMapStore k m a -> m (a, Storage k)
 runOnEmptyCache = runWithCache HM.empty
 
-sandboxedT :: (Show k, Eq k, Typeable k, Serialisable k, MonadCatch m) => HashMapStore k (NullStoreT m) a -> HashMapStore k m a
+sandboxedT :: (Show k, Eq k, Typeable k, Serialisable k, MonadCatch m, MonadIO m) => HashMapStore k (NullStoreT m) a -> HashMapStore k m a
 sandboxedT action = do
     (res, _) <- lift $ runNullStoreT $ runOnEmptyCache action
     return res

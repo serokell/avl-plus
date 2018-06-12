@@ -22,12 +22,14 @@ import Control.Lens (makeLenses, (&), (.~), (^.), (^?))
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch, catch)
 import Control.Monad.Free (Free (Free, Pure))
+import Control.Monad.IO.Class (MonadIO)
 
 import Data.ByteString (ByteString)
 import Data.Default (Default (..))
 import Data.Foldable (for_)
 import Data.Hashable (Hashable)
 -- import Data.Monoid ((<>))
+import Data.Tree as Tree
 import Data.Typeable (Typeable)
 import Data.Set (Set)
 --import Data.Tree                  as Tree (Tree(Node), drawTree)
@@ -92,13 +94,13 @@ deriving instance Generic (Free t a)
 makeLenses ''MapLayer
 
 -- | Class, representing an ability for type to be [de]serialised.
-class Serialisable a where
+class (Show a, Eq a) => Serialisable a where
     serialise   :: a -> ByteString
     deserialise :: ByteString -> Either String a
 
 -- | Class, representing DB layer, capable of storing 'isolate'd nodes.
 --   The 'store' is an idempotent operation.
-class (MonadCatch m, Serialisable k) => KVStoreMonad k m where
+class (MonadCatch m, MonadIO m, Serialisable k) => KVStoreMonad k m where
     retrieve :: Serialisable v => k -> m v
     store    :: Serialisable v => k -> v -> m ()
 
@@ -115,14 +117,14 @@ instance Exception DeserialisationError
 instance (Show k, Typeable k) => Exception (NotFound k)
 
 -- | Debug preview of the tree.
---showMap :: (Show h, Show k, Show v) => Map h k v -> String
---showMap = drawTree . asTree
---  where
---    asTree = \case
---      Free (MLBranch _ _mk _ck t  l r) -> Tree.Node ("-< "  ++ show (t)) [asTree r, asTree l]
---      Free (MLLeaf   _  k  _v _n _p)   -> Tree.Node ("<3- " ++ show (k)) []
---      Free (MLEmpty  _)                -> Tree.Node ("--")               []
---      Pure  h                          -> Tree.Node ("Ref " ++ show h)   []
+showMap :: (Show h, Show k, Show v) => Map h k v -> String
+showMap = drawTree . asTree
+ where
+   asTree = \case
+     Free (MLBranch _ _mk _ck t  l r) -> Tree.Node ("-< "  ++ show (t)) [asTree r, asTree l]
+     Free (MLLeaf   _  k  _v _n _p)   -> Tree.Node ("<3- " ++ show (k)) []
+     Free (MLEmpty  _)                -> Tree.Node ("--")               []
+     Pure  h                          -> Tree.Node ("Ref " ++ show h)   []
 
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
@@ -146,6 +148,7 @@ type Stores h k v m =
     , KVStoreMonad h m
     , Serialisable (MapLayer h k v h)
     , Serialisable h
+    , MonadIO m
     )
 
 -- | Get hash of the root node for the tree.
