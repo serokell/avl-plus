@@ -48,9 +48,9 @@ instance (Serialisable k, KVStoreMonad k m, Eq k, Typeable k, Hashable k, Show k
 
     store k v = do
         --liftIO $ putStrLn $ "store " ++ show k ++ " " ++ show v
-        v' <- retrieve k `catch` \(NotFound (_ :: k)) -> return v
-        when (v /= v') $ do
-            liftIO $ putStrLn $ "Collision" ++ show k ++ "    \n" ++ show v ++ "    \n" ++ show v'
+        -- v' <- retrieve k `catch` \(NotFound (_ :: k)) -> return v
+        -- when (v /= v') $ do
+        --     liftIO $ putStrLn $ "Collision" ++ show k ++ "    \n" ++ show v ++ "    \n" ++ show v'
 
         modify $ insert k (serialise v)
 

@@ -8,7 +8,7 @@ module Data.Tree.AVL.Iteration where
 import Control.Exception (Exception)
 import Control.Lens
 import Control.Monad.Catch
-import Control.Monad.State
+import Control.Monad.State.Strict
 
 import Data.Proxy
 import Data.Tree.AVL.Internal
@@ -28,6 +28,20 @@ instance Show h => Show (IterationState h) where
       where
         bit = either (const 'L') (const 'R')
 
+class KVStoreMonad h m => ProvidesIterationState h m where
+    getIterationState :: m (IterationState h)
+    putIterationState :: IterationState h -> m ()
+
+    modifyIterationState :: (IterationState h -> IterationState h) -> m ()
+    modifyIterationState f = putIterationState . f =<< getIterationState
+
+    getsIterationState :: (IterationState h -> a) -> m a
+    getsIterationState f = do
+        s <- getIterationState
+        return (f s)
+
+type StoresAndIterates h k v m = (Stores h k v m, ProvidesIterationState h m)
+
 -- | Stores return chain for the iteration.
 --   Each list element represents direction it took and node it came to.
 newtype IteratedT h m a = IteratedT { getIteratedT :: StateT (IterationState h) m a }
@@ -40,6 +54,10 @@ newtype IteratedT h m a = IteratedT { getIteratedT :: StateT (IterationState h) 
         , MonadCatch
         , MonadIO
         )
+
+instance KVStoreMonad h m => ProvidesIterationState h (IteratedT h m) where
+    getIterationState = IteratedT get
+    putIterationState = IteratedT . put
 
 -- | Possible situations to handle during iteration.
 data IterationError
@@ -59,8 +77,8 @@ class CanIterateAVL h k v m where
     continueIteration :: Proxy h -> m (Maybe (k, v))
 
 instance Stores h k v m => CanIterateAVL h k v (IteratedT h m) where
-    startIteration      = start
-    continueIteration _ = nextKV
+    startIteration          = start
+    continueIteration proxy = nextKV proxy
 
 -- instance (CanIterateAVL h k v m, Monad m, MonadTrans t) => CanIterateAVL h k v (t m) where
 --     startIteration    = lift . startIteration
@@ -69,15 +87,15 @@ instance Stores h k v m => CanIterateAVL h k v (IteratedT h m) where
 runIteratedT :: Monad m => IteratedT h m a -> m a
 runIteratedT (IteratedT action) = evalStateT action (IterationState [] False)
 
-start :: forall h k v m . Stores h k v m => Map h k v -> IteratedT h m ()
+start :: forall h k v m . StoresAndIterates h k v m => Map h k v -> m ()
 start tree = do
     push $ Left $ rootHash tree
     _ :: Map h k v <- leftmostKVNode
     return ()
 
-leftmostKVNode :: forall h k v m . Stores h k v m => IteratedT h m (Map h k v)
+leftmostKVNode :: forall h k v m . StoresAndIterates h k v m => m (Map h k v)
 leftmostKVNode = do
-    getKV >>= \case
+    getKV (Proxy :: Proxy h) >>= \case
         Just (_ :: (k, v)) ->
             shallowBody
 
@@ -87,47 +105,47 @@ leftmostKVNode = do
   `catch` \NoLeftBranch ->
     shallowBody
 
-nextKVNode :: forall h k v m . Stores h k v m => IteratedT h m (Map h k v)
+nextKVNode :: forall h k v m . StoresAndIterates h k v m => m (Map h k v)
 nextKVNode = do
-    mkv :: Maybe (k, v) <- getKV
-    s   <- get
-    liftIO $ putStrLn $ show s ++ " " ++ show mkv
+    -- mkv :: Maybe (k, v) <- getKV (Proxy :: Proxy h)
+    -- s :: IterationState h <- getIterationState
+    -- liftIO $ putStrLn $ show s ++ " " ++ show mkv
     peek >>= \case
-        Left _ -> do
+        Left (_ :: h) -> do
             _ :: Map h k v <- goUp
             _ :: Map h k v <- goRight
             leftmostKVNode
 
-        Right _ -> do
+        Right (_ :: h) -> do
             _ :: Map h k v <- goUp
             nextKVNode
   `catch` \ReturnStackIsEmpty -> do
-    break
+    break (Proxy :: Proxy h)
     shallowBody
 
-nextKV :: forall h k v m . Stores h k v m => IteratedT h m (Maybe (k, v))
-nextKV = do
-    broken <- gets isBroken
+nextKV :: forall h k v m . StoresAndIterates h k v m => Proxy h -> m (Maybe (k, v))
+nextKV _ = do
+    broken <- getsIterationState $ \is -> isBroken (is :: IterationState h)
 
     if broken
     then do
         return Nothing
 
     else do
-        res <- getKV
+        res <- getKV (Proxy :: Proxy h)
         _ :: Map h k v <- nextKVNode
         return res
 
 
-getKV :: Stores h k v m => IteratedT h m (Maybe (k, v))
-getKV = do
-    subtree <- body
+getKV :: forall h k v m . StoresAndIterates h k v m => Proxy h -> m (Maybe (k, v))
+getKV _ = do
+    subtree :: MapLayer h k v (Map h k v) <- body
     return $ do
         k <- subtree^?mlKey
         v <- subtree^?mlValue
         return (k, v)
 
-goLeft :: Stores h k v m => IteratedT h m (Map h k v)
+goLeft :: StoresAndIterates h k v m => m (Map h k v)
 goLeft = do
     subtree <- body
     case subtree^?mlLeft of
@@ -138,7 +156,7 @@ goLeft = do
         Nothing -> do
             throwM NoLeftBranch
 
-goRight :: Stores h k v m => IteratedT h m (Map h k v)
+goRight :: StoresAndIterates h k v m => m (Map h k v)
 goRight = do
     subtree <- body
     case subtree^?mlRight of
@@ -149,37 +167,41 @@ goRight = do
         Nothing -> do
             throwM NoRightBranch
 
-goUp :: Stores h k v m => IteratedT h m (Map h k v)
+goUp :: forall h k v m . StoresAndIterates h k v m => m (Map h k v)
 goUp = do
-    _ <- pop
+    _ :: Either h h <- pop
     shallowBody
 
-body :: Stores h k v m => IteratedT h m (MapLayer h k v (Map h k v))
+body :: StoresAndIterates h k v m => m (MapLayer h k v (Map h k v))
 body = open =<< shallowBody
 
-shallowBody :: Stores h k v m => IteratedT h m (Map h k v)
+shallowBody :: StoresAndIterates h k v m => m (Map h k v)
 shallowBody = ref . onlyHash <$> peek
 
-push :: KVStoreMonad h m => Either h h -> IteratedT h m ()
-push h = modify $ \is -> is { stack = h : stack is }
+push :: ProvidesIterationState h m => Either h h -> m ()
+push h = modifyIterationState $ \is -> is { stack = h : stack is }
 
-peek :: KVStoreMonad h m => IteratedT h m (Either h h)
+peek :: ProvidesIterationState h m => m (Either h h)
 peek = do
-    gets stack >>= \case
+    getsIterationState stack >>= \case
         []    -> do
             throwM ReturnStackIsEmpty
 
         h : _ -> do
             return h
 
-pop :: KVStoreMonad h m => IteratedT h m (Either h h)
+pop :: forall h m . ProvidesIterationState h m => m (Either h h)
 pop = do
     h <- peek
-    modify $ \is -> is { stack = tail $ stack is }
+    modifyIterationState $ \is ->
+        is { stack = tail $ stack is }
+            :: IterationState h
     return h
 
 onlyHash :: Either h h -> h
 onlyHash = either id id
 
-break :: KVStoreMonad h m => IteratedT h m ()
-break = modify $ \is -> is { isBroken = True }
+break :: forall h m . ProvidesIterationState h m => Proxy h -> m ()
+break _ = modifyIterationState $ \is ->
+    is { isBroken = True }
+        :: IterationState h
