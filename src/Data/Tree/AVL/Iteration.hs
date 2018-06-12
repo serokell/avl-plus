@@ -10,6 +10,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State.Strict
 
+import Data.Default
 import Data.Proxy
 import Data.Tree.AVL.Internal
 import Data.Typeable
@@ -20,6 +21,9 @@ data IterationState h = IterationState
     { stack    :: [Either h h]
     , isBroken :: Bool
     }
+
+instance Default (IterationState h) where
+    def = IterationState [] False
 
 instance Show h => Show (IterationState h) where
     show (IterationState stack isBroken)
