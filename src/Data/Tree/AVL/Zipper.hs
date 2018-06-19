@@ -1,10 +1,9 @@
-
+{-# LANGUAGE ExplicitForAll        #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ExplicitForAll        #-}
 {-# LANGUAGE TupleSections         #-}
 
 -- | This module represents zipper layer.
@@ -16,26 +15,27 @@
 
 module Data.Tree.AVL.Zipper where
 
-import Control.Exception          (Exception)
-import Control.Lens               (Getter, Lens', makeLenses, use, uses, (%=), (.=))
+import           Control.Exception          (Exception)
+import           Control.Lens               (Getter, Lens', makeLenses, use, uses, (%=),
+                                             (.=))
 
-import Control.Monad              (unless, when)
-import Control.Monad.Catch        (throwM, catch)
-import Control.Monad.State.Strict (StateT, evalStateT, get, put, lift)
+import           Control.Monad              (unless, when)
+import           Control.Monad.Catch        (catch, throwM)
+import           Control.Monad.State.Strict (StateT, evalStateT, get, lift, put)
 
-import Data.Monoid                ((<>))
-import Data.Set                   (Set)
-import Data.Typeable              (Typeable)
+import           Data.Monoid                ((<>))
+import           Data.Set                   (Set)
+import           Data.Typeable              (Typeable)
 
 --import Debug.Trace as Debug (trace)
 
-import Data.Tree.AVL.Internal
-import Data.Tree.AVL.Proof
-import Data.Tree.AVL.Prune
+import           Data.Tree.AVL.Internal
+import           Data.Tree.AVL.Proof
+import           Data.Tree.AVL.Prune
 
 --import qualified Debug.Trace as Debug
 
-import qualified Data.Set as Set (fromList, empty, insert)
+import qualified Data.Set                   as Set (empty, fromList, insert)
 
 -- | Zipper representation.
 --   Zipper is pair of _locus_ and _context stack_.

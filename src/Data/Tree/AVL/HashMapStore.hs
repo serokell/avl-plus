@@ -1,20 +1,19 @@
-
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Data.Tree.AVL.HashMapStore where
 
-import Control.Monad.State
-import Control.Monad.Catch
+import           Control.Monad.Catch
+import           Control.Monad.State
 
-import Data.ByteString (ByteString)
-import Data.Hashable
-import Data.HashMap.Strict as HM
-import Data.Typeable
+import           Data.ByteString        (ByteString)
+import           Data.Hashable
+import           Data.HashMap.Strict    as HM
+import           Data.Typeable
 
-import Data.Tree.AVL.Internal
+import           Data.Tree.AVL.Internal
 
 type NullStore = IO
 
@@ -28,7 +27,7 @@ type HashMapStore k = StateT (Storage k)
 instance MonadTrans NullStoreT where
     lift = NullStoreT
 
-instance (Serialisable k, KVStoreMonad k m, Eq k, Typeable k, Hashable k, Show k) => KVStoreMonad k (HashMapStore k m) where
+instance (Serialisable k, KVStoreMonad k m, Eq k, Typeable k, Hashable k, Show k, MonadThrow m) => KVStoreMonad k (HashMapStore k m) where
     retrieve k = do
         --liftIO $ print "retrieve"
         mapping <- get

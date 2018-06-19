@@ -1,21 +1,20 @@
-
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
 
 module Data.Tree.AVL.Iteration where
 
-import Control.Exception (Exception)
-import Control.Lens
-import Control.Monad.Catch
-import Control.Monad.State.Strict
+import           Control.Exception          (Exception)
+import           Control.Lens
+import           Control.Monad.Catch
+import           Control.Monad.State.Strict
 
-import Data.Default
-import Data.Proxy
-import Data.Tree.AVL.Internal
-import Data.Typeable
+import           Data.Default
+import           Data.Proxy
+import           Data.Tree.AVL.Internal
+import           Data.Typeable
 
-import Prelude hiding (break)
+import           Prelude                    hiding (break)
 
 data IterationState h = IterationState
     { stack    :: [Either h h]
@@ -32,7 +31,7 @@ instance Show h => Show (IterationState h) where
       where
         bit = either (const 'L') (const 'R')
 
-class KVStoreMonad h m => ProvidesIterationState h m where
+class (Monad m, KVStoreMonad h m) => ProvidesIterationState h m where
     getIterationState :: m (IterationState h)
     putIterationState :: IterationState h -> m ()
 
@@ -80,7 +79,7 @@ class CanIterateAVL h k v m where
     startIteration    :: Map h k v -> m ()
     continueIteration :: Proxy h -> m (Maybe (k, v))
 
-instance Stores h k v m => CanIterateAVL h k v (IteratedT h m) where
+instance (MonadCatch m, Stores h k v m) => CanIterateAVL h k v (IteratedT h m) where
     startIteration          = start
     continueIteration proxy = nextKV proxy
 
@@ -185,7 +184,7 @@ shallowBody = ref . onlyHash <$> peek
 push :: ProvidesIterationState h m => Either h h -> m ()
 push h = modifyIterationState $ \is -> is { stack = h : stack is }
 
-peek :: ProvidesIterationState h m => m (Either h h)
+peek :: (MonadThrow m, ProvidesIterationState h m) => m (Either h h)
 peek = do
     getsIterationState stack >>= \case
         []    -> do
@@ -194,7 +193,7 @@ peek = do
         h : _ -> do
             return h
 
-pop :: forall h m . ProvidesIterationState h m => m (Either h h)
+pop :: forall h m . (MonadThrow m, ProvidesIterationState h m) => m (Either h h)
 pop = do
     h <- peek
     modifyIterationState $ \is ->

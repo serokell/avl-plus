@@ -1,4 +1,3 @@
-
 {-# LANGUAGE DeriveAnyClass         #-}
 {-# LANGUAGE DeriveFoldable         #-}
 {-# LANGUAGE DeriveFunctor          #-}
@@ -17,28 +16,27 @@
 
 module Data.Tree.AVL.Internal where
 
-import Control.Exception (Exception)
-import Control.Lens (makeLenses, (&), (.~), (^.), (^?))
-import Control.Monad (void)
-import Control.Monad.Catch (MonadCatch, catch)
-import Control.Monad.Free (Free (Free, Pure))
-import Control.Monad.IO.Class (MonadIO)
+import           Control.Exception   (Exception)
+import           Control.Lens        (makeLenses, (&), (.~), (^.), (^?))
+import           Control.Monad       (void)
+import           Control.Monad.Catch (MonadCatch, catch)
+import           Control.Monad.Free  (Free (Free, Pure))
 
-import Data.ByteString (ByteString)
-import Data.Default (Default (..))
-import Data.Foldable (for_)
-import Data.Hashable (Hashable)
+import           Data.ByteString     (ByteString)
+import           Data.Default        (Default (..))
+import           Data.Foldable       (for_)
+import           Data.Hashable       (Hashable)
 -- import Data.Monoid ((<>))
-import Data.Tree as Tree
-import Data.Typeable (Typeable)
-import Data.Set (Set)
+import           Data.Set            (Set)
+import           Data.Tree           as Tree
+import           Data.Typeable       (Typeable)
 --import Data.Tree                  as Tree (Tree(Node), drawTree)
 
-import GHC.Generics (Generic)
+import           GHC.Generics        (Generic)
 
-import Text.Show.Deriving (deriveShow1)
+import           Text.Show.Deriving  (deriveShow1)
 
-import qualified Data.Set as Set (fromList)
+import qualified Data.Set            as Set (fromList)
 
 --import qualified Debug.Trace as Debug
 
@@ -100,7 +98,7 @@ class (Show a, Eq a) => Serialisable a where
 
 -- | Class, representing DB layer, capable of storing 'isolate'd nodes.
 --   The 'store' is an idempotent operation.
-class (MonadCatch m, MonadIO m, Serialisable k) => KVStoreMonad k m where
+class (Serialisable k, Monad m) => KVStoreMonad k m where
     retrieve :: Serialisable v => k -> m v
     store    :: Serialisable v => k -> v -> m ()
 
@@ -148,7 +146,7 @@ type Stores h k v m =
     , KVStoreMonad h m
     , Serialisable (MapLayer h k v h)
     , Serialisable h
-    , MonadIO m
+    , MonadCatch m
     )
 
 -- | Get hash of the root node for the tree.
@@ -236,7 +234,7 @@ onTopNode f tree = do
     rehash $ close (f layer)
 
 -- | Recursively store all the materialized nodes in the database.
-save :: forall h k v m . Stores h k v m => Map h k v -> m ()
+save :: forall h k v m . (Stores h k v m, MonadCatch m) => Map h k v -> m ()
 save = go
   where
     go = \case
