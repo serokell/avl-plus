@@ -19,7 +19,7 @@ tests =
             tree            <- AVL.fromList list :: StorageMonad M
             ((_, proof), _) <- AVL.lookup k tree
 
-            AVL.checkProof (AVL.rootHash tree) proof
+            return $ AVL.checkProof (AVL.rootHash tree) proof
 
         , cachedProperty "Generated proofs are replayable" $ \(k, list) -> do
             tree            <- AVL.fromList list :: StorageMonad M
@@ -30,7 +30,7 @@ tests =
             _ <- AVL.sandboxed $ do
                 AVL.lookup k subtree
 
-            AVL.checkProof (AVL.rootHash tree) proof
+            return $ AVL.checkProof (AVL.rootHash tree) proof
 
         , cachedProperty "Lookup actually works" $ \(list) -> do
             case uniqued list of
