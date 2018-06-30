@@ -138,6 +138,9 @@ class
   where
     hashOf :: MapLayer h k v h -> h
 
+hashOf' :: Hash h k v => MapLayer a k v h -> h
+hashOf' ml = hashOf (ml & mlHash .~ def)
+
 -- | Umbrella class to grab all the required capabilities for tree to operate (and be debugged!).
 type Stores h k v m =
     ( Ord h
