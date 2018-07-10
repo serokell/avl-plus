@@ -25,12 +25,10 @@ import           Control.Monad.Free  (Free (Free, Pure))
 import           Data.ByteString     (ByteString)
 import           Data.Default        (Default (..))
 import           Data.Foldable       (for_)
-import           Data.Hashable       (Hashable)
--- import Data.Monoid ((<>))
+--import           Data.Hashable       (Hashable)
 import           Data.Set            (Set)
 import           Data.Tree           as Tree
 import           Data.Typeable       (Typeable)
---import Data.Tree                  as Tree (Tree(Node), drawTree)
 
 import           GHC.Generics        (Generic)
 
@@ -38,7 +36,9 @@ import           Text.Show.Deriving  (deriveShow1)
 
 import qualified Data.Set            as Set (fromList)
 
---import qualified Debug.Trace as Debug
+-------------------------------------------------------------------------------
+-- Datatypes
+-------------------------------------------------------------------------------
 
 data Side
     = L
@@ -57,6 +57,35 @@ data Tilt
     | R2  -- UnbalancedRight
     deriving (Eq, Ord, Show, Enum, Generic)
 
+data WithBounds b
+    = Top
+    | Plain b
+    | Bottom
+    deriving (Eq, Show, Generic)
+
+instance Bounded (WithBounds b) where
+    minBound = Bottom
+    maxBound = Top
+
+instance Ord b => Ord (WithBounds b) where
+    Top     <= Top     = True
+    Top     <= _       = False
+    _       <= Top     = True
+
+    Plain a <= Plain b = a <= b
+
+    Bottom  <= Bottom  = True
+    Bottom  <= _       = True
+    _       <= Bottom  = False
+
+fromWithBounds :: WithBounds b -> Maybe b
+fromWithBounds (Plain b) = Just b
+fromWithBounds  _        = Nothing
+
+unsafeFromWithBounds :: WithBounds b -> b
+unsafeFromWithBounds (Plain b) = b
+unsafeFromWithBounds  _        = error "unsafeFromWithBounds: 'Top' or 'Bottom' values cannot be converted"
+
 -- | Representation of AVL+ tree with data in leaves.
 
 -- | One layer of AVL Tree structure.
@@ -65,21 +94,21 @@ data Tilt
 data MapLayer h k v self
   = MLBranch
     { _mlHash      :: h
-    , _mlMinKey    :: k
-    , _mlCenterKey :: k
+    , _mlMinKey    :: WithBounds k
+    , _mlCenterKey :: WithBounds k
     , _mlTilt      :: Tilt
     , _mlLeft      :: self
     , _mlRight     :: self
     }
   | MLLeaf
-    { _mlHash    :: h
-    , _mlKey     :: k
-    , _mlValue   :: v
-    , _mlNextKey :: k
-    , _mlPrevKey :: k
+    { _mlHash      :: h
+    , _mlKey       :: WithBounds k
+    , _mlValue     :: v
+    , _mlNextKey   :: WithBounds k
+    , _mlPrevKey   :: WithBounds k
     }
   | MLEmpty
-    { _mlHash     :: h
+    { _mlHash      :: h
     }
     deriving (Eq, Functor, Foldable, Traversable, Generic)
 
@@ -91,8 +120,12 @@ deriving instance Generic (Free t a)
 
 makeLenses ''MapLayer
 
+-------------------------------------------------------------------------------
+-- Typeclasses
+-------------------------------------------------------------------------------
+
 -- | Class, representing an ability for type to be [de]serialised.
-class (Show a, Eq a) => Serialisable a where
+class Serialisable a where
     serialise   :: a -> ByteString
     deserialise :: ByteString -> Either String a
 
@@ -101,6 +134,10 @@ class (Show a, Eq a) => Serialisable a where
 class (Serialisable k, Monad m) => KVStoreMonad k m where
     retrieve :: Serialisable v => k -> m v
     store    :: Serialisable v => k -> v -> m ()
+
+-- | Interface for calculating hash of the 'Map' node.
+class (Default h) => Hash h k v where
+    hashOf :: MapLayer h k v h -> h
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
@@ -113,6 +150,21 @@ data DeserialisationError = DeserialisationError String
 instance Exception DeserialisationError
 
 instance (Show k, Typeable k) => Exception (NotFound k)
+
+-- | Umbrella class to grab all the required capabilities for tree to operate (and be debugged!).
+type Stores h k v m =
+    ( Ord h, Show h, Typeable h
+    , Ord k, Show k, Typeable k
+    , Hash h k v
+    , KVStoreMonad h m
+    , Serialisable (MapLayer h k v h)
+    , Serialisable h
+    , MonadCatch m
+    )
+
+-------------------------------------------------------------------------------
+-- Methods
+-------------------------------------------------------------------------------
 
 -- | Debug preview of the tree.
 showMap :: (Show h, Show k, Show v) => Map h k v -> String
@@ -130,27 +182,9 @@ instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
       MLLeaf   h  k  _v  _n _p   -> "Leaf"   ++ show (h, k)
       MLEmpty  h                 -> "--"     ++ show (h)
 
--- | Interface for calculating hash of the 'Map' node.
-class
-    (Ord k, Show k, Show h, Hashable h, Typeable h, Show v, Bounded k, Eq h, Default h)
-      =>
-    Hash h k v
-  where
-    hashOf :: MapLayer h k v h -> h
-
+-- | Calculate hash outside of 'rehash'.
 hashOf' :: Hash h k v => MapLayer a k v h -> h
 hashOf' ml = hashOf (ml & mlHash .~ def)
-
--- | Umbrella class to grab all the required capabilities for tree to operate (and be debugged!).
-type Stores h k v m =
-    ( Ord h
-    , Typeable k
-    , Hash h k v
-    , KVStoreMonad h m
-    , Serialisable (MapLayer h k v h)
-    , Serialisable h
-    , MonadCatch m
-    )
 
 -- | Get hash of the root node for the tree.
 rootHash :: Map h k v -> h
@@ -191,7 +225,7 @@ fold (start, add, finish) = walkDFS (start, collectKVAnd add, finish)
   where
     -- We're doing it in DSF matter to save space.
     collectKVAnd act = \case
-        MLLeaf { _mlKey = k, _mlValue = v } -> act (k, v)
+        MLLeaf { _mlKey = k, _mlValue = v } -> act (unsafeFromWithBounds k, v)
         _other                              -> id
 
 -- | Get set of all node hashes from a tree.
@@ -261,13 +295,13 @@ saveOne tree = do
     store rHash (rootHash <$> layer)
 
 -- | Returns minimal key contained in a tree (or a 'minbound' if empty).
-minKey :: (Bounded k, Stores h k v m) => Map h k v -> m k
+minKey :: Stores h k v m => Map h k v -> m (WithBounds k)
 minKey = openAnd $ \layer ->
     layer^?mlMinKey `orElse`
     layer^?mlKey `orElse`
     minBound
 
-centerKey :: (Bounded k, Stores h k v m) => Map h k v -> m k
+centerKey :: Stores h k v m => Map h k v -> m (WithBounds k)
 centerKey = openAnd $ \layer ->
     layer^?mlCenterKey `orElse`
     layer^?mlKey `orElse`
@@ -278,11 +312,11 @@ tilt :: Stores h k v m => Map h k v -> m Tilt
 tilt = openAnd $ \layer ->
     layer^?mlTilt `orElse` M
 
-setLeft    :: Stores h k v m => Map h k v -> Map h k v -> m (Map h k v)
-setRight   :: Stores h k v m => Map h k v -> Map h k v -> m (Map h k v)
-setNextKey :: Stores h k v m => k         -> Map h k v -> m (Map h k v)
-setPrevKey :: Stores h k v m => k         -> Map h k v -> m (Map h k v)
-setValue   :: Stores h k v m => v         -> Map h k v -> m (Map h k v)
+setLeft    :: Stores h k v m => Map h k v    -> Map h k v -> m (Map h k v)
+setRight   :: Stores h k v m => Map h k v    -> Map h k v -> m (Map h k v)
+setNextKey :: Stores h k v m => WithBounds k -> Map h k v -> m (Map h k v)
+setPrevKey :: Stores h k v m => WithBounds k -> Map h k v -> m (Map h k v)
+setValue   :: Stores h k v m => v            -> Map h k v -> m (Map h k v)
 
 setLeft    left  = onTopNode (mlLeft    .~ left)
 setRight   right = onTopNode (mlRight   .~ right)
@@ -327,20 +361,20 @@ branch tilt0 left right = do
     rehash $ close $ MLBranch def (min minL minR) minR tilt0 left right
 
 -- | Create a leaf.
-leaf :: Stores h k v m => k -> v -> k -> k -> m (Map h k v)
+leaf :: Stores h k v m => k -> v -> WithBounds k -> WithBounds k -> m (Map h k v)
 leaf k v p n = do
-    rehash $ close $ MLLeaf def k v n p
+    rehash $ close $ MLLeaf def (Plain k) v n p
 
 lessThanCenterKey :: Stores h k v m => k -> Map h k v -> m Bool
 lessThanCenterKey key0 = openAnd $ \layer ->
-    key0 < (layer^?mlCenterKey `orElse` minBound)
+    Plain key0 < (layer^?mlCenterKey `orElse` minBound)
 
 toList :: Stores h k v m => Map h k v -> m [(k, v)]
 toList = go
   where
     go tree = do
       open tree >>= \case
-        MLLeaf   {_mlKey , _mlValue} -> return [(_mlKey, _mlValue)]
+        MLLeaf   {_mlKey , _mlValue} -> return [(unsafeFromWithBounds _mlKey, _mlValue)]
         MLBranch {_mlLeft, _mlRight} -> (++) <$> go _mlLeft <*> go _mlRight
         _                            -> return []
 

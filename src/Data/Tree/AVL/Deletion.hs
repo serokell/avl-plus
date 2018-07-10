@@ -41,7 +41,7 @@ deleteZ :: forall h k v m . Stores h k v m => k -> Zipped h k v m Bool
 deleteZ k = do
     withLocus $ \case
       MLLeaf { _mlKey } -> do
-        if _mlKey == k
+        if _mlKey == Plain k
         then do
             replaceWith (empty :: Map h k v)
             return True
@@ -55,10 +55,10 @@ deleteZ k = do
         return False
 
       _ -> do
-        goto k
+        goto (Plain k)
         withLocus $ \case
           MLLeaf { _mlKey = key0, _mlPrevKey = prev, _mlNextKey = next } -> do
-            if key0 /= k
+            if key0 /= Plain k
             then do
                 return False
 
@@ -98,5 +98,5 @@ deleteZ k = do
                 return True
 
           _ -> do
-            error $ "insert: `goto " ++ show k ++ "` ended in non-terminal node"
+            error $ "insert: `goto ended in non-terminal node"
 

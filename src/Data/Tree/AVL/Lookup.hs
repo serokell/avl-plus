@@ -25,11 +25,11 @@ lookup k tree0 = do
 
 lookupZ :: Stores h k v m => k -> Zipped h k v m (Maybe v)
 lookupZ k = do
-    goto k
+    goto (Plain k)
     tree  <- use locus
     lift (open tree) >>= \case
       MLLeaf {_mlKey, _mlValue} ->
-        if _mlKey == k
+        if _mlKey == Plain k
         then return (Just _mlValue)
         else return Nothing
 
@@ -37,5 +37,5 @@ lookupZ k = do
         return Nothing
 
       _ ->
-        error $ "lookup: `goto " ++ show k ++ "` ended in non-terminal node"
+        error $ "lookup: `goto ended in non-terminal node"
 

@@ -54,19 +54,21 @@ import qualified Data.Set                   as Set (empty, fromList, insert)
 data TreeZipper h k v = TreeZipper
     { _tzContext  :: [TreeZipperCxt h k v]  -- penetrated layers
     , _tzHere     :: Map h k v              -- current point
-    , _tzKeyRange :: (k, k)                 -- the diapasone of keys below locus
+    , _tzKeyRange :: (Range k)              -- the diapasone of keys below locus
     , _tzMode     :: Mode
     , _tzTouched  :: Set h                  -- set of nodes we touched
     }
+
+type Range k = (WithBounds k, WithBounds k)
 
 -- | Tree layers.
 data TreeZipperCxt h k v
     = WentRightFrom
         (Map h k v)  -- the node we came from (parent)
-        (k, k)       -- the key diapasone of parent
+        (Range k)    -- the key diapasone of parent
         h            -- previous revision of _current_ (AFAIR) node
-    | WentLeftFrom  (Map h k v) (k, k) h
-    | JustStarted                      h
+    | WentLeftFrom  (Map h k v) (Range k) h
+    | JustStarted                         h
 
 --deriving instance Stores h k v => Show (TreeZipperCxt h k v)
 
@@ -80,7 +82,7 @@ makeLenses ''TreeZipper
 
 context  :: Lens'  (TreeZipper h k v) [TreeZipperCxt h k v]
 locus    :: Lens'  (TreeZipper h k v) (Map h k v)
-keyRange :: Lens'  (TreeZipper h k v) (k, k)
+keyRange :: Lens'  (TreeZipper h k v) (Range k)
 mode     :: Getter (TreeZipper h k v)  Mode
 trail    :: Lens'  (TreeZipper h k v) (Set h)
 
@@ -256,7 +258,7 @@ data WentDownOnNonBranch h = WentDownOnNonBranch h deriving (Show, Typeable)
 instance (Show h, Typeable h) => Exception (WentDownOnNonBranch h)
 
 -- | Move into the left branch of the current node.
-descentLeft :: Stores h k v m => Zipped h k v m ()
+descentLeft :: forall h k v m . Stores h k v m => Zipped h k v m ()
 descentLeft = do
     tree  <- use locus
     range <- use keyRange
@@ -288,7 +290,12 @@ descentRight = do
           throwM $ WentDownOnNonBranch (rootHash tree)
 
 -- | Using side and current 'centerKey', select a key subrange we end in.
-refine :: Ord key => Side -> (key, key) -> key -> (key, key)
+refine
+    :: Ord key
+    => Side
+    -> (WithBounds key, WithBounds key)
+    ->  WithBounds key
+    -> (WithBounds key, WithBounds key)
 refine L (l, h) m = (l, min m h)
 refine R (l, h) m = (max m l, h)
 
@@ -470,12 +477,12 @@ separately action = do
 --    Debug.trace (msg <> " " <> show val) $ return ()
 
 -- | Teleport to a 'Leaf' with given key from anywhere.
-goto :: Stores h k v m => k -> Zipped h k v m ()
+goto :: Stores h k v m => WithBounds k -> Zipped h k v m ()
 goto key0 = do
     raiseUntilHaveInRange key0
     descentOnto key0
 
-raiseUntilHaveInRange :: Stores h k v m => k -> Zipped h k v m ()
+raiseUntilHaveInRange :: Stores h k v m => WithBounds k -> Zipped h k v m ()
 raiseUntilHaveInRange key0 = goUp
   where
     goUp = do
@@ -487,7 +494,7 @@ raiseUntilHaveInRange key0 = goUp
     k `isInside` (l, h) = k >= l && k <= h
 
 -- | Teleport to a 'Leaf' with given key from above.
-descentOnto :: forall h k v m . Stores h k v m => k -> Zipped h k v m ()
+descentOnto :: forall h k v m . Stores h k v m => WithBounds k -> Zipped h k v m ()
 descentOnto key0 = continueDescent
   where
     continueDescent = do

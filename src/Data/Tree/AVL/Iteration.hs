@@ -146,7 +146,7 @@ getKV _ = do
     return $ do
         k <- subtree^?mlKey
         v <- subtree^?mlValue
-        return (k, v)
+        return (unsafeFromWithBounds k, v)
 
 goLeft :: StoresAndIterates h k v m => m (Map h k v)
 goLeft = do

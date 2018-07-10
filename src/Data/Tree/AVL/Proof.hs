@@ -16,10 +16,10 @@ import           GHC.Generics           (Generic)
 import           Data.Tree.AVL.Internal
 
 data Proof h k v = Proof { subtree :: Map h k v }
-    deriving (Show, Generic)
+    deriving (Generic)
 
 makePrisms ''Proof
 
-checkProof :: forall h k v . Hash h k v => h -> Proof h k v -> Bool
+checkProof :: forall h k v . (Eq h, Hash h k v) => h -> Proof h k v -> Bool
 checkProof ideal (Proof subtree) =
     iter hashOf' subtree == ideal

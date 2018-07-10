@@ -71,6 +71,9 @@ instance Binary Layer
 deriving instance Ord Layer
 instance Hashable Layer
 
+instance Hashable b => Hashable (AVL.WithBounds b)
+instance Binary   b => Binary   (AVL.WithBounds b)
+
 instance Hashable StringName
 
 instance Binary   AVL.Tilt
@@ -113,9 +116,9 @@ instance Arbitrary StringName where
         a <- elements ['B'.. 'Y']
         return (StringName [a])
 
-instance Bounded StringName where
-    minBound = StringName "A"
-    maxBound = StringName "Z"
+--instance Bounded StringName where
+--    minBound = StringName "A"
+--    maxBound = StringName "Z"
 
 instance (Eq k, Hashable k) => Default (HashMap k v) where
     def = fromList []

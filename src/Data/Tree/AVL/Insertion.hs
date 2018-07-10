@@ -47,7 +47,7 @@ insertWithNoProof k v tree = do
 -- | Insertion algorithm.
 insertZ :: forall h k v m . Stores h k v m => k -> v -> Zipped h k v m ()
 insertZ k v = do
-    goto k             -- teleport to a key (or near it if absent)
+    goto (Plain k)             -- teleport to a key (or near it if absent)
     withLocus $ \case
       MLEmpty {} -> do
         leaf0 <- leaf k v minBound maxBound
@@ -59,13 +59,13 @@ insertZ k v = do
             prev = _mlPrevKey
             next = _mlNextKey
 
-        if k == key0 then do  -- update case, replace with new value
+        if Plain k == key0 then do  -- update case, replace with new value
             change $ do
                 here  <- use locus
                 here' <- setValue v here
                 locus .= here'
         else do
-            if k `isInside` (prev, key0)
+            if Plain k `isInside` (prev, key0)
             then do
                 leaf0 <- leaf k v prev key0
 
@@ -75,7 +75,7 @@ insertZ k v = do
                     goto prev
                     change $ do
                         here  <- use locus
-                        here' <- setNextKey k here
+                        here' <- setNextKey (Plain k) here
                         locus .= here'
 
             else do
@@ -87,7 +87,7 @@ insertZ k v = do
                     goto next
                     change $ do
                         here  <- use locus
-                        here' <- setPrevKey k here
+                        here' <- setPrevKey (Plain k) here
                         locus .= here'
       _ -> do
         error $ "insert: `goto k` ended in non-terminal node"
@@ -102,7 +102,7 @@ insertZ k v = do
         descentRight
         change $ do
             here  <- use locus
-            here' <- setPrevKey k here
+            here' <- setPrevKey (Plain k) here
             locus .= here'
         void up
 
@@ -114,7 +114,7 @@ insertZ k v = do
         descentLeft
         change $ do
             here  <- use locus
-            here' <- setNextKey k here
+            here' <- setNextKey (Plain k) here
             locus .= here'
         void up
 
