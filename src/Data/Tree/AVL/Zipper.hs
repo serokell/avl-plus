@@ -1,10 +1,9 @@
-
+{-# LANGUAGE ExplicitForAll        #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ExplicitForAll        #-}
 {-# LANGUAGE TupleSections         #-}
 
 -- | This module represents zipper layer.
@@ -16,27 +15,27 @@
 
 module Data.Tree.AVL.Zipper where
 
-import Control.Exception          (Exception)
-import Control.Lens               (Getter, Lens', makeLenses, use, uses, (%=), (.=))
+import           Control.Exception          (Exception)
+import           Control.Lens               (Getter, Lens', makeLenses, use, uses, (%=),
+                                             (.=))
 
-import Control.Monad              (unless, when)
-import Control.Monad.Catch        (throwM, catch)
-import Control.Monad.State.Strict (StateT, evalStateT, get, put, lift, liftIO)
+import           Control.Monad              (unless, when)
+import           Control.Monad.Catch        (catch, throwM)
+import           Control.Monad.State.Strict (StateT, evalStateT, get, lift, put)
 
-import Data.Monoid                ((<>))
-import Data.Set                   (Set)
-import Data.Typeable              (Typeable)
-import Data.Traversable           (for)
+import           Data.Monoid                ((<>))
+import           Data.Set                   (Set)
+import           Data.Typeable              (Typeable)
 
 --import Debug.Trace as Debug (trace)
 
-import Data.Tree.AVL.Internal
-import Data.Tree.AVL.Proof
-import Data.Tree.AVL.Prune
+import           Data.Tree.AVL.Internal
+import           Data.Tree.AVL.Proof
+import           Data.Tree.AVL.Prune
 
 --import qualified Debug.Trace as Debug
 
-import qualified Data.Set as Set (fromList, empty, insert)
+import qualified Data.Set                   as Set (empty, fromList, insert)
 
 -- | Zipper representation.
 --   Zipper is pair of _locus_ and _context stack_.
@@ -55,19 +54,21 @@ import qualified Data.Set as Set (fromList, empty, insert)
 data TreeZipper h k v = TreeZipper
     { _tzContext  :: [TreeZipperCxt h k v]  -- penetrated layers
     , _tzHere     :: Map h k v              -- current point
-    , _tzKeyRange :: (k, k)                 -- the diapasone of keys below locus
+    , _tzKeyRange :: (Range k)              -- the diapasone of keys below locus
     , _tzMode     :: Mode
     , _tzTouched  :: Set h                  -- set of nodes we touched
     }
+
+type Range k = (WithBounds k, WithBounds k)
 
 -- | Tree layers.
 data TreeZipperCxt h k v
     = WentRightFrom
         (Map h k v)  -- the node we came from (parent)
-        (k, k)       -- the key diapasone of parent
+        (Range k)    -- the key diapasone of parent
         h            -- previous revision of _current_ (AFAIR) node
-    | WentLeftFrom  (Map h k v) (k, k) h
-    | JustStarted                      h
+    | WentLeftFrom  (Map h k v) (Range k) h
+    | JustStarted                         h
 
 --deriving instance Stores h k v => Show (TreeZipperCxt h k v)
 
@@ -81,7 +82,7 @@ makeLenses ''TreeZipper
 
 context  :: Lens'  (TreeZipper h k v) [TreeZipperCxt h k v]
 locus    :: Lens'  (TreeZipper h k v) (Map h k v)
-keyRange :: Lens'  (TreeZipper h k v) (k, k)
+keyRange :: Lens'  (TreeZipper h k v) (Range k)
 mode     :: Getter (TreeZipper h k v)  Mode
 trail    :: Lens'  (TreeZipper h k v) (Set h)
 
@@ -257,7 +258,7 @@ data WentDownOnNonBranch h = WentDownOnNonBranch h deriving (Show, Typeable)
 instance (Show h, Typeable h) => Exception (WentDownOnNonBranch h)
 
 -- | Move into the left branch of the current node.
-descentLeft :: Stores h k v m => Zipped h k v m ()
+descentLeft :: forall h k v m . Stores h k v m => Zipped h k v m ()
 descentLeft = do
     tree  <- use locus
     range <- use keyRange
@@ -289,7 +290,12 @@ descentRight = do
           throwM $ WentDownOnNonBranch (rootHash tree)
 
 -- | Using side and current 'centerKey', select a key subrange we end in.
-refine :: Ord key => Side -> (key, key) -> key -> (key, key)
+refine
+    :: Ord key
+    => Side
+    -> (WithBounds key, WithBounds key)
+    ->  WithBounds key
+    -> (WithBounds key, WithBounds key)
 refine L (l, h) m = (l, min m h)
 refine R (l, h) m = (max m l, h)
 
@@ -348,30 +354,30 @@ roll tilt0 side =
       L -> pred tilt0
       R -> succ tilt0
 
-printLocus :: Stores h k v m => String -> Zipped h k v m ()
-printLocus str = do
-    tree     <- use locus
-    isolated <- isolate tree
-    liftIO $ print $ str ++ ": " ++ show isolated
+-- printLocus :: Stores h k v m => String -> Zipped h k v m ()
+-- printLocus str = do
+--     tree     <- use locus
+--     isolated <- isolate tree
+--     liftIO $ print $ str ++ ": " ++ show isolated
 
-dump :: Stores h k v m => String -> Zipped h k v m ()
-dump str = do
-    tree     <- use locus
-    isolated <- isolate tree
-    ctx      <- use context
-    ls <- for ctx $ \case
-      WentRightFrom what krange rev -> do
-        res <- isolate what
-        return $ show (krange, rev) ++ " <- " ++ show res
+-- dump :: Stores h k v m => String -> Zipped h k v m ()
+-- dump str = do
+--     tree     <- use locus
+--     isolated <- isolate tree
+--     ctx      <- use context
+--     ls <- for ctx $ \case
+--       WentRightFrom what krange rev -> do
+--         res <- isolate what
+--         return $ show (krange, rev) ++ " <- " ++ show res
 
-      WentLeftFrom what krange rev -> do
-        res <- isolate what
-        return $ show (krange, rev) ++ " -> " ++ show res
+--       WentLeftFrom what krange rev -> do
+--         res <- isolate what
+--         return $ show (krange, rev) ++ " -> " ++ show res
 
-      JustStarted rev -> do
-        return $ "start " ++ show rev
+--       JustStarted rev -> do
+--         return $ "start " ++ show rev
 
-    liftIO $ putStrLn $ str ++ ":\n  " ++ show isolated ++ "\n   --\n" ++ unlines (map ("  " ++) ls)
+--     liftIO $ putStrLn $ str ++ ":\n  " ++ show isolated ++ "\n   --\n" ++ unlines (map ("  " ++) ls)
 
 -- | Perform a zipper action upon current node, then update set its revision
 --   to be a new one.
@@ -471,12 +477,12 @@ separately action = do
 --    Debug.trace (msg <> " " <> show val) $ return ()
 
 -- | Teleport to a 'Leaf' with given key from anywhere.
-goto :: Stores h k v m => k -> Zipped h k v m ()
+goto :: Stores h k v m => WithBounds k -> Zipped h k v m ()
 goto key0 = do
     raiseUntilHaveInRange key0
     descentOnto key0
 
-raiseUntilHaveInRange :: Stores h k v m => k -> Zipped h k v m ()
+raiseUntilHaveInRange :: Stores h k v m => WithBounds k -> Zipped h k v m ()
 raiseUntilHaveInRange key0 = goUp
   where
     goUp = do
@@ -488,7 +494,7 @@ raiseUntilHaveInRange key0 = goUp
     k `isInside` (l, h) = k >= l && k <= h
 
 -- | Teleport to a 'Leaf' with given key from above.
-descentOnto :: forall h k v m . Stores h k v m => k -> Zipped h k v m ()
+descentOnto :: forall h k v m . Stores h k v m => WithBounds k -> Zipped h k v m ()
 descentOnto key0 = continueDescent
   where
     continueDescent = do

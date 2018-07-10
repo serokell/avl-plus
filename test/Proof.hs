@@ -27,7 +27,7 @@ tests =
                 (proof1, _) <- AVL.sandboxed $ do
                     AVL.insert k v subtree
 
-                AVL.checkProof hash1 proof1
+                return $ AVL.checkProof hash1 proof1
 
             , cachedProperty "Insert proof is replayable" $ \(k, v, list) -> do
                 tree            <- AVL.fromList list :: StorageMonad M
@@ -60,8 +60,7 @@ tests =
                 (proof1, _) <- AVL.sandboxed $ do
                     AVL.delete k subtree
 
-                yes <- AVL.checkProof hash1 proof1
-                return yes
+                return $ AVL.checkProof hash1 proof1
 
             , cachedProperty "Delete proof is replayable" $ \(k, v, list) -> do
                 tree            <- AVL.fromList ((k, v) : list) :: StorageMonad M
@@ -93,7 +92,7 @@ tests =
                     (proof1, _) <- AVL.sandboxed $ do
                         AVL.delete k subtree
 
-                    AVL.checkProof hash1 proof1
+                    return $ AVL.checkProof hash1 proof1
 
                   [] -> do
                     return True

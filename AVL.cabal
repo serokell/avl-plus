@@ -19,6 +19,7 @@ library
   exposed-modules: Data.Tree.AVL
   other-modules:
                  Data.Tree.AVL.Internal
+               , Data.Tree.AVL.Iteration
                , Data.Tree.AVL.Deletion
                , Data.Tree.AVL.Insertion
                , Data.Tree.AVL.Lookup
@@ -26,13 +27,14 @@ library
                , Data.Tree.AVL.Prune
                , Data.Tree.AVL.Zipper
                , Data.Tree.AVL.HashMapStore
-               , Data.Tree.AVL.RocksDBStore
+               -- , Data.Tree.AVL.RocksDBStore
   build-depends:       base >=4.9 && <5
                      , bytestring
                      , containers
                      , composition
                      , data-default
                      , data-fix
+                     , deriving-compat
                      , exceptions
                      , free
                      , hashable
@@ -40,9 +42,9 @@ library
                      , lens-action
                      , MonadRandom
                      , mtl
-                     , pretty-tree
+                     -- , pretty-tree
                      , random
-                     , rocksdb-haskell
+                     -- , rocksdb-haskell
                      , stm
                      , transformers
                      , unordered-containers
@@ -68,7 +70,7 @@ test-suite avl-tree-sanity
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Main.hs
-  other-modules:       Proof, Insertion, Common, Lookup, Cache
+  other-modules:       Proof, Insertion, Common, Lookup, Cache, Algorithm, Iteration
   build-depends:       base >= 0.4 && < 5
                      , AVL
                      , binary

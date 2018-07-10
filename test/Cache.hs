@@ -24,6 +24,7 @@ tests =
                 return False
               `catch` \(AVL.NotFound (_ :: Int)) ->
                 return True
+              :: StorageMonad Bool
 
         , cachedProperty "The `inCacheLayer` allows to look through it" $ \(list) -> do
             tree <- AVL.fromList list :: StorageMonad M

@@ -40,10 +40,10 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- pretty-tree-0.1.0.0
+# - pretty-tree-0.1.0.0
 - universum-1.1.0
-- git: https://github.com/Heimdell/rocksdb-haskell.git
-  commit: 0c1f446799d3738598a5d51ebc031bbbfd2d78f8
+# - git: https://github.com/Heimdell/rocksdb-haskell.git
+#   commit: 0c1f446799d3738598a5d51ebc031bbbfd2d78f8
 # Override default flag values for local packages and extra-deps
 flags: {}
 
