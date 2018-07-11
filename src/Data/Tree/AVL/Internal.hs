@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes    #-}
 {-# LANGUAGE DeriveAnyClass         #-}
 {-# LANGUAGE DeriveFoldable         #-}
 {-# LANGUAGE DeriveFunctor          #-}
@@ -10,31 +11,31 @@
 {-# LANGUAGE RankNTypes             #-}
 {-# LANGUAGE StrictData             #-}
 {-# LANGUAGE TemplateHaskell        #-}
+{-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE UndecidableInstances   #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Data.Tree.AVL.Internal where
 
-import           Control.Exception   (Exception)
-import           Control.Lens        (makeLenses, (&), (.~), (^.), (^?))
-import           Control.Monad       (void)
-import           Control.Monad.Catch (MonadCatch, catch)
-import           Control.Monad.Free  (Free (Free, Pure))
+import Control.Exception (Exception)
+import Control.Lens (makeLenses, (&), (.~), (^.), (^?))
+import Control.Monad (void)
+import Control.Monad.Catch (MonadCatch, catch)
+import Control.Monad.Free (Free (Free, Pure))
 
-import           Data.ByteString     (ByteString)
-import           Data.Default        (Default (..))
-import           Data.Foldable       (for_)
+import Data.ByteString (ByteString)
+import Data.Foldable (for_)
 --import           Data.Hashable       (Hashable)
-import           Data.Set            (Set)
-import           Data.Tree           as Tree
-import           Data.Typeable       (Typeable)
+import Data.Set (Set)
+import Data.Tree as Tree
+import Data.Typeable (Typeable)
 
-import           GHC.Generics        (Generic)
+import GHC.Generics (Generic)
 
-import           Text.Show.Deriving  (deriveShow1)
+import Text.Show.Deriving (deriveShow1)
 
-import qualified Data.Set            as Set (fromList)
+import qualified Data.Set as Set (fromList)
 
 -------------------------------------------------------------------------------
 -- Datatypes
@@ -101,11 +102,11 @@ data MapLayer h k v self
     , _mlRight     :: self
     }
   | MLLeaf
-    { _mlHash      :: h
-    , _mlKey       :: WithBounds k
-    , _mlValue     :: v
-    , _mlNextKey   :: WithBounds k
-    , _mlPrevKey   :: WithBounds k
+    { _mlHash    :: h
+    , _mlKey     :: WithBounds k
+    , _mlValue   :: v
+    , _mlNextKey :: WithBounds k
+    , _mlPrevKey :: WithBounds k
     }
   | MLEmpty
     { _mlHash      :: h
@@ -136,8 +137,11 @@ class (Serialisable k, Monad m) => KVStoreMonad k m where
     store    :: Serialisable v => k -> v -> m ()
 
 -- | Interface for calculating hash of the 'Map' node.
-class (Default h) => Hash h k v where
+class Hash h k v where
     hashOf :: MapLayer h k v h -> h
+    -- ^ Take hash of the 'MapLayer'
+    defHash :: h
+    -- ^ Default hash, may be any.
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
@@ -183,8 +187,8 @@ instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
       MLEmpty  h                 -> "--"     ++ show (h)
 
 -- | Calculate hash outside of 'rehash'.
-hashOf' :: Hash h k v => MapLayer a k v h -> h
-hashOf' ml = hashOf (ml & mlHash .~ def)
+hashOf' :: forall h k v a. Hash h k v => MapLayer a k v h -> h
+hashOf' ml = hashOf (ml & mlHash .~ (defHash @h @k @v))
 
 -- | Get hash of the root node for the tree.
 rootHash :: Map h k v -> h
@@ -325,12 +329,12 @@ setPrevKey k     = onTopNode (mlPrevKey .~ k)
 setValue   v     = onTopNode (mlValue   .~ v)
 
 -- | Recalculate 'rootHash' of the node.
-rehash :: Stores h k v m => Map h k v -> m (Map h k v)
+rehash :: forall h k v m. Stores h k v m => Map h k v -> m (Map h k v)
 rehash tree = do
     layer <- open tree
 
     let isolated = rootHash <$> layer
-    let cleaned  = isolated & mlHash .~ def
+    let cleaned  = isolated & mlHash .~ (defHash @h @k @v)
     let newLayer = layer    & mlHash .~ hashOf cleaned
     let newTree  = close newLayer
 
@@ -352,18 +356,18 @@ pattern Node h d l r <- MLBranch h _ _ d l r
 
 -- | Create empty tree.
 empty :: forall h k v . Hash h k v => Map h k v
-empty = close $ MLEmpty $ hashOf (MLEmpty def :: MapLayer h k v h)
+empty = close $ MLEmpty $ hashOf (MLEmpty (defHash @h @k @v) :: MapLayer h k v h)
 
 -- | Construct a branch from 2 subtrees.
-branch :: Stores h k v m => Tilt -> Map h k v -> Map h k v -> m (Map h k v)
+branch :: forall h k v m. Stores h k v m => Tilt -> Map h k v -> Map h k v -> m (Map h k v)
 branch tilt0 left right = do
     [minL, minR] <- traverse minKey [left, right]
-    rehash $ close $ MLBranch def (min minL minR) minR tilt0 left right
+    rehash $ close $ MLBranch (defHash @h @k @v) (min minL minR) minR tilt0 left right
 
 -- | Create a leaf.
-leaf :: Stores h k v m => k -> v -> WithBounds k -> WithBounds k -> m (Map h k v)
+leaf :: forall h k v m. Stores h k v m => k -> v -> WithBounds k -> WithBounds k -> m (Map h k v)
 leaf k v p n = do
-    rehash $ close $ MLLeaf def (Plain k) v n p
+    rehash $ close $ MLLeaf (defHash @h @k @v) (Plain k) v n p
 
 lessThanCenterKey :: Stores h k v m => k -> Map h k v -> m Bool
 lessThanCenterKey key0 = openAnd $ \layer ->

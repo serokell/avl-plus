@@ -1,4 +1,3 @@
-
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -13,31 +12,30 @@
 
 module Common (module Common, module Control.Lens, module T) where
 
-import Control.Lens hiding (locus, elements, Empty)
-import Control.Monad                        as T (when)
-import Control.Monad.Catch                  as T (catch)
-import Control.Monad.IO.Class               as T (liftIO)
-import Control.Monad.Trans.Class            as T (lift)
+import Control.Lens hiding (Empty, elements, locus)
+import Control.Monad as T (when)
+import Control.Monad.Catch as T (catch)
+import Control.Monad.IO.Class as T (liftIO)
+import Control.Monad.Trans.Class as T (lift)
 
-import Data.Binary                               (Binary, encode, decodeOrFail)
-import Data.ByteString.Lazy                      (toStrict, fromStrict)
-import Data.Default                         as T (Default(def))
-import Data.Foldable                             ()
-import Data.Function                             (on)
-import Data.Hashable                             (Hashable, hash)
-import Data.HashMap.Strict                       (HashMap, fromList)
-import Data.List                                 (sortBy, nubBy)
-import Data.Ord                                  (comparing)
-import Data.String                               (IsString(fromString))
+import Data.Binary (Binary, decodeOrFail, encode)
+import Data.ByteString.Lazy (fromStrict, toStrict)
+import Data.Default as T (Default (def))
+import Data.Foldable ()
+import Data.Function (on)
+import Data.Hashable (Hashable, hash)
+import Data.HashMap.Strict (HashMap, fromList)
+import Data.List (nubBy, sortBy)
+import Data.Ord (comparing)
+import Data.String (IsString (fromString))
 
-import GHC.Generics                              (Generic)
+import GHC.Generics (Generic)
 
-import Test.Framework                       as T (Test, defaultMain, testGroup, TestName)
+import Test.Framework as T (Test, TestName, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 as T (testProperty)
-import Test.QuickCheck                      as T ( Arbitrary (..), Gen, Property
-                                                 , (===), (==>), elements
-                                                 , ioProperty, Testable, forAll )
-import Test.QuickCheck.Instances            as T ()
+import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, forAll, ioProperty,
+                             (===), (==>))
+import Test.QuickCheck.Instances as T ()
 
 import qualified Data.Tree.AVL as AVL
 
@@ -98,6 +96,7 @@ instance AVL.Hash Int StringName Int where
         AVL.MLBranch _ mk ck t l r' -> hash (hash mk + hash ck + hash t + l + r')
         AVL.MLLeaf   _ k  v  n p    -> hash (hash k + hash v + hash n + hash p)
         AVL.MLEmpty  _              -> 0
+    defHash = 0
 
 -- newtype IntHash = IntHash { getIntHash :: Int }
 --     deriving (Show, Eq, Arbitrary)
