@@ -1,33 +1,32 @@
-
-{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PartialTypeSignatures      #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
 
 --module REPL where
 
-import Control.Lens hiding (locus, elements, Empty)
+import Control.Lens hiding (Empty, elements, locus)
 
-import           Data.Bits (xor)
-import           Data.Default
-import           Data.Hashable
-import           Data.Foldable
-import           Data.Function (on)
-import           Data.List (sortBy, nubBy)
-import           Data.Monoid
-import           Data.Ord (comparing)
-import           Data.String (IsString(..))
+import Data.Bits (xor)
+import Data.Default
+import Data.Foldable
+import Data.Function (on)
+import Data.Hashable
+import Data.List (nubBy, sortBy)
+import Data.Monoid
+import Data.Ord (comparing)
+import Data.String (IsString (..))
 
-import           GHC.Generics (Generic)
+import GHC.Generics (Generic)
 
-import qualified Data.Tree.AVL            as AVL
+import qualified Data.Tree.AVL as AVL
 
 data InitialHash
     = InitialHash { getInitialHash :: Layer }
@@ -51,8 +50,6 @@ instance Show InitialHash where
         InitialHash m -> "#(" ++ show (m & AVL.mlHash .~ Default) ++ ")"
         Default       -> "#DEFAULT"
 
-instance Default InitialHash where
-  def = Default
 
 instance Eq InitialHash where
     x == y = show x == show y
@@ -60,6 +57,7 @@ instance Eq InitialHash where
 instance AVL.Hash InitialHash StringName Int where
     hashOf tree = case tree of
         other -> InitialHash tree
+    defHash = Default
 
 -- newtype IntHash = IntHash { getIntHash :: Int }
 --     deriving (Show, Eq, Arbitrary)
