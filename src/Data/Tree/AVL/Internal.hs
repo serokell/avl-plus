@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes    #-}
+{-# LANGUAGE CPP                    #-}
 {-# LANGUAGE DeriveAnyClass         #-}
 {-# LANGUAGE DeriveFoldable         #-}
 {-# LANGUAGE DeriveFunctor          #-}
@@ -117,7 +118,9 @@ deriveShow1 ''MapLayer
 
 type Map h k v = Free (MapLayer h k v) h
 
+#if !MIN_VERSION_free(5,0,2)
 deriving instance Generic (Free t a)
+#endif
 
 makeLenses ''MapLayer
 
