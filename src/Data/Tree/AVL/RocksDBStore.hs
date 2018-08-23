@@ -1,9 +1,3 @@
-
-{-# LANGUAGE ExplicitForAll        #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
-
 module Data.Tree.AVL.RocksDBStore where
 
 import Control.Monad.Catch (bracket, throwM)

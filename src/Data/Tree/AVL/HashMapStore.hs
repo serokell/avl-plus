@@ -1,8 +1,3 @@
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
-
 module Data.Tree.AVL.HashMapStore where
 
 import           Control.Monad.Catch

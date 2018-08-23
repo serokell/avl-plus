@@ -1,7 +1,3 @@
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
-
 module Data.Tree.AVL.Iteration where
 
 import           Control.Exception          (Exception)

@@ -1,42 +1,22 @@
-{-# LANGUAGE AllowAmbiguousTypes    #-}
-{-# LANGUAGE CPP                    #-}
-{-# LANGUAGE DeriveAnyClass         #-}
-{-# LANGUAGE DeriveFoldable         #-}
-{-# LANGUAGE DeriveFunctor          #-}
-{-# LANGUAGE DeriveTraversable      #-}
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE NamedFieldPuns         #-}
-{-# LANGUAGE PatternSynonyms        #-}
-{-# LANGUAGE RankNTypes             #-}
-{-# LANGUAGE StrictData             #-}
-{-# LANGUAGE TemplateHaskell        #-}
-{-# LANGUAGE TypeApplications       #-}
-{-# LANGUAGE UndecidableInstances   #-}
-
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 module Data.Tree.AVL.Internal where
 
-import Control.Exception (Exception)
-import Control.Lens (makeLenses, (&), (.~), (^.), (^?))
-import Control.Monad (void)
+import Control.Exception   (Exception)
+import Control.Lens        (makeLenses, (&), (.~), (^.), (^?))
+import Control.Monad       (void)
 import Control.Monad.Catch (MonadCatch, catch)
-import Control.Monad.Free (Free (Free, Pure))
+import Control.Monad.Free  (Free (Free, Pure))
 
-import Data.ByteString (ByteString)
-import Data.Foldable (for_)
---import           Data.Hashable       (Hashable)
-import Data.Set (Set)
-import Data.Tree as Tree
-import Data.Typeable (Typeable)
-
-import GHC.Generics (Generic)
-
-import Text.Show.Deriving (deriveShow1)
-
+import Data.ByteString     (ByteString)
+import Data.Foldable       (for_)
+import Data.Set            (Set)
 import qualified Data.Set as Set (fromList)
+import Data.Tree as Tree
+import Data.Typeable       (Typeable)
+
+import GHC.Generics        (Generic)
+
+import Text.Show.Deriving  (deriveShow1)
+
 
 -------------------------------------------------------------------------------
 -- Datatypes

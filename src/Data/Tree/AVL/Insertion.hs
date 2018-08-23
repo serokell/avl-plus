@@ -1,7 +1,3 @@
-
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE ExplicitForAll      #-}
-
 module Data.Tree.AVL.Insertion
   ( insert
   , insertWithNoProof

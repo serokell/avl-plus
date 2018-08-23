@@ -1,8 +1,4 @@
 
-{-# LANGUAGE ExplicitForAll      #-}
-{-# LANGUAGE MultiWayIf          #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-
 module Data.Tree.AVL.Deletion (delete, deleteWithNoProof, delete') where
 
 import Control.Lens               (use, (.=))

@@ -1,10 +1,3 @@
-{-# LANGUAGE MonoLocalBinds       #-}
-{-# LANGUAGE NamedFieldPuns       #-}
-{-# LANGUAGE RankNTypes           #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE UndecidableInstances #-}
-
 module Data.Tree.AVL.Proof where
 
 import Control.Lens (makePrisms)

@@ -1,7 +1,3 @@
-
-{-# LANGUAGE MultiWayIf       #-}
-{-# LANGUAGE NamedFieldPuns   #-}
-
 module Data.Tree.AVL.Lookup where
 
 import Control.Lens (use)

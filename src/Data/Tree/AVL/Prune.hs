@@ -1,7 +1,3 @@
-
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE ExplicitForAll #-}
-
 module Data.Tree.AVL.Prune where
 
 import Control.Monad.Free     (Free(Free, Pure))
