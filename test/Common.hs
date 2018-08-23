@@ -39,14 +39,6 @@ import Test.QuickCheck.Instances as T ()
 
 import qualified Data.Tree.AVL as AVL
 
-instance (Binary x, Eq x, Show x) => AVL.Serialisable x where
-    serialise   = toStrict . encode
-    deserialise = decodeErrorToMaybe . decodeOrFail . fromStrict
-      where
-        decodeErrorToMaybe = either
-            (\(_, _, err) -> Left err)
-            (\(_, _, it)  -> Right it)
-
 -- | Extensional equality combinator.
 (.=.) :: (Eq b, Show b, Arbitrary a) => (a -> b) -> (a -> b) -> a -> Property
 f .=. g = \a ->
@@ -151,8 +143,7 @@ instance (Eq k, Hashable k) => Default (HashMap k v) where
 instance Show (a -> b) where
     show _ = "<function>"
 
-type StorageMonad       = AVL.HashMapStore Int AVL.NullStore
-type CachedStorageMonad = AVL.HashMapStore Int StorageMonad
+type StorageMonad = AVL.NullStore
 
 type M = AVL.Map Int StringName Int
 

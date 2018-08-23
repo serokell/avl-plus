@@ -62,7 +62,7 @@ data TreeZipperCxt h k v
     | WentLeftFrom  (Map h k v) (Range k) h
     | JustStarted                         h
 
---deriving instance Stores h k v => Show (TreeZipperCxt h k v)
+--deriving instance Retrieves h k v => Show (TreeZipperCxt h k v)
 
 data Mode
     = UpdateMode
@@ -87,12 +87,17 @@ trail    = tzTouched
 -- | The zipper is the state we maintain. Any operation can fail.
 type Zipped h k v m = StateT (TreeZipper h k v) m
 
-instance KVStoreMonad h m => KVStoreMonad h (Zipped h k v m) where
-    retrieve k   = lift $ retrieve k
-    store    k v = lift $ store    k v
+instance
+    ( Monad m
+    , KVRetrieve h (Isolated h k v) m
+    )
+  =>
+    KVRetrieve h (Isolated h k v) (Zipped h k v m)
+  where
+    retrieve = lift . retrieve
 
 -- | Run zipper operation, collect prefabs to build proof.
-runZipped' :: Stores h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Set h)
+runZipped' :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Set h)
 runZipped' action mode0 tree = do
     zipper <- enter mode0 tree
     action' `evalStateT` zipper
@@ -104,12 +109,11 @@ runZipped' action mode0 tree = do
       return (res, tree', trails)
 
 -- | Run zipper operation, collect proof.
-runZipped :: Stores h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Proof h k v)
+runZipped :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Proof h k v)
 runZipped action mode0 tree = do
     zipper             <- enter mode0 tree
     (a, tree1, trails) <- action' `evalStateT` zipper
-    proof              <- prune trails tree
-    return (a, tree1, proof)
+    return (a, tree1, prune trails tree)
   where
     action' = do
       res    <- action
@@ -117,35 +121,33 @@ runZipped action mode0 tree = do
       trails <- use trail
       return (res, tree', trails)
 
-withLocus :: Stores h k v m => (MapLayer h k v (Map h k v) -> Zipped h k v m a) -> Zipped h k v m a
+withLocus :: Retrieves h k v m => (MapLayer h k v (Map h k v) -> Zipped h k v m a) -> Zipped h k v m a
 withLocus action = do
     loc   <- use locus
     layer <- open loc
     action layer
 
 -- | Add current node identity to the set of nodes touched.
-mark :: Stores h k v m => String -> Zipped h k v m ()
+mark :: Retrieves h k v m => String -> Zipped h k v m ()
 mark _msg = do
     hash <- uses locus rootHash
     trail %= Set.insert hash
 
 -- | Add given node identities to the set of nodes touched.
-markAll :: Stores h k v m => [h] -> Zipped h k v m ()
+markAll :: Retrieves h k v m => [h] -> Zipped h k v m ()
 markAll revs = do
     trail %= (<> Set.fromList revs)
 
-rehashLocus :: Stores h k v m => Zipped h k v m ()
+rehashLocus :: Retrieves h k v m => Zipped h k v m ()
 rehashLocus = do
-    loc <- use locus
-    new <- rehash loc
-    locus .= new
+    locus %= rehash
 
 data AlreadyOnTop = AlreadyOnTop deriving (Show, Typeable)
 
 instance Exception AlreadyOnTop
 
 -- | Move to the parent node; update & 'rebalance' it if required.
-up :: forall h k m v . Stores h k v m => Zipped h k v m Side
+up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
 up = do
     rehashLocus
     ctx   <- use context
@@ -224,7 +226,7 @@ up = do
     return side
 
 -- | Return to the root node.
-exit :: Stores h k v m => Zipped h k v m (Map h k v)
+exit :: Retrieves h k v m => Zipped h k v m (Map h k v)
 exit = uplift
   where
     uplift = do
@@ -235,7 +237,7 @@ exit = uplift
 
 -- | Open the tree.
 -- | Acts like "Tree.rootIterator()" in Java.
-enter :: Stores h k v m => Mode -> Map h k v -> m (TreeZipper h k v)
+enter :: Retrieves h k v m => Mode -> Map h k v -> m (TreeZipper h k v)
 enter mode0 tree = do
   return TreeZipper
     { _tzContext  = [JustStarted (rootHash tree)]
@@ -250,7 +252,7 @@ data WentDownOnNonBranch h = WentDownOnNonBranch h deriving (Show, Typeable)
 instance (Show h, Typeable h) => Exception (WentDownOnNonBranch h)
 
 -- | Move into the left branch of the current node.
-descentLeft :: forall h k v m . Stores h k v m => Zipped h k v m ()
+descentLeft :: forall h k v m . Retrieves h k v m => Zipped h k v m ()
 descentLeft = do
     tree  <- use locus
     range <- use keyRange
@@ -266,7 +268,7 @@ descentLeft = do
           throwM $ WentDownOnNonBranch (rootHash tree)
 
 -- | Move into the right branch of the current node.
-descentRight :: Stores h k v m => Zipped h k v m ()
+descentRight :: Retrieves h k v m => Zipped h k v m ()
 descentRight = do
     tree  <- use locus
     range <- use keyRange
@@ -292,7 +294,7 @@ refine L (l, h) m = (l, min m h)
 refine R (l, h) m = (max m l, h)
 
 -- | Correct tilt.
-correctTilt :: Stores h k v m => Map h k v -> Map h k v -> Tilt -> Side -> Zipped h k v m Tilt
+correctTilt :: Retrieves h k v m => Map h k v -> Map h k v -> Tilt -> Side -> Zipped h k v m Tilt
 correctTilt was became tilt0 side = do
     modus   <- use mode
     deeper  <- deepened  was became
@@ -308,7 +310,7 @@ correctTilt was became tilt0 side = do
     return res
 
 -- | Find if tree became deeper.
-deepened :: Stores h k v m => Map h k v -> Map h k v -> Zipped h k v m Bool
+deepened :: Retrieves h k v m => Map h k v -> Map h k v -> Zipped h k v m Bool
 deepened was became = do
     wasLayer    <- open was
     becameLayer <- open became
@@ -324,7 +326,7 @@ deepened was became = do
       _                          -> return False
 
 -- | Find if tree became shorter.
-shortened :: Stores h k v m => Map h k v -> Map h k v -> Zipped h k v m Bool
+shortened :: Retrieves h k v m => Map h k v -> Map h k v -> Zipped h k v m Bool
 shortened was became = do
     wasLayer    <- open was
     becameLayer <- open became
@@ -346,13 +348,13 @@ roll tilt0 side =
       L -> pred tilt0
       R -> succ tilt0
 
--- printLocus :: Stores h k v m => String -> Zipped h k v m ()
+-- printLocus :: Retrieves h k v m => String -> Zipped h k v m ()
 -- printLocus str = do
 --     tree     <- use locus
 --     isolated <- isolate tree
 --     liftIO $ print $ str ++ ": " ++ show isolated
 
--- dump :: Stores h k v m => String -> Zipped h k v m ()
+-- dump :: Retrieves h k v m => String -> Zipped h k v m ()
 -- dump str = do
 --     tree     <- use locus
 --     isolated <- isolate tree
@@ -374,7 +376,7 @@ roll tilt0 side =
 -- | Perform a zipper action upon current node, then update set its revision
 --   to be a new one.
 change
-    :: Stores h k v m
+    :: Retrieves h k v m
     => (Zipped h k v m a)
     -> Zipped h k v m a
 change action = do
@@ -385,7 +387,7 @@ change action = do
     mark "change" -- automatically add node the list of touched
     action
 
-replaceWith :: Stores h k v m => Map h k v -> Zipped h k v m ()
+replaceWith :: Retrieves h k v m => Map h k v -> Zipped h k v m ()
 replaceWith newTree = do
     change (locus .= newTree)
 
@@ -396,7 +398,7 @@ replaceWith newTree = do
 
 --dematerializeTop3 :: MapLayer h k v (MapLayer h k v (MapLayer h k v h)) -> Map h k v m
 
-rebalance :: forall h k v m . Stores h k v m => Zipped h k v m ()
+rebalance :: forall h k v m . Retrieves h k v m => Zipped h k v m ()
 rebalance = do
     tree <- use locus
 
@@ -457,7 +459,7 @@ rebalance = do
 
 -- | Was used to track proofs, now obsolete.
 --   TODO: remove.
-separately :: Stores h k v m => Zipped h k v m a -> Zipped h k v m a
+separately :: Retrieves h k v m => Zipped h k v m a -> Zipped h k v m a
 separately action = do
     state0 <- get
     result <- action
@@ -469,12 +471,12 @@ separately action = do
 --    Debug.trace (msg <> " " <> show val) $ return ()
 
 -- | Teleport to a 'Leaf' with given key from anywhere.
-goto :: Stores h k v m => WithBounds k -> Zipped h k v m ()
+goto :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()
 goto key0 = do
     raiseUntilHaveInRange key0
     descentOnto key0
 
-raiseUntilHaveInRange :: Stores h k v m => WithBounds k -> Zipped h k v m ()
+raiseUntilHaveInRange :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()
 raiseUntilHaveInRange key0 = goUp
   where
     goUp = do
@@ -486,7 +488,7 @@ raiseUntilHaveInRange key0 = goUp
     k `isInside` (l, h) = k >= l && k <= h
 
 -- | Teleport to a 'Leaf' with given key from above.
-descentOnto :: forall h k v m . Stores h k v m => WithBounds k -> Zipped h k v m ()
+descentOnto :: forall h k v m . Retrieves h k v m => WithBounds k -> Zipped h k v m ()
 descentOnto key0 = continueDescent
   where
     continueDescent = do

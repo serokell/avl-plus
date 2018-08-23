@@ -6,7 +6,6 @@ import           Control.Monad.Catch
 import           Control.Monad.State.Strict
 
 import           Data.Default
-import           Data.Proxy
 import           Data.Tree.AVL.Internal
 import           Data.Typeable
 
@@ -27,7 +26,7 @@ instance Show h => Show (IterationState h) where
       where
         bit = either (const 'L') (const 'R')
 
-class (Monad m, KVStoreMonad h m) => ProvidesIterationState h m where
+class Monad m => ProvidesIterationState h m where
     getIterationState :: m (IterationState h)
     putIterationState :: IterationState h -> m ()
 
@@ -39,7 +38,7 @@ class (Monad m, KVStoreMonad h m) => ProvidesIterationState h m where
         s <- getIterationState
         return (f s)
 
-type StoresAndIterates h k v m = (Stores h k v m, ProvidesIterationState h m)
+type Iterates h k v m = (Retrieves h k v m, ProvidesIterationState h m)
 
 -- | Stores return chain for the iteration.
 --   Each list element represents direction it took and node it came to.
@@ -54,7 +53,7 @@ newtype IteratedT h m a = IteratedT { getIteratedT :: StateT (IterationState h) 
         , MonadIO
         )
 
-instance KVStoreMonad h m => ProvidesIterationState h (IteratedT h m) where
+instance Monad m => ProvidesIterationState h (IteratedT h m) where
     getIterationState = IteratedT get
     putIterationState = IteratedT . put
 
@@ -67,17 +66,16 @@ data IterationError
 
 instance Exception IterationError
 
-instance KVStoreMonad h m => KVStoreMonad h (IteratedT h m) where
-    store  k = IteratedT . lift . store k
+instance (Monad m, KVRetrieve h (Isolated h k v) m) => KVRetrieve h (Isolated h k v) (IteratedT h m) where
     retrieve = IteratedT . lift . retrieve
 
 class CanIterateAVL h k v m where
     startIteration    :: Map h k v -> m ()
-    continueIteration :: Proxy h -> m (Maybe (k, v))
+    continueIteration :: m (Maybe (k, v))
 
-instance (MonadCatch m, Stores h k v m) => CanIterateAVL h k v (IteratedT h m) where
-    startIteration          = start
-    continueIteration proxy = nextKV proxy
+instance (MonadCatch m, Retrieves h k v m) => CanIterateAVL h k v (IteratedT h m) where
+    startIteration    = start
+    continueIteration = nextKV @h
 
 -- instance (CanIterateAVL h k v m, Monad m, MonadTrans t) => CanIterateAVL h k v (t m) where
 --     startIteration    = lift . startIteration
@@ -86,15 +84,15 @@ instance (MonadCatch m, Stores h k v m) => CanIterateAVL h k v (IteratedT h m) w
 runIteratedT :: Monad m => IteratedT h m a -> m a
 runIteratedT (IteratedT action) = evalStateT action (IterationState [] False)
 
-start :: forall h k v m . StoresAndIterates h k v m => Map h k v -> m ()
+start :: forall h k v m . Iterates h k v m => Map h k v -> m ()
 start tree = do
     push $ Left $ rootHash tree
     _ :: Map h k v <- leftmostKVNode
     return ()
 
-leftmostKVNode :: forall h k v m . StoresAndIterates h k v m => m (Map h k v)
+leftmostKVNode :: forall h k v m . Iterates h k v m => m (Map h k v)
 leftmostKVNode = do
-    getKV (Proxy :: Proxy h) >>= \case
+    getKV @h >>= \case
         Just (_ :: (k, v)) ->
             shallowBody
 
@@ -104,7 +102,7 @@ leftmostKVNode = do
   `catch` \NoLeftBranch ->
     shallowBody
 
-nextKVNode :: forall h k v m . StoresAndIterates h k v m => m (Map h k v)
+nextKVNode :: forall h k v m . Iterates h k v m => m (Map h k v)
 nextKVNode = do
     -- mkv :: Maybe (k, v) <- getKV (Proxy :: Proxy h)
     -- s :: IterationState h <- getIterationState
@@ -119,11 +117,11 @@ nextKVNode = do
             _ :: Map h k v <- goUp
             nextKVNode
   `catch` \ReturnStackIsEmpty -> do
-    break (Proxy :: Proxy h)
+    break @h
     shallowBody
 
-nextKV :: forall h k v m . StoresAndIterates h k v m => Proxy h -> m (Maybe (k, v))
-nextKV _ = do
+nextKV :: forall h k v m . Iterates h k v m => m (Maybe (k, v))
+nextKV = do
     broken <- getsIterationState $ \is -> isBroken (is :: IterationState h)
 
     if broken
@@ -131,20 +129,21 @@ nextKV _ = do
         return Nothing
 
     else do
-        res <- getKV (Proxy :: Proxy h)
+        res <- getKV @h
         _ :: Map h k v <- nextKVNode
         return res
 
 
-getKV :: forall h k v m . StoresAndIterates h k v m => Proxy h -> m (Maybe (k, v))
-getKV _ = do
+getKV :: forall h k v m . Iterates h k v m => m (Maybe (k, v))
+getKV = do
     subtree :: MapLayer h k v (Map h k v) <- body
     return $ do
         k <- subtree^?mlKey
         v <- subtree^?mlValue
-        return (unsafeFromWithBounds k, v)
+        v' <- v
+        return (unsafeFromWithBounds k, v')
 
-goLeft :: StoresAndIterates h k v m => m (Map h k v)
+goLeft :: Iterates h k v m => m (Map h k v)
 goLeft = do
     subtree <- body
     case subtree^?mlLeft of
@@ -155,7 +154,7 @@ goLeft = do
         Nothing -> do
             throwM NoLeftBranch
 
-goRight :: StoresAndIterates h k v m => m (Map h k v)
+goRight :: Iterates h k v m => m (Map h k v)
 goRight = do
     subtree <- body
     case subtree^?mlRight of
@@ -166,15 +165,15 @@ goRight = do
         Nothing -> do
             throwM NoRightBranch
 
-goUp :: forall h k v m . StoresAndIterates h k v m => m (Map h k v)
+goUp :: forall h k v m . Iterates h k v m => m (Map h k v)
 goUp = do
     _ :: Either h h <- pop
     shallowBody
 
-body :: StoresAndIterates h k v m => m (MapLayer h k v (Map h k v))
+body :: Iterates h k v m => m (MapLayer h k v (Map h k v))
 body = open =<< shallowBody
 
-shallowBody :: StoresAndIterates h k v m => m (Map h k v)
+shallowBody :: Iterates h k v m => m (Map h k v)
 shallowBody = ref . onlyHash <$> peek
 
 push :: ProvidesIterationState h m => Either h h -> m ()
@@ -200,7 +199,7 @@ pop = do
 onlyHash :: Either h h -> h
 onlyHash = either id id
 
-break :: forall h m . ProvidesIterationState h m => Proxy h -> m ()
-break _ = modifyIterationState $ \is ->
+break :: forall h m . ProvidesIterationState h m => m ()
+break = modifyIterationState $ \is ->
     is { isBroken = True }
         :: IterationState h

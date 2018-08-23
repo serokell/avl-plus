@@ -19,14 +19,15 @@ library
   exposed-modules: Data.Tree.AVL
   other-modules:
                  Data.Tree.AVL.Internal
-               , Data.Tree.AVL.Iteration
+               , Data.Tree.AVL.Set
                , Data.Tree.AVL.Deletion
                , Data.Tree.AVL.Insertion
+               , Data.Tree.AVL.Iteration
                , Data.Tree.AVL.Lookup
                , Data.Tree.AVL.Proof
                , Data.Tree.AVL.Prune
                , Data.Tree.AVL.Zipper
-               , Data.Tree.AVL.HashMapStore
+               -- , Data.Tree.AVL.HashMapStore
                -- , Data.Tree.AVL.RocksDBStore
   build-depends:       base >=4.9 && <5
                      , bytestring
