@@ -18,7 +18,7 @@ import Data.Tree.AVL.Zipper
 --import qualified Debug.Trace as Debug
 
 -- | Endpoint that allows to merge proofs for some sequental operations.
-insert' :: Retrieves h k v m => k -> v -> Map h k v -> m (Set h, Map h k v)
+insert' :: Retrieves h k v m => k -> v -> Map h k v -> m (Set Revision, Map h k v)
 insert' k v tree = do
     ((), res, trails) <- runZipped' (insertZ k v) UpdateMode tree
     return (trails, res)
@@ -46,7 +46,8 @@ insertZ k v = do
     goto (Plain k)             -- teleport to a key (or near it if absent)
     withLocus $ \case
       MLEmpty {} -> do
-        leaf0 <- leaf k v minBound maxBound
+        rev <- freshRevision
+        leaf0 <- leaf rev k v minBound maxBound
         replaceWith leaf0
         return ()
 
@@ -63,7 +64,8 @@ insertZ k v = do
         else do
             if Plain k `isInside` (prev, key0)
             then do
-                leaf0 <- leaf k v prev key0
+                rev   <- freshRevision
+                leaf0 <- leaf rev k v prev key0
 
                 splitInsertBefore leaf0
 
@@ -75,7 +77,8 @@ insertZ k v = do
                         locus .= here'
 
             else do
-                leaf0 <- leaf k v key0 next
+                rev   <- freshRevision
+                leaf0 <- leaf rev k v key0 next
 
                 splitInsertAfter leaf0
 
@@ -93,7 +96,8 @@ insertZ k v = do
     splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
         tree <- use locus
-        new  <- branch M leaf0 tree
+        rev  <- freshRevision
+        new  <- branch rev M leaf0 tree
         replaceWith new
         descentRight
         change $ do
@@ -105,7 +109,8 @@ insertZ k v = do
     splitInsertAfter :: Map h k v -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
         tree <- use locus
-        new  <- branch M tree leaf0
+        rev  <- freshRevision
+        new  <- branch rev M tree leaf0
         replaceWith new
         descentLeft
         change $ do

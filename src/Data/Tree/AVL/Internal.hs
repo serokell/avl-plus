@@ -82,6 +82,8 @@ unsafeFromWithBounds :: WithBounds b -> b
 unsafeFromWithBounds (Plain b) = b
 unsafeFromWithBounds  _        = error "unsafeFromWithBounds: 'Top' or 'Bottom' values cannot be converted"
 
+type Revision = Integer
+
 -- | Representation of AVL+ tree with data in leaves.
 
 -- | One layer of AVL Tree structure.
@@ -89,7 +91,8 @@ unsafeFromWithBounds  _        = error "unsafeFromWithBounds: 'Top' or 'Bottom' 
 --   current level and be syncronised with any changes in tree.
 data MapLayer h k v self
   = MLBranch
-    { _mlHash      :: h             -- ^ Hash of the subtree.
+    { _mlRevision  :: Revision      -- ^ So we can check if node changed and not rehash it
+    , _mlHash      :: h             -- ^ Hash of the subtree.
     , _mlMinKey    :: WithBounds k  -- ^ Minimal key used in tree.
     , _mlCenterKey :: WithBounds k  -- ^ Minimal key of the right subtree.
     , _mlTilt      :: Tilt          -- ^ Amount of disbalance.
@@ -97,14 +100,16 @@ data MapLayer h k v self
     , _mlRight     :: self          -- ^ Left subtree or subtree hash.
     }
   | MLLeaf
-    { _mlHash    :: h
-    , _mlKey     :: WithBounds k    -- ^ Key of the leaf node.
-    , _mlValue   :: v               -- ^ Value of the leaf node.
-    , _mlNextKey :: WithBounds k    -- ^ Next key, for [non]existence check.
-    , _mlPrevKey :: WithBounds k    -- ^ Prev key.
+    { _mlRevision :: Revision
+    , _mlHash     :: h
+    , _mlKey      :: WithBounds k    -- ^ Key of the leaf node.
+    , _mlValue    :: v               -- ^ Value of the leaf node.
+    , _mlNextKey  :: WithBounds k    -- ^ Next key, for [non]existence check.
+    , _mlPrevKey  :: WithBounds k    -- ^ Prev key.
     }
   | MLEmpty
-    { _mlHash      :: h
+    { _mlRevision :: Revision
+    , _mlHash     :: h
     }
     deriving (Eq, Functor, Foldable, Traversable, Generic)
 
@@ -190,16 +195,16 @@ showMap :: (Show h, Show k, Show v) => Map h k v -> String
 showMap = drawTree . asTree
  where
    asTree = \case
-     Free (MLBranch _ _mk _ck t  l r) -> Tree.Node ("-< "  ++ show (t)) [asTree r, asTree l]
-     Free (MLLeaf   _  k  _v _n _p)   -> Tree.Node ("<3- " ++ show (k)) []
-     Free (MLEmpty  _)                -> Tree.Node ("--")               []
-     Pure  h                          -> Tree.Node ("Ref " ++ show h)   []
+     Free (MLBranch _ _ _mk _ck t  l r) -> Tree.Node ("-< "  ++ show (t)) [asTree r, asTree l]
+     Free (MLLeaf   _ _  k  _v _n _p)   -> Tree.Node ("<3- " ++ show (k)) []
+     Free (MLEmpty  _ _)                -> Tree.Node ("--")               []
+     Pure  h                            -> Tree.Node ("Ref " ++ show h)   []
 
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
-      MLBranch h _mk _ck  t  l r -> "Branch" ++ show (h, t, l, r)
-      MLLeaf   h  k  _v  _n _p   -> "Leaf"   ++ show (h, k)
-      MLEmpty  h                 -> "--"     ++ show (h)
+      MLBranch _ h _mk _ck  t  l r -> "Branch" ++ show (h, t, l, r)
+      MLLeaf   _ h  k  _v  _n _p   -> "Leaf"   ++ show (h, k)
+      MLEmpty  _ h                 -> "--"     ++ show (h)
 
 -- | Calculate hash outside of 'rehash'.
 hashOf' :: forall h k v a. Hash h k v => MapLayer a k v h -> h
@@ -326,17 +331,19 @@ tilt :: Retrieves h k v m => Map h k v -> m Tilt
 tilt = openAnd $ \layer ->
     layer^?mlTilt `orElse` M
 
-setLeft    :: Retrieves h k v m => Map h k v    -> Map h k v -> m (Map h k v)
-setRight   :: Retrieves h k v m => Map h k v    -> Map h k v -> m (Map h k v)
-setNextKey :: Retrieves h k v m => WithBounds k -> Map h k v -> m (Map h k v)
-setPrevKey :: Retrieves h k v m => WithBounds k -> Map h k v -> m (Map h k v)
-setValue   :: Retrieves h k v m => v            -> Map h k v -> m (Map h k v)
+setLeft     :: Retrieves h k v m => Map h k v    -> Map h k v -> m (Map h k v)
+setRight    :: Retrieves h k v m => Map h k v    -> Map h k v -> m (Map h k v)
+setNextKey  :: Retrieves h k v m => WithBounds k -> Map h k v -> m (Map h k v)
+setPrevKey  :: Retrieves h k v m => WithBounds k -> Map h k v -> m (Map h k v)
+setValue    :: Retrieves h k v m => v            -> Map h k v -> m (Map h k v)
+setRevision :: Retrieves h k v m => Revision     -> Map h k v -> m (Map h k v)
 
-setLeft    left  = onTopNode (mlLeft    .~ left)
-setRight   right = onTopNode (mlRight   .~ right)
-setNextKey k     = onTopNode (mlNextKey .~ k)
-setPrevKey k     = onTopNode (mlPrevKey .~ k)
-setValue   v     = onTopNode (mlValue   .~ v)
+setLeft     left  = onTopNode (mlLeft     .~ left)
+setRight    right = onTopNode (mlRight    .~ right)
+setNextKey  k     = onTopNode (mlNextKey  .~ k)
+setPrevKey  k     = onTopNode (mlPrevKey  .~ k)
+setValue    v     = onTopNode (mlValue    .~ v)
+setRevision rev   = onTopNode (mlRevision .~ rev)
 
 -- | Recalculate 'rootHash' of the node.
 rehash :: forall h k v . Hash h k v => Map h k v -> Map h k v
@@ -360,23 +367,23 @@ Just x `orElse` _ = x
 _      `orElse` x = x
 
 -- | For clarity of rebalance procedure.
-pattern Node :: h -> Tilt -> a -> a -> MapLayer h k v a
-pattern Node h d l r <- MLBranch h _ _ d l r
+pattern Node :: Revision -> Tilt -> a -> a -> MapLayer h k v a
+pattern Node rev d l r <- MLBranch rev _ _ _ d l r
 
 -- | Create empty tree.
 empty :: forall h k v . Hash h k v => Map h k v
-empty = close $ MLEmpty $ hashOf (MLEmpty (defHash @h @k @v) :: MapLayer h k v h)
+empty = close $ MLEmpty 0 $ hashOf (MLEmpty 0 (defHash @h @k @v) :: MapLayer h k v h)
 
 -- | Construct a branch from 2 subtrees.
-branch :: forall h k v m. Retrieves h k v m => Tilt -> Map h k v -> Map h k v -> m (Map h k v)
-branch tilt0 left right = do
+branch :: forall h k v m. Retrieves h k v m => Revision -> Tilt -> Map h k v -> Map h k v -> m (Map h k v)
+branch rev tilt0 left right = do
     [minL, minR] <- traverse minKey [left, right]
-    return $ rehash $ close $ MLBranch (defHash @h @k @v) (min minL minR) minR tilt0 left right
+    return $ rehash $ close $ MLBranch rev (defHash @h @k @v) (min minL minR) minR tilt0 left right
 
 -- | Create a leaf.
-leaf :: forall h k v m. Retrieves h k v m => k -> v -> WithBounds k -> WithBounds k -> m (Map h k v)
-leaf k v p n = do
-    return $ rehash $ close $ MLLeaf (defHash @h @k @v) (Plain k) v n p
+leaf :: forall h k v m. Retrieves h k v m => Revision -> k -> v -> WithBounds k -> WithBounds k -> m (Map h k v)
+leaf rev k v p n = do
+    return $ rehash $ close $ MLLeaf rev (defHash @h @k @v) (Plain k) v n p
 
 lessThanCenterKey :: Retrieves h k v m => k -> Map h k v -> m Bool
 lessThanCenterKey key0 = openAnd $ \layer ->
