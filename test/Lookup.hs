@@ -14,23 +14,6 @@ import qualified Data.Tree.AVL as AVL
 
 tests :: Spec
 tests = describe "Lookup" $ do
-    it' "Generated proofs are verified" $ \(k, list) -> do
-        tree            <- AVL.fromList list :: StorageMonad M
-        ((_, proof), _) <- AVL.lookup k tree
-
-        return $ AVL.checkProof (AVL.rootHash tree) proof
-
-    it' "Generated proofs are replayable" $ \(k, list) -> do
-        tree                 <- AVL.fromList list :: StorageMonad M
-        res@ ((_, proof), _) <- AVL.lookup k tree
-
-        let AVL.Proof subtree = proof
-
-        res1 <-  AVL.lookup k subtree
-
-        return $ AVL.checkProof (AVL.rootHash tree) proof
-              && res == res1
-
     it' "Lookup actually works" $ \(list) -> do
         case uniqued list of
           [] -> do
@@ -41,3 +24,21 @@ tests = describe "Lookup" $ do
             ((Just v1, _), _) <- AVL.lookup k tree
 
             return (v == v1)
+
+    describe "Proofs" $ do
+        it' "Generated proofs are verified" $ \(k, list) -> do
+            tree            <- AVL.fromList list :: StorageMonad M
+            ((_, proof), _) <- AVL.lookup k tree
+
+            return $ AVL.checkProof (AVL.rootHash tree) proof
+
+        it' "Generated proofs are replayable" $ \(k, list) -> do
+            tree                 <- AVL.fromList list :: StorageMonad M
+            res@ ((_, proof), _) <- AVL.lookup k tree
+
+            let AVL.Proof subtree = proof
+
+            res1 <-  AVL.lookup k subtree
+
+            return $ AVL.checkProof (AVL.rootHash tree) proof
+                  && res == res1

@@ -8,10 +8,6 @@
 
 module Insertion (tests) where
 
-import Universum (allM, for_)
-
-import Data.List ((\\))
-
 import Common
 
 import qualified Data.Tree.AVL as AVL
@@ -28,25 +24,32 @@ tests = describe "Insert" $ do
         tree <- AVL.fromList list :: StorageMonad M
         AVL.isBalancedToTheLeaves tree
 
-    describe "Deletion" $ do
-        it' "Tree is still balanced after delete" $ \list -> do
-            tree  <- AVL.fromList list :: StorageMonad M
-            trees <- scanM (AVL.deleteWithNoProof . fst) tree list
-            yes   <- allM  (AVL.isBalancedToTheLeaves)   trees
+    describe "Proofs" $ do
+        it' "Insert proof is verifiable" $ \(k, v, list) -> do
+            tree        <- AVL.fromList list :: StorageMonad M
+            (proof, _)  <- AVL.insert k v tree
+            let hash1    = AVL.rootHash tree
 
-            for_ trees $ AVL.isBalancedToTheLeaves
+            let AVL.Proof subtree = proof
 
-            return yes
+            (proof1, _) <- AVL.insert k v subtree
 
-        it' "Deletion deletes" $ \list -> do
-            if length list == 0
-            then do
-                return True
+            return $ AVL.checkProof hash1 proof1
 
-            else do
-                let (k, _) : _  = list
-                tree  <- AVL.fromList list :: StorageMonad M
-                tree1 <- AVL.deleteWithNoProof k tree
-                list' <- AVL.toList tree1
-                let diff = uniqued list \\ list'
-                return $ length diff == 1 && fst (head diff) == k
+        it' "Insert proof is replayable" $ \(k, v, list) -> do
+            tree            <- AVL.fromList list :: StorageMonad M
+            (proof, tree1)  <- AVL.insert k v tree
+            let hash1        = AVL.rootHash tree1
+
+            let AVL.Proof subtree = proof
+
+            (_, tree2) <- AVL.insert k v subtree
+
+            let hash2        = AVL.rootHash tree1
+
+            when (hash1 /= hash2) $ do
+                print ("tree1", tree1)
+                print ("tree2", tree2)
+
+            return (hash1 == hash2 && tree1 == tree2)
+
