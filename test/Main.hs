@@ -1,7 +1,6 @@
 
 import qualified Algorithm
 import qualified Insertion
-import qualified Iteration
 import qualified Deletion
 import qualified Lookup
 
@@ -10,9 +9,7 @@ import Common
 main :: IO ()
 main = hspec $ do
     describe "AVL+ tree" $ do
-        when False $ do
-            Deletion.tests
-            Insertion.tests
-            Lookup.tests
-            Algorithm.tests
-        Iteration.tests
+        Deletion.tests
+        Insertion.tests
+        Lookup.tests
+        Algorithm.tests

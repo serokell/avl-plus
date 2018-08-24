@@ -22,7 +22,6 @@ library
                , Data.Tree.AVL.Set
                , Data.Tree.AVL.Deletion
                , Data.Tree.AVL.Insertion
-               , Data.Tree.AVL.Iteration
                , Data.Tree.AVL.Lookup
                , Data.Tree.AVL.Proof
                , Data.Tree.AVL.Prune
@@ -90,7 +89,7 @@ test-suite avl-tree-sanity
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Main.hs
-  other-modules:       Deletion, Insertion, Common, Lookup, Algorithm, Iteration
+  other-modules:       Deletion, Insertion, Common, Lookup, Algorithm
   build-depends:       base >= 0.4 && < 5
                      , AVL
                      , binary

@@ -4,7 +4,6 @@
 module Data.Tree.AVL
     ( module Deletion
     , module Insertion
-    , module Iteration
     , module Internal
     , module Lookup
     , module Proof
@@ -15,7 +14,6 @@ module Data.Tree.AVL
 
 import Data.Tree.AVL.Deletion  as Deletion
 import Data.Tree.AVL.Insertion as Insertion
-import Data.Tree.AVL.Iteration as Iteration
 import Data.Tree.AVL.Internal  as Internal
 import Data.Tree.AVL.Lookup    as Lookup
 import Data.Tree.AVL.Proof     as Proof
