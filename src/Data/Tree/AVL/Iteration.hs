@@ -3,6 +3,7 @@ module Data.Tree.AVL.Iteration where
 import           Control.Exception          (Exception)
 import           Control.Lens
 import           Control.Monad.Catch
+import           Control.Monad.Free
 import           Control.Monad.State.Strict
 
 import           Data.Default
@@ -38,8 +39,6 @@ class Monad m => ProvidesIterationState h m where
         s <- getIterationState
         return (f s)
 
-type Iterates h k v m = (Retrieves h k v m, ProvidesIterationState h m)
-
 -- | Stores return chain for the iteration.
 --   Each list element represents direction it took and node it came to.
 newtype IteratedT h m a = IteratedT { getIteratedT :: StateT (IterationState h) m a }
@@ -57,6 +56,8 @@ instance Monad m => ProvidesIterationState h (IteratedT h m) where
     getIterationState = IteratedT get
     putIterationState = IteratedT . put
 
+type Iterates h k v m = (Base h k v m, ProvidesIterationState h m)
+
 -- | Possible situations to handle during iteration.
 data IterationError
     = ReturnStackIsEmpty
@@ -66,14 +67,11 @@ data IterationError
 
 instance Exception IterationError
 
-instance (Monad m, KVRetrieve h (Isolated h k v) m) => KVRetrieve h (Isolated h k v) (IteratedT h m) where
-    retrieve = IteratedT . lift . retrieve
-
 class CanIterateAVL h k v m where
     startIteration    :: Map h k v -> m ()
     continueIteration :: m (Maybe (k, v))
 
-instance (MonadCatch m, Retrieves h k v m) => CanIterateAVL h k v (IteratedT h m) where
+instance Base h k v m => CanIterateAVL h k v (IteratedT h m) where
     startIteration    = start
     continueIteration = nextKV @h
 
@@ -86,14 +84,14 @@ runIteratedT (IteratedT action) = evalStateT action (IterationState [] False)
 
 start :: forall h k v m . Iterates h k v m => Map h k v -> m ()
 start tree = do
-    push $ Left $ rootHash tree
+    push @h @k @v $ Left $ rootHash tree
     _ :: Map h k v <- leftmostKVNode
     return ()
 
 leftmostKVNode :: forall h k v m . Iterates h k v m => m (Map h k v)
 leftmostKVNode = do
     getKV @h >>= \case
-        Just (_ :: (k, v)) ->
+        Just (_ :: (k, v)) -> do
             shallowBody
 
         Nothing -> do
@@ -107,7 +105,7 @@ nextKVNode = do
     -- mkv :: Maybe (k, v) <- getKV (Proxy :: Proxy h)
     -- s :: IterationState h <- getIterationState
     -- liftIO $ putStrLn $ show s ++ " " ++ show mkv
-    peek >>= \case
+    peek @h @k @v >>= \case
         Left (_ :: h) -> do
             _ :: Map h k v <- goUp
             _ :: Map h k v <- goRight
@@ -117,7 +115,7 @@ nextKVNode = do
             _ :: Map h k v <- goUp
             nextKVNode
   `catch` \ReturnStackIsEmpty -> do
-    break @h
+    break @h @k @v
     shallowBody
 
 nextKV :: forall h k v m . Iterates h k v m => m (Maybe (k, v))
@@ -143,23 +141,23 @@ getKV = do
         v' <- v
         return (unsafeFromWithBounds k, v')
 
-goLeft :: Iterates h k v m => m (Map h k v)
+goLeft :: forall h k v m . Iterates h k v m => m (Map h k v)
 goLeft = do
     subtree <- body
     case subtree^?mlLeft of
         Just left -> do
-            push $ Left $ rootHash left
+            push @h @k @v $ Left $ rootHash left
             return left
 
         Nothing -> do
             throwM NoLeftBranch
 
-goRight :: Iterates h k v m => m (Map h k v)
+goRight :: forall h k v m . Iterates h k v m => m (Map h k v)
 goRight = do
     subtree <- body
     case subtree^?mlRight of
         Just right -> do
-            push $ Right $ rootHash right
+            push @h @k @v $ Right $ rootHash right
             return right
 
         Nothing -> do
@@ -167,19 +165,24 @@ goRight = do
 
 goUp :: forall h k v m . Iterates h k v m => m (Map h k v)
 goUp = do
-    _ :: Either h h <- pop
+    _ :: Either h h <- pop @h @k @v
     shallowBody
 
 body :: Iterates h k v m => m (MapLayer h k v (Map h k v))
-body = open =<< shallowBody
+body = shallowBody >>= \case
+    Pure h ->
+        throwM $ NotFound h
 
-shallowBody :: Iterates h k v m => m (Map h k v)
-shallowBody = ref . onlyHash <$> peek
+    Free layer ->
+        return layer
 
-push :: ProvidesIterationState h m => Either h h -> m ()
+shallowBody :: forall h k v m . Iterates h k v m => m (Map h k v)
+shallowBody = ref . onlyHash <$> (peek @h @k @v)
+
+push :: Iterates h k v m => Either h h -> m ()
 push h = modifyIterationState $ \is -> is { stack = h : stack is }
 
-peek :: (MonadThrow m, ProvidesIterationState h m) => m (Either h h)
+peek :: forall h k v m . (MonadThrow m, Iterates h k v m) => m (Either h h)
 peek = do
     getsIterationState stack >>= \case
         []    -> do
@@ -188,9 +191,9 @@ peek = do
         h : _ -> do
             return h
 
-pop :: forall h m . (MonadThrow m, ProvidesIterationState h m) => m (Either h h)
+pop :: forall h k v m . (MonadThrow m, Iterates h k v m) => m (Either h h)
 pop = do
-    h <- peek
+    h <- peek @h @k @v
     modifyIterationState $ \is ->
         is { stack = tail $ stack is }
             :: IterationState h
@@ -199,7 +202,7 @@ pop = do
 onlyHash :: Either h h -> h
 onlyHash = either id id
 
-break :: forall h m . ProvidesIterationState h m => m ()
+break :: forall h k v m . Iterates h k v m => m ()
 break = modifyIterationState $ \is ->
     is { isBroken = True }
         :: IterationState h

@@ -38,18 +38,20 @@ tests = describe "Insert" $ do
 
         it' "Insert proof is replayable" $ \(k, v, list) -> do
             tree            <- AVL.fromList list :: StorageMonad M
-            (proof, tree1)  <- AVL.insert k v tree
+            (proof1, tree1)  <- AVL.insert k v tree
             let hash1        = AVL.rootHash tree1
 
-            let AVL.Proof subtree = proof
+            let AVL.Proof subtree = proof1
 
-            (_, tree2) <- AVL.insert k v subtree
+            (proof2, tree2) <- AVL.insert k v subtree
 
             let hash2        = AVL.rootHash tree1
 
-            when (hash1 /= hash2) $ do
-                print ("tree1", tree1)
-                print ("tree2", tree2)
+            unless (hash1 == hash2 && proof1 == proof2) $ do
+                putStrLn $ "=========="
+                putStrLn $ "tree1" ++ AVL.showMap tree1
+                putStrLn $ "----------"
+                putStrLn $ "tree2" ++ AVL.showMap tree2
 
-            return (hash1 == hash2 && tree1 == tree2)
+            return (hash1 == hash2 && proof1 == proof2)
 

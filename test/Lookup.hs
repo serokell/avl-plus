@@ -33,12 +33,13 @@ tests = describe "Lookup" $ do
             return $ AVL.checkProof (AVL.rootHash tree) proof
 
         it' "Generated proofs are replayable" $ \(k, list) -> do
-            tree                 <- AVL.fromList list :: StorageMonad M
-            res@ ((_, proof), _) <- AVL.lookup k tree
+            tree              <- AVL.fromList list :: StorageMonad M
+            ((res, proof), _) <- AVL.lookup k tree
 
             let AVL.Proof subtree = proof
 
-            res1 <-  AVL.lookup k subtree
+            ((res1, proof1), _) <- AVL.lookup k subtree
 
             return $ AVL.checkProof (AVL.rootHash tree) proof
-                  && res == res1
+                  && res   == res1
+                  && proof == proof1

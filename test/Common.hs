@@ -13,7 +13,7 @@
 module Common (module Common, module Control.Lens, module T) where
 
 import Control.Lens hiding (Empty, elements, locus)
-import Control.Monad as T (when)
+import Control.Monad as T (when, unless)
 import Control.Monad.Catch as T (catch)
 import Control.Monad.IO.Class as T (liftIO)
 import Control.Monad.Trans.Class as T (lift)

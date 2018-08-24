@@ -47,7 +47,8 @@ tests = describe "Iteration" $ do
             tree  <- AVL.fromList list :: StorageMonad M
             list' <- AVL.toList tree
 
-            -- liftIO $ putStrLn $ AVL.showMap tree
+            putStrLn "Iteration..."
+            putStrLn $ AVL.showMap tree
             AVL.runIteratedT (checkList list' tree)
 
             return True
