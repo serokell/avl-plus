@@ -30,16 +30,19 @@ tests = describe "Lookup" $ do
             tree            <- AVL.fromList list :: StorageMonad M
             ((_, proof), _) <- AVL.lookup k tree
 
-            return $ AVL.checkProof (AVL.rootHash tree) proof
+            let Just hash = AVL.rootHash (AVL.assignHashes tree)
+
+            return $ AVL.checkProof hash proof
 
         it' "Generated proofs are replayable" $ \(k, list) -> do
             tree              <- AVL.fromList list :: StorageMonad M
             ((res, proof), _) <- AVL.lookup k tree
 
+            let Just hash = AVL.rootHash (AVL.assignHashes tree)
             let AVL.Proof subtree = proof
 
             ((res1, proof1), _) <- AVL.lookup k subtree
 
-            return $ AVL.checkProof (AVL.rootHash tree) proof
+            return $ AVL.checkProof hash proof
                   && res   == res1
                   && proof == proof1

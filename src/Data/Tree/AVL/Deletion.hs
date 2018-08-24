@@ -47,7 +47,7 @@ deleteZ k = do
             return False
 
       MLEmpty {} -> do
-        --mark
+        mark "deleteZ/empty"
         return False
 
       _ -> do

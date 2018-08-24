@@ -1,6 +1,6 @@
 module Data.Tree.AVL.Prune where
 
-import Control.Lens ((&), (.~), (^.))
+import Control.Lens ((&), (<&>), (.~), (^.))
 import Control.Monad.Free     (Free(Free, Pure))
 
 import Data.Set               (Set)
@@ -11,8 +11,8 @@ import Data.Tree.AVL.Proof
 import qualified Data.Set as Set (notMember)
 
 -- | Prune all subtrees that haven't been touched.
-prune :: forall h k v . Set Revision -> Map h k v -> Proof h k v
-prune hashes tree = do
+prune :: forall h k v . Hash h k v => Set Revision -> FreshlyRehashed h k v -> Proof h k v
+prune hashes (FreshlyRehashed tree) = do
     let pruned = go tree
     Proof pruned
   where
@@ -23,8 +23,13 @@ prune hashes tree = do
           Free layer -> do
             if Set.notMember (layer^.mlRevision) hashes
             then do
-                Free ((Pure . rootHash) `fmap` layer)
-
+                Free $ layer <&> \point ->
+                    case rootHash point of
+                      Nothing -> error
+                        $ "prune: fullRehash did not rehash node, rev: "
+                        ++ show (layer^.mlRevision)
+                      Just hash ->
+                        ref hash
             else do
                 case layer of
                   MLBranch {_mlLeft = l, _mlRight = r} -> do

@@ -78,7 +78,6 @@ instance AVL.Hash Int StringName Int where
         AVL.MLBranch rev _ mk ck t l r' -> hash (hash rev + hash mk + hash ck + hash t + l + r')
         AVL.MLLeaf   rev _ k  v  n p    -> hash (hash rev + hash k + hash v + hash n + hash p)
         AVL.MLEmpty  _rev _             -> 0
-    defHash = 0
 
 -- newtype IntHash = IntHash { getIntHash :: Int }
 --     deriving (Show, Eq, Arbitrary)

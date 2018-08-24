@@ -116,7 +116,7 @@ runZipped :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a,
 runZipped action mode0 tree = do
     zipper             <- enter mode0 tree
     (a, tree1, trails) <- action' `evalStateT` zipper
-    return (a, tree1, prune trails tree)
+    return (a, tree1, prune trails (fullRehash tree))
   where
     action' = do
       res    <- action
@@ -144,9 +144,9 @@ markAll :: Retrieves h k v m => [Revision] -> Zipped h k v m ()
 markAll revs = do
     trail %= (<> Set.fromList revs)
 
-rehashLocus :: Retrieves h k v m => Zipped h k v m ()
-rehashLocus = do
-    locus %= rehash
+-- rehashLocus :: Retrieves h k v m => Zipped h k v m ()
+-- rehashLocus = do
+--     locus %= rehash
 
 data AlreadyOnTop = AlreadyOnTop deriving (Show, Typeable)
 
@@ -155,34 +155,33 @@ instance Exception AlreadyOnTop
 -- | Move to the parent node; update & 'rebalance' it if required.
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
 up = do
-    rehashLocus
+    -- rehashLocus
     ctx   <- use context
-    hash1 <- revisionHere
+    rev1 <- revisionHere
     side  <- case ctx of
-      WentLeftFrom tree range hash0 : rest -> do
+      WentLeftFrom tree range rev0 : rest -> do
         open tree >>= \case
           MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            became <- do
-                if hash0 == hash1  -- if current node didn't change
-                then do
-                    return tree  -- return unchanged parent one
+            if rev0 == rev1  -- if current node didn't change
+            then do
+                locus .= tree  -- set unchanged parent one
 
-                else do
-                    -- install current node inside parent
-                    -- prepare it to 'rebalance'
-                    now   <- use locus
-                    tilt' <- correctTilt left now tilt0 L
-                    branch hash1 tilt' now right
+            else do
+                -- install current node inside parent
+                -- prepare it to 'rebalance'
+                now    <- use locus
+                tilt'  <- correctTilt left now tilt0 L
+                became <- branch rev1 tilt' now right
+
+                replaceWith became  -- replace current node with possibly updated
+                                    -- parent
+                                    -- also, make parent dirty, so next 'up'
+                                    -- will check if it needs to update
+                rebalance
 
             context  .= rest    -- pop parent layer from context stack
             keyRange .= range   -- restore parent 'keyRange'
 
-            replaceWith became  -- replace current node with possibly updated
-                                -- parent
-                                -- also, make parent dirty, so next 'up'
-                                -- will check if it needs to update
-
-            rebalance
             return L            -- return the side we went from
 
           _other -> do
@@ -190,25 +189,24 @@ up = do
             --isolated1 <- lift $ traverse rootHash _other
             --error $ "up: zipper is broken " ++ show isolated1
 
-      WentRightFrom tree range hash0 : rest -> do
+      WentRightFrom tree range rev0 : rest -> do
         open tree >>= \case
           MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            became <- do
-                if hash0 == hash1
-                then do
-                    return tree
+            if rev0 == rev1
+            then do
+                locus .= tree
 
-                else do
-                    now   <- use locus
-                    tilt' <- correctTilt right now tilt0 R
-                    branch hash1 tilt' left now
+            else do
+                now    <- use locus
+                tilt'  <- correctTilt right now tilt0 R
+                became <- branch rev1 tilt' left now
+
+                replaceWith became
+                rebalance
 
             context  .= rest
             keyRange .= range
 
-            replaceWith became
-
-            rebalance
             return R
 
           _other -> do
@@ -217,10 +215,10 @@ up = do
             --liftIO $ print isolated1
             --error "up: zipper is broken"
 
-      [JustStarted _rev0] -> do
-          rebalance        -- TODO: investigate
-          context .= []
-          return L
+      -- [JustStarted _rev0] -> do
+      --     rebalance        -- TODO: investigate
+      --     context .= []
+      --     return L
 
       [] -> do
           throwM AlreadyOnTop
@@ -247,7 +245,7 @@ enter :: Retrieves h k v m => Mode -> Map h k v -> m (TreeZipper h k v)
 enter mode0 tree = do
   rev <- openAnd (^.mlRevision) tree
   return TreeZipper
-    { _tzContext  = [JustStarted rev]
+    { _tzContext  = []
     , _tzHere     = tree
     , _tzKeyRange = (minBound, maxBound)
     , _tzMode     = mode0
@@ -525,5 +523,5 @@ descentOnto key0 = continueDescent
             then descentRight
             else descentLeft
         continueDescent
-      `catch` \(WentDownOnNonBranch (_ :: h)) -> do
+      `catch` \(WentDownOnNonBranch (_ :: Maybe h)) -> do
         return ()

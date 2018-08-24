@@ -4,7 +4,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE BangPatterns          #-}
 
 module Insertion (tests) where
 
@@ -27,31 +27,24 @@ tests = describe "Insert" $ do
     describe "Proofs" $ do
         it' "Insert proof is verifiable" $ \(k, v, list) -> do
             tree        <- AVL.fromList list :: StorageMonad M
-            (proof, _)  <- AVL.insert k v tree
-            let hash1    = AVL.rootHash tree
+            (proof,  _) <- AVL.insert k v tree
+            (proof1, _) <- AVL.insert k v (AVL.unProof proof)
 
-            let AVL.Proof subtree = proof
-
-            (proof1, _) <- AVL.insert k v subtree
+            let Just hash1 = AVL.rootHash (AVL.assignHashes tree)
 
             return $ AVL.checkProof hash1 proof1
 
         it' "Insert proof is replayable" $ \(k, v, list) -> do
-            tree            <- AVL.fromList list :: StorageMonad M
-            (proof1, tree1)  <- AVL.insert k v tree
-            let hash1        = AVL.rootHash tree1
+            tree        <- AVL.fromList list :: StorageMonad M
+            (proof1, _) <- AVL.insert k v tree
+            (proof2, _) <- AVL.insert k v (AVL.unProof proof1)
 
-            let AVL.Proof subtree = proof1
+            return (proof1 == proof2)
 
-            (proof2, tree2) <- AVL.insert k v subtree
-
-            let hash2        = AVL.rootHash tree1
-
-            unless (hash1 == hash2 && proof1 == proof2) $ do
-                putStrLn $ "=========="
-                putStrLn $ "tree1" ++ AVL.showMap tree1
-                putStrLn $ "----------"
-                putStrLn $ "tree2" ++ AVL.showMap tree2
-
-            return (hash1 == hash2 && proof1 == proof2)
-
+        -- It is not, unless we give `Eq v` constraint to the `insertZ`.
+        --
+        -- it' "Insert is idempotent" $ \(k, v, list) -> do
+        --     tree <- AVL.fromList list :: StorageMonad M
+        --     (_, tree1) <- AVL.insert k v tree
+        --     (_, tree2) <- AVL.insert k v tree1
+        --     return (tree1 == tree2)

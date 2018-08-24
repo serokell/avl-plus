@@ -6,10 +6,11 @@
 module Data.Tree.AVL.Internal where
 
 import Control.Exception   (Exception)
-import Control.Lens        (makeLenses, to, (&), (.~), (^.), (^?))
+import Control.Lens        (makeLenses, to, (&), (.~), (^.), (^?), (%~))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Free  (Free (Free, Pure))
 
+import Data.Maybe          (fromJust, isNothing)
 import Data.Set            (Set)
 import qualified Data.Set as Set (fromList)
 import Data.Tree as Tree
@@ -92,7 +93,7 @@ type Revision = Integer
 data MapLayer h k v self
   = MLBranch
     { _mlRevision  :: Revision      -- ^ So we can check if node changed and not rehash it
-    , _mlHash      :: h             -- ^ Hash of the subtree.
+    , _mlHash      :: Maybe h       -- ^ Hash of the subtree.
     , _mlMinKey    :: WithBounds k  -- ^ Minimal key used in tree.
     , _mlCenterKey :: WithBounds k  -- ^ Minimal key of the right subtree.
     , _mlTilt      :: Tilt          -- ^ Amount of disbalance.
@@ -101,7 +102,7 @@ data MapLayer h k v self
     }
   | MLLeaf
     { _mlRevision :: Revision
-    , _mlHash     :: h
+    , _mlHash     :: Maybe h
     , _mlKey      :: WithBounds k    -- ^ Key of the leaf node.
     , _mlValue    :: v               -- ^ Value of the leaf node.
     , _mlNextKey  :: WithBounds k    -- ^ Next key, for [non]existence check.
@@ -109,7 +110,7 @@ data MapLayer h k v self
     }
   | MLEmpty
     { _mlRevision :: Revision
-    , _mlHash     :: h
+    , _mlHash     :: Maybe h
     }
     deriving (Eq, Functor, Foldable, Traversable, Generic)
 
@@ -120,6 +121,9 @@ deriveShow1 ''MapLayer
 type Map h k v = Free (MapLayer h k v) h
 
 type Isolated h k v = MapLayer h k v h
+
+newtype FreshlyRehashed h k v = FreshlyRehashed
+    { getFreshlyRehashed :: Map h k v }
 
 #if !MIN_VERSION_free(5,0,2)
 deriving instance Generic (Free t a)
@@ -152,8 +156,6 @@ class KVStore hash node m where
 class Hash h k v where
     hashOf :: MapLayer h k v h -> h
     -- ^ Take hash of the 'MapLayer'
-    defHash :: h
-    -- ^ Default hash, may be any.
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
@@ -172,6 +174,7 @@ instance (Show k, Typeable k) => Exception (NotFound k)
 type Base h k v m =
     ( Ord h, Show h, Typeable h
     , Ord k, Show k, Typeable k
+    , Show k, Show v, Show h
     , Hash h k v
     , MonadCatch m
     )
@@ -195,26 +198,29 @@ showMap :: (Show h, Show k, Show v) => Map h k v -> String
 showMap = drawTree . asTree
  where
    asTree = \case
-     Free (MLBranch _ _ _mk _ck t  l r) -> Tree.Node ("-< "  ++ show (t)) [asTree r, asTree l]
-     Free (MLLeaf   _ _  k  _v _n _p)   -> Tree.Node ("<3- " ++ show (k)) []
-     Free (MLEmpty  _ _)                -> Tree.Node ("--")               []
-     Pure  h                            -> Tree.Node ("Ref " ++ show h)   []
+     Free (MLBranch rev h _mk _ck t  l r) -> Tree.Node ("-< "    ++ show (rev) ++ ", " ++ show (h) ++ ", "  ++ show (t)) [asTree r, asTree l]
+     Free (MLLeaf   rev h  k  _v _n _p)   -> Tree.Node ("<3- "   ++ show (rev) ++ ", "  ++ show (h) ++ ", "  ++ show (k)) []
+     Free (MLEmpty  rev h)                -> Tree.Node ("Empty " ++ show (rev) ++ ", "  ++ show (h))             []
+     Pure  h                            -> Tree.Node ("Ref "   ++ show h)               []
 
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
       MLBranch _ h _mk _ck  t  l r -> "Branch" ++ show (h, t, l, r)
       MLLeaf   _ h  k  _v  _n _p   -> "Leaf"   ++ show (h, k)
-      MLEmpty  _ h                 -> "--"     ++ show (h)
+      MLEmpty  _ h                 -> "Empty"  ++ show (h)
 
 -- | Calculate hash outside of 'rehash'.
 hashOf' :: forall h k v a. Hash h k v => MapLayer a k v h -> h
-hashOf' ml = hashOf (ml & mlHash .~ (defHash @h @k @v))
+hashOf' ml = hashOf (ml & mlHash .~ Nothing)
 
 -- | Get hash of the root node for the tree.
-rootHash :: Map h k v -> h
+rootHash :: Map h k v -> Maybe h
 rootHash = \case
-  Pure h     -> h
+  Pure h     -> Just h
   Free layer -> layer^.mlHash
+
+unsafeRootHash :: Map h k v -> h
+unsafeRootHash = fromJust . rootHash
 
 walkDFS
   :: forall h k v m b res
@@ -223,15 +229,15 @@ walkDFS
       , MapLayer h k v h -> b -> b
       , b -> res
       )
-  -> Map h k v
+  -> h
   -> m res
-walkDFS (start, add, finish) tree = finish <$> go start tree
+walkDFS (start, add, finish) root = finish <$> go start (ref root)
   where
-    -- We're doing it in DSF matter to save space.
+    -- We're doing it in DFS matter to save space.
     go :: b -> Map h k v -> m b
     go acc mapping = do
         open mapping >>= \point -> do
-            let point' = rootHash <$> point
+            let point' = unsafeRootHash <$> point
             case point of
               MLBranch { _mlLeft = l, _mlRight = r } -> do
                 acc' <- go (add point' acc) l
@@ -244,27 +250,30 @@ walkDFS (start, add, finish) tree = finish <$> go start tree
                 return acc
 
 -- | Fold the tree in the order of keys acsending.
-fold :: Retrieves h k v m => (b, (k, v) -> b -> b, b -> res) -> Map h k v -> m res
+fold :: Retrieves h k v m => (b, (k, v) -> b -> b, b -> res) -> h -> m res
 fold (start, add, finish) = walkDFS (start, collectKVAnd add, finish)
   where
     -- We're doing it in DSF manner to save space.
+    collectKVAnd :: ((k, v) -> b -> b) -> MapLayer h k v h -> b -> b
     collectKVAnd act = \case
         MLLeaf { _mlKey = k, _mlValue = v } -> act (unsafeFromWithBounds k, v)
         _other                              -> id
 
 -- | Get set of all node hashes from a tree.
-allRootHashes :: Retrieves h k v m => Map h k v -> m (Set h)
-allRootHashes = walkDFS ([], addHash, Set.fromList)
+allRevisions :: forall k h v m . Retrieves h k v m => h -> m (Set Revision)
+allRevisions = walkDFS @h @k @v ([], addRevision, Set.fromList)
   where
-    addHash layer = (_mlHash layer :)
+    addRevision layer = (_mlRevision layer :)
 
 -- | Replace direct children with references on them.
-isolate :: Retrieves h k v m => Map h k v -> m (Map h k v)
-isolate = openAnd $ close . fmap (Pure . rootHash)
+-- isolate :: Retrieves h k v m => Map h k v -> m (Maybe (Map h k v))
+-- isolate = openAndM $ \layer -> do
+--     layer <- traverse (Pure . rootHash) layer
+--     return _
 
 -- | Replace direct children with references on them.
-isolated :: Hash h k v => MapLayer h k v (Map h k v) -> MapLayer h k v h
-isolated = fmap rootHash
+unsafeIsolated :: Hash h k v => MapLayer h k v (Map h k v) -> MapLayer h k v h
+unsafeIsolated = fmap unsafeRootHash
 
 -- | Unwrap the tree, possibly materializing its top node from the database.
 open :: Retrieves h k v m => Map h k v -> m (MapLayer h k v (Map h k v))
@@ -296,18 +305,25 @@ ref = Pure
 onTopNode :: Retrieves h k v m => (MapLayer h k v (Map h k v) -> MapLayer h k v (Map h k v)) -> Map h k v -> m (Map h k v)
 onTopNode f tree = do
     layer <- open tree
-    return $ rehash $ close (f layer)
+    return $ close (f layer)
+
+assignHashes :: Hash h k v => Map h k v -> Map h k v
+assignHashes = getFreshlyRehashed . fullRehash
 
 -- | Recursively store all the materialized nodes in the database.
-save :: forall h k v m . Stores h k v m => Map h k v -> m ()
-save = massStore . collect
+save :: forall h k v m . Stores h k v m => Map h k v -> m h
+save tree = do
+    let assigned   = assignHashes tree
+    let collection = collect assigned
+    massStore collection
+    return (unsafeRootHash assigned)
   where
     collect :: Map h k v -> [(h, Isolated h k v)]
-    collect = \case
+    collect it = case it of
       Pure _ -> []
       Free layer -> do
-        let hash  = layer^.mlHash
-        let node  = isolated layer
+        let hash  = unsafeRootHash it
+        let node  = unsafeIsolated layer
         let left  = layer^?mlLeft .to collect `orElse` []
         let right = layer^?mlRight.to collect `orElse` []
 
@@ -343,19 +359,38 @@ setRight    right = onTopNode (mlRight    .~ right)
 setNextKey  k     = onTopNode (mlNextKey  .~ k)
 setPrevKey  k     = onTopNode (mlPrevKey  .~ k)
 setValue    v     = onTopNode (mlValue    .~ v)
-setRevision rev   = onTopNode (mlRevision .~ rev)
+setRevision rev   = onTopNode $ \case
+  it@ MLEmpty {} -> it
+  other -> other & mlRevision .~ rev
 
 -- | Recalculate 'rootHash' of the node.
-rehash :: forall h k v . Hash h k v => Map h k v -> Map h k v
-rehash = \case
-  Free layer -> do
-    let node = isolated layer
-    let cleaned  = node  & mlHash .~ (defHash @h @k @v)
-    let newLayer = layer & mlHash .~ hashOf cleaned
-    Free newLayer
+fullRehash :: Hash h k v => Map h k v -> FreshlyRehashed h k v
+fullRehash = FreshlyRehashed . go
+  where
+    go = \case
+      Free layer -> do
+        if isNothing (layer^.mlHash)
+        then
+            rehash $ Free $ layer
+              & mlLeft  %~ go
+              & mlRight %~ go
+        else
+            Free layer
 
-  other ->
-    other
+      other ->
+        other
+
+    rehash :: forall h k v . Hash h k v => Map h k v -> Map h k v
+    rehash = \case
+      Free layer -> do
+        let node     = unsafeIsolated layer
+        let cleaned  = node  & mlHash .~ Nothing
+        let newLayer = layer & mlHash .~ Just (hashOf cleaned)
+        Free newLayer
+
+      other ->
+        other
+
 
 another :: Side -> Side
 another L = R
@@ -372,18 +407,18 @@ pattern Node rev d l r <- MLBranch rev _ _ _ d l r
 
 -- | Create empty tree.
 empty :: forall h k v . Hash h k v => Map h k v
-empty = close $ MLEmpty 0 $ hashOf (MLEmpty 0 (defHash @h @k @v) :: MapLayer h k v h)
+empty = close $ MLEmpty 0 Nothing
 
 -- | Construct a branch from 2 subtrees.
 branch :: forall h k v m. Retrieves h k v m => Revision -> Tilt -> Map h k v -> Map h k v -> m (Map h k v)
 branch rev tilt0 left right = do
     [minL, minR] <- traverse minKey [left, right]
-    return $ rehash $ close $ MLBranch rev (defHash @h @k @v) (min minL minR) minR tilt0 left right
+    return $ close $ MLBranch rev Nothing (min minL minR) minR tilt0 left right
 
 -- | Create a leaf.
 leaf :: forall h k v m. Retrieves h k v m => Revision -> k -> v -> WithBounds k -> WithBounds k -> m (Map h k v)
 leaf rev k v p n = do
-    return $ rehash $ close $ MLLeaf rev (defHash @h @k @v) (Plain k) v n p
+    return $ close $ MLLeaf rev Nothing (Plain k) v n p
 
 lessThanCenterKey :: Retrieves h k v m => k -> Map h k v -> m Bool
 lessThanCenterKey key0 = openAnd $ \layer ->
