@@ -17,6 +17,7 @@ import Data.Typeable       (Typeable)
 
 import GHC.Generics        (Generic)
 
+import Data.Eq.Deriving    (deriveEq1)
 import Text.Show.Deriving  (deriveShow1)
 
 -------------------------------------------------------------------------------
@@ -107,6 +108,7 @@ data MapLayer h k v self
     }
     deriving (Eq, Functor, Foldable, Traversable, Generic)
 
+deriveEq1 ''MapLayer
 deriveShow1 ''MapLayer
 
 -- | AVL tree as whole.

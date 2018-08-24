@@ -8,7 +8,7 @@ import GHC.Generics (Generic)
 import Data.Tree.AVL.Internal
 
 newtype Proof h k v = Proof { unProof :: Map h k v }
-    deriving (Show,Generic)
+    deriving (Eq, Show, Generic)
 
 makePrisms ''Proof
 

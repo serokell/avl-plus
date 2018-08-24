@@ -18,8 +18,6 @@ import Control.Monad.Catch as T (catch)
 import Control.Monad.IO.Class as T (liftIO)
 import Control.Monad.Trans.Class as T (lift)
 
-import Data.Binary (Binary, decodeOrFail, encode)
-import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Default as T (Default (def))
 import Data.Foldable ()
 import Data.Function (on)
@@ -31,10 +29,9 @@ import Data.String (IsString (fromString))
 
 import GHC.Generics (Generic)
 
-import Test.Framework as T (Test, TestName, defaultMain, testGroup)
-import Test.Framework.Providers.QuickCheck2 as T (testProperty)
+import Test.Hspec as T
 import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, forAll, ioProperty,
-                             (===), (==>))
+                             (===), (==>), property)
 import Test.QuickCheck.Instances as T ()
 
 import qualified Data.Tree.AVL as AVL
@@ -56,18 +53,7 @@ infixr 5 .=.
 
 type Layer = AVL.MapLayer Int StringName Int Int
 
-instance Binary Layer
-
 deriving instance Ord Layer
-instance Hashable Layer
-
-instance Hashable b => Hashable (AVL.WithBounds b)
-instance Binary   b => Binary   (AVL.WithBounds b)
-
-instance Hashable StringName
-
-instance Binary   AVL.Tilt
-instance Hashable AVL.Tilt
 
 --instance Show InitialHash where
 --    show = \case
@@ -83,6 +69,10 @@ instance Hashable AVL.Tilt
 --instance AVL.Hash InitialHash StringName Int where
 --    hashOf = InitialHash
 
+instance Hashable StringName
+instance Hashable (AVL.WithBounds StringName)
+instance Hashable AVL.Tilt
+
 instance AVL.Hash Int StringName Int where
     hashOf tree = case tree of
         AVL.MLBranch _ mk ck t l r' -> hash (hash mk + hash ck + hash t + l + r')
@@ -94,7 +84,7 @@ instance AVL.Hash Int StringName Int where
 --     deriving (Show, Eq, Arbitrary)
 --
 newtype StringName = StringName { getStringName :: String }
-    deriving (Eq, Ord, Generic, Binary)
+    deriving (Eq, Ord, Generic)
 
 instance IsString StringName where
     fromString = StringName
@@ -147,16 +137,6 @@ type StorageMonad = AVL.NullStore
 
 type M = AVL.Map Int StringName Int
 
-cachedProperty :: (Testable a, Arbitrary b, Show b) => TestName -> (b -> StorageMonad a) -> Test
-cachedProperty msg prop =
-    testProperty msg $
-        forAll arbitrary $ \b ->
-            ioProperty $ do
-                (a, _st) <- AVL.runOnEmptyCache $ do
-                    prop b
-
-                return a
-
 scanM :: Monad m => (a -> b -> m b) -> b -> [a] -> m [b]
 scanM _      _     []       = return []
 scanM action accum (x : xs) = do
@@ -169,3 +149,13 @@ unique = nubBy  ((==) `on` fst)
 
 uniqued :: Ord a => [(a, b)] -> [(a, b)]
 uniqued = sortBy (comparing fst) . unique . reverse
+
+it'
+    ::  ( Testable (f Property)
+        , Testable  prop
+        , Functor   f
+        )
+    =>  String
+    ->  f (IO prop)
+    ->  SpecWith ()
+it' msg func = it msg $ property $ fmap ioProperty func

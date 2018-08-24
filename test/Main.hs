@@ -4,17 +4,14 @@ import qualified Insertion
 import qualified Iteration
 import qualified Proof
 import qualified Lookup
-import qualified Cache
 
-import           Test.Framework (defaultMain)
+import Common
 
 main :: IO ()
-main = defaultMain
-    (   []
-    ++  Iteration.tests
-    ++  Algorithm.tests
-    ++  Proof.tests
-    ++  Insertion.tests
-    ++  Lookup.tests
-    ++  Cache.tests
-    )
+main = hspec $ do
+    describe "AVL+ tree" $ do
+        Iteration.tests
+        Algorithm.tests
+        Proof.tests
+        Insertion.tests
+        Lookup.tests

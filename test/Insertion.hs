@@ -16,42 +16,20 @@ import Common
 
 import qualified Data.Tree.AVL as AVL
 
---prettyMuchBalanced :: Float -> M -> StorageMonad Bool
---prettyMuchBalanced delta tree = do
---    size <- AVL.size tree
---    if size == 0
---    then do
---        return True
+tests :: Spec
+tests = describe "Insert" $ do
+    it' "toList . fromList == sort . unique" $ \list -> do
+        tree <- AVL.fromList list :: StorageMonad M
+        back <- AVL.toList tree
+        let uniq = uniqued list
+        return (back == uniq)
 
---    else do
---        lengths <- AVL.pathLengths tree
---        size    <- AVL.size tree
---        let
---          cast :: (Integral a, Num b) => a -> b
---          cast = fromIntegral
+    it' "Tree is as balanced as possible" $ \list -> do
+        tree <- AVL.fromList list :: StorageMonad M
+        AVL.isBalancedToTheLeaves tree
 
---          averagePath  = cast (sum lengths) / cast (length lengths) :: Float
---          sizeLog2plus = log (cast (size + 1)) / log 2 * (1 + delta)
-
---        return $ averagePath <= sizeLog2plus
-
-tests :: [Test]
-tests =
-    [ testGroup "Insert"
-        [ cachedProperty "toList . fromList == sort . unique" $ \list -> do
-            tree <- AVL.fromList list :: StorageMonad M
-            back <- AVL.toList tree
-            let uniq = uniqued list
-            return (back == uniq)
-
-        , cachedProperty
-            "Tree is as balanced as possible" $ \list -> do
-                tree <- AVL.fromList list :: StorageMonad M
-                AVL.isBalancedToTheLeaves tree
-        ]
-
-    , testGroup "Deletion"
-        [ cachedProperty "Tree is still balanced after delete" $ \list -> do
+    describe "Deletion" $ do
+        it' "Tree is still balanced after delete" $ \list -> do
             tree  <- AVL.fromList list :: StorageMonad M
             trees <- scanM (AVL.deleteWithNoProof . fst) tree list
             yes   <- allM  (AVL.isBalancedToTheLeaves)   trees
@@ -60,7 +38,7 @@ tests =
 
             return yes
 
-        , cachedProperty "Deletion deletes" $ \list -> do
+        it' "Deletion deletes" $ \list -> do
             if length list == 0
             then do
                 return True
@@ -72,5 +50,3 @@ tests =
                 list' <- AVL.toList tree1
                 let diff = uniqued list \\ list'
                 return $ length diff == 1 && fst (head diff) == k
-        ]
-    ]
