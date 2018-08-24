@@ -99,7 +99,7 @@ data MapLayer h k v self
   | MLLeaf
     { _mlHash    :: h
     , _mlKey     :: WithBounds k    -- ^ Key of the leaf node.
-    , _mlValue   :: Maybe v         -- ^ Value of the leaf node.
+    , _mlValue   :: v               -- ^ Value of the leaf node.
     , _mlNextKey :: WithBounds k    -- ^ Next key, for [non]existence check.
     , _mlPrevKey :: WithBounds k    -- ^ Prev key.
     }
@@ -244,8 +244,8 @@ fold (start, add, finish) = walkDFS (start, collectKVAnd add, finish)
   where
     -- We're doing it in DSF manner to save space.
     collectKVAnd act = \case
-        MLLeaf { _mlKey = k, _mlValue = Just v } -> act (unsafeFromWithBounds k, v)
-        _other                                   -> id
+        MLLeaf { _mlKey = k, _mlValue = v } -> act (unsafeFromWithBounds k, v)
+        _other                              -> id
 
 -- | Get set of all node hashes from a tree.
 allRootHashes :: Retrieves h k v m => Map h k v -> m (Set h)
@@ -330,7 +330,7 @@ setLeft    :: Retrieves h k v m => Map h k v    -> Map h k v -> m (Map h k v)
 setRight   :: Retrieves h k v m => Map h k v    -> Map h k v -> m (Map h k v)
 setNextKey :: Retrieves h k v m => WithBounds k -> Map h k v -> m (Map h k v)
 setPrevKey :: Retrieves h k v m => WithBounds k -> Map h k v -> m (Map h k v)
-setValue   :: Retrieves h k v m => Maybe v      -> Map h k v -> m (Map h k v)
+setValue   :: Retrieves h k v m => v            -> Map h k v -> m (Map h k v)
 
 setLeft    left  = onTopNode (mlLeft    .~ left)
 setRight   right = onTopNode (mlRight   .~ right)
@@ -376,11 +376,6 @@ branch tilt0 left right = do
 -- | Create a leaf.
 leaf :: forall h k v m. Retrieves h k v m => k -> v -> WithBounds k -> WithBounds k -> m (Map h k v)
 leaf k v p n = do
-    return $ rehash $ close $ MLLeaf (defHash @h @k @v) (Plain k) (Just v) n p
-
--- | Create a leaf.
-leaf' :: forall h k v m. Retrieves h k v m => k -> Maybe v -> WithBounds k -> WithBounds k -> m (Map h k v)
-leaf' k v p n = do
     return $ rehash $ close $ MLLeaf (defHash @h @k @v) (Plain k) v n p
 
 lessThanCenterKey :: Retrieves h k v m => k -> Map h k v -> m Bool
@@ -392,7 +387,7 @@ toList = go
   where
     go tree = do
       open tree >>= \case
-        MLLeaf   {_mlKey, _mlValue = Just value} ->
+        MLLeaf   {_mlKey, _mlValue = value} ->
             return [(unsafeFromWithBounds _mlKey, value)]
 
         MLBranch {_mlLeft, _mlRight} ->

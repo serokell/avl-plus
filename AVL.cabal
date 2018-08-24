@@ -19,7 +19,6 @@ library
   exposed-modules: Data.Tree.AVL
   other-modules:
                  Data.Tree.AVL.Internal
-               , Data.Tree.AVL.Set
                , Data.Tree.AVL.Deletion
                , Data.Tree.AVL.Insertion
                , Data.Tree.AVL.Lookup

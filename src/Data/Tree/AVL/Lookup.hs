@@ -26,7 +26,7 @@ lookupZ k = do
     lift (open tree) >>= \case
       MLLeaf {_mlKey, _mlValue} ->
         if _mlKey == Plain k
-        then return _mlValue
+        then return (Just _mlValue)
         else return Nothing
 
       MLEmpty {} ->
