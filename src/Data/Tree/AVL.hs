@@ -2,22 +2,22 @@
     AVL+ tree.
 -}
 module Data.Tree.AVL
-    ( module Deletion
-    , module Insertion
-    , module Internal
-    , module Lookup
-    , module Proof
-    , module Prune
-    , module Zipper
-    , module NullStore
+    ( module Data.Tree.AVL.Deletion
+    , module Data.Tree.AVL.Insertion
+    , module Data.Tree.AVL.Internal
+    , module Data.Tree.AVL.Lookup
+    , module Data.Tree.AVL.Proof
+    , module Data.Tree.AVL.Prune
+    , module Data.Tree.AVL.Zipper
+    , module Data.Tree.AVL.VoidStorage
     ) where
 
-import Data.Tree.AVL.Deletion  as Deletion
-import Data.Tree.AVL.Insertion as Insertion
-import Data.Tree.AVL.Internal  as Internal
-import Data.Tree.AVL.Lookup    as Lookup
-import Data.Tree.AVL.Proof     as Proof
-import Data.Tree.AVL.Prune     as Prune
-import Data.Tree.AVL.Zipper    as Zipper
-import Data.Tree.AVL.NullStore as NullStore
+import Data.Tree.AVL.Deletion
+import Data.Tree.AVL.Insertion
+import Data.Tree.AVL.Internal
+import Data.Tree.AVL.Lookup
+import Data.Tree.AVL.Proof
+import Data.Tree.AVL.Prune
+import Data.Tree.AVL.Zipper
+import Data.Tree.AVL.VoidStorage
 --import Data.Tree.AVL.RocksDBStore as M

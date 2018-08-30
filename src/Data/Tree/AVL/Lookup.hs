@@ -1,19 +1,26 @@
-module Data.Tree.AVL.Lookup where
+-- | Read operation.
+--
+--   Can be repeated on the proof it generates with the same result.
 
-import Control.Lens (use)
-import Control.Monad.Trans.Class (lift)
+module Data.Tree.AVL.Lookup
+    ( -- * Lookups
+      Data.Tree.AVL.Lookup.lookup
+    , lookup'
+    )
+  where
 
 import Data.Set (Set)
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
-
+-- | Retrieves value for given key. Also collects proof prefab.
 lookup' :: Retrieves h k v m => k -> Map h k v -> m ((Maybe v, Set Revision), Map h k v)
 lookup' k tree0 = do
     (mv, tree, trails) <- runZipped' (lookupZ k) UpdateMode tree0
     return ((mv, trails), tree)
 
+-- | Retrieves value for given key. Also constructs proof.
 lookup :: Retrieves h k v m => k -> Map h k v -> m ((Maybe v, Proof h k v), Map h k v)
 lookup k tree0 = do
     (mv, tree, proof) <- runZipped (lookupZ k) UpdateMode tree0
@@ -22,8 +29,7 @@ lookup k tree0 = do
 lookupZ :: Retrieves h k v m => k -> Zipped h k v m (Maybe v)
 lookupZ k = do
     goto (Plain k)
-    tree  <- use locus
-    lift (open tree) >>= \case
+    withLocus $ \case
       MLLeaf {_mlKey, _mlValue} ->
         if _mlKey == Plain k
         then return (Just _mlValue)

@@ -1,9 +1,16 @@
+-- | New/update operation.
+--
+--   Can be repeated on the proof it generates with the same result.
+
 module Data.Tree.AVL.Insertion
-  ( insert
+  ( -- Different variants of insert
+    insert
+  , insert'
   , insertWithNoProof
+
+    -- 'Map' constructors
   , fromList
   , fromFoldable
-  , insert'
   ) where
 
 import Control.Lens               (use, (.=))
@@ -17,19 +24,26 @@ import Data.Tree.AVL.Zipper
 
 --import qualified Debug.Trace as Debug
 
--- | Endpoint that allows to merge proofs for some sequental operations.
+-- | Inserts given value for given key into the 'Map', generates proof prefab.
+--
+--   It is idempotent in terms of 'Map' content, however, without 'Eq' @k@
+--   constraint 'Map's will be different.
 insert' :: Retrieves h k v m => k -> v -> Map h k v -> m (Set Revision, Map h k v)
 insert' k v tree = do
     ((), res, trails) <- runZipped' (insertZ k v) UpdateMode tree
     return (trails, res)
 
--- | Endpoint that generates proof.
+-- | Inserts given value for given key into the 'Map', generates proof.
+--
+--   See 'insert''.
 insert :: Retrieves h k v m => k -> v -> Map h k v -> m (Proof h k v, Map h k v)
 insert k v tree = do
     ((), res, proof) <- runZipped (insertZ k v) UpdateMode tree
     return (proof, res)
 
--- | Endpoint that generates no proof.
+-- | Just inserts given value for given key into the 'Map', with no proof.
+--
+--   See 'insert''.
 insertWithNoProof
     :: Retrieves h k v m
     => k
@@ -124,7 +138,7 @@ insertZ k v = do
 fromList :: Retrieves h k v m
     => [(k, v)]
     -> m (Map h k v)
--- | Monomorphised version.
+-- | Monomorphised version of 'fromFoldable'.
 fromList = fromFoldable
 
 fromFoldable :: forall h k v m f . Retrieves h k v m => Foldable f => f (k, v) -> m (Map h k v)

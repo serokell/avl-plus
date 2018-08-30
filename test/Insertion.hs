@@ -41,7 +41,7 @@ tests = describe "Insert" $ do
 
             return (proof1 == proof2)
 
-        -- It is not, unless we give `Eq v` constraint to the `insertZ`.
+        -- -- It is not, unless we give `Eq v` constraint to the `insertZ`.
         --
         -- it' "Insert is idempotent" $ \(k, v, list) -> do
         --     tree <- AVL.fromList list :: StorageMonad M

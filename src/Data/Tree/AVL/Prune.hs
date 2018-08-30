@@ -1,4 +1,14 @@
-module Data.Tree.AVL.Prune where
+-- | Proof-builder. Generates subtree with _uninteresting_ siblings replaced
+--   with their respective hashes.
+--
+--   The operation produced the 'Proof' can still be run on this subtree,
+--   no storage is needed.
+
+module Data.Tree.AVL.Prune
+    ( -- * Pruning
+      prune
+    )
+  where
 
 import Control.Lens ((&), (<&>), (.~), (^.))
 import Control.Monad.Free     (Free(Free, Pure))
@@ -12,7 +22,7 @@ import qualified Data.Set as Set (notMember)
 
 -- | Prune all subtrees that haven't been touched.
 prune :: forall h k v . Hash h k v => Set Revision -> FreshlyRehashed h k v -> Proof h k v
-prune hashes (FreshlyRehashed tree) = do
+prune hashes (getFreshlyRehashed -> tree) = do
     let pruned = go tree
     Proof pruned
   where

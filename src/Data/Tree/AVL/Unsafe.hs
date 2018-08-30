@@ -77,7 +77,7 @@ mutateStorage action = do
     tree `eraseTo` set = if
         | rootSig `Set.member` set -> return ()
         | otherwise -> do
-            cs <- flip openAndM tree $ \node -> do
+            cs <- flip loadAndM tree $ \node -> do
                 erase @h @(Isolated h k v) rootSig
                 return (children node)
 

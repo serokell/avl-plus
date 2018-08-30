@@ -1,3 +1,6 @@
+-- | Key removal.
+--
+--   Can be repeated on the proof it generates with the same result.
 
 module Data.Tree.AVL.Deletion (delete, deleteWithNoProof, delete') where
 
@@ -10,19 +13,21 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
--- | Endpoint that allows to merge proofs for some sequental operations.
+-- | Remove given key from the 'Map', generates proof prefab.
 delete' :: Retrieves h k v m => k -> Map h k v -> m (Set Revision, Map h k v)
 delete' k tree = do
     (_yes, res, trails) <- runZipped' (deleteZ k) DeleteMode tree
     return (trails, res)
 
--- | Endpoint that generates proof.
+-- | Remove given key from the 'Map', generates proof.
+--
+--   It is idempotent.
 delete :: Retrieves h k v m => k -> Map h k v -> m (Proof h k v, Map h k v)
 delete k tree = do
     (_yes, res, proof) <- runZipped (deleteZ k) DeleteMode tree
     return (proof, res)
 
--- | Endpoint that generates no proof.
+-- | Remove given key from the 'Map', with no proof.
 deleteWithNoProof
     :: Retrieves h k v m
     => k
