@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                AVL
-version:             0.1.0.0
+version:             1.0.0.0
 synopsis:            An implementation of AVL+ trees for blockchains.
 -- description:
 license:             BSD3
@@ -16,7 +16,7 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules: Data.Tree.AVL
+  exposed-modules: Data.Tree.AVL, Data.Tree.AVL.Unsafe
   other-modules:
                  Data.Tree.AVL.Internal
                , Data.Tree.AVL.Deletion
@@ -28,23 +28,12 @@ library
                , Data.Tree.AVL.NullStore
                -- , Data.Tree.AVL.RocksDBStore
   build-depends:       base >=4.9 && <5
-                     , bytestring
                      , containers
-                     , composition
-                     , data-default
-                     , data-fix
                      , deriving-compat
                      , exceptions
                      , free
-                     , hashable
                      , lens
-                     , lens-action
-                     , MonadRandom
                      , mtl
-                     -- , pretty-tree
-                     , random
-                     -- , rocksdb-haskell
-                     , stm
                      , transformers
                      , unordered-containers
   default-extensions:
