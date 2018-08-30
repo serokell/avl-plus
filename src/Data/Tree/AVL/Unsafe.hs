@@ -29,6 +29,8 @@ class (KVStore h node m, KVRetrieve h node m) => KVMutate h node m where
     setRoot :: h -> m ()  -- ^ Set current root of the tree
     erase   :: h -> m ()  -- ^ Remove node with given hash
 
+-- | Enriches 'massStore'/'retrive' capabilities with 'erase' and
+--   notion of single root.
 type Mutates h k v m = (Base h k v m, KVMutate h (Isolated h k v) m)
 
 contour :: Params h k v => Map h k v -> Set.Set h

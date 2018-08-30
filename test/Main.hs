@@ -9,7 +9,7 @@ import Common
 main :: IO ()
 main = hspec $ do
     describe "AVL+ tree" $ do
-        Deletion.tests
-        Insertion.tests
-        Lookup.tests
         Algorithm.tests
+        Insertion.tests
+        Deletion.tests
+        Lookup.tests
