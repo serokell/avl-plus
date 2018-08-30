@@ -19,6 +19,7 @@ import Data.Typeable       (Typeable)
 import GHC.Generics        (Generic)
 
 import Data.Eq.Deriving    (deriveEq1)
+import Data.Ord.Deriving   (deriveOrd1)
 import Text.Show.Deriving  (deriveShow1)
 
 -------------------------------------------------------------------------------
@@ -115,6 +116,7 @@ data MapLayer h k v self
     deriving (Eq, Functor, Foldable, Traversable, Generic)
 
 deriveEq1 ''MapLayer
+deriveOrd1 ''MapLayer
 deriveShow1 ''MapLayer
 
 -- | AVL tree as whole.
@@ -171,10 +173,14 @@ instance (Show k, Typeable k) => Exception (NotFound k)
 
 -- | Umbrella class to grab all the required capabilities for tree to operate (and be debugged!).
 
-type Base h k v m =
+type Params h k v =
     ( Ord h, Show h, Typeable h
     , Ord k, Show k, Typeable k
     , Show k, Show v, Show h
+    )
+
+type Base h k v m =
+    ( Params h k v
     , Hash h k v
     , MonadCatch m
     )
