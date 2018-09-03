@@ -265,12 +265,12 @@ type Params h k v =
     ( Ord h, Show h, Typeable h
     , Ord k, Show k, Typeable k
     , Show k, Show v, Show h
+    , Hash h k v
     )
 
 -- | Umbrella constraint to grab all the required capabilities for tree to operate (and be debugged!).
 type Base h k v m =
     ( Params h k v
-    , Hash h k v
     , MonadCatch m
     )
 
@@ -324,17 +324,17 @@ walkDFS
   :: forall h k v m b res
   .  Retrieves h k v m
   =>  ( b
-      , MapLayer h k v h -> b -> b
+      , MapLayer h k v (Maybe h) -> b -> b
       , b -> res
       )
-  -> h
+  -> Map h k v
   -> m res
-walkDFS (start, add, finish) root = finish <$> go start (ref root)
+walkDFS (start, add, finish) root = finish <$> go start root
   where
     go :: b -> Map h k v -> m b
     go acc mapping = do
         load mapping >>= \point -> do
-            let point' = unsafeRootHash <$> point
+            let point' = rootHash <$> point
             case point of
               MLBranch { _mlLeft = l, _mlRight = r } -> do
                 acc' <- go (add point' acc) l
@@ -347,10 +347,10 @@ walkDFS (start, add, finish) root = finish <$> go start (ref root)
                 return acc
 
 -- | Left-to-right fold.
-fold :: Retrieves h k v m => (b, (k, v) -> b -> b, b -> res) -> h -> m res
+fold :: Retrieves h k v m => (b, (k, v) -> b -> b, b -> res) -> Map h k v -> m res
 fold (start, add, finish) = walkDFS (start, collectKVAnd add, finish)
   where
-    collectKVAnd :: ((k, v) -> b -> b) -> MapLayer h k v h -> b -> b
+    collectKVAnd :: ((k, v) -> b -> b) -> MapLayer h k v (Maybe h) -> b -> b
     collectKVAnd act = \case
         MLLeaf { _mlKey = k, _mlValue = v } -> act (unsafeFromWithBounds k, v)
         _other                              -> id

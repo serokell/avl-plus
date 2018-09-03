@@ -26,6 +26,7 @@ library
                  , Data.Tree.AVL.Unsafe
                  , Data.Tree.AVL.VoidStorage
                  , Data.Tree.AVL.Zipper
+                 , Data.Tree.AVL.Store.Pure
   other-modules:
   build-depends:       base >=4.9 && <5
                      , containers
@@ -77,7 +78,13 @@ test-suite avl-tree-sanity
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Main.hs
-  other-modules:       Deletion, Insertion, Common, Lookup, Algorithm
+  other-modules:       Deletion
+                       Insertion
+                       Common
+                       Lookup
+                       Algorithm
+                       Unsafe
+
   build-depends:       base >= 0.4 && < 5
                      , AVL
                      , binary

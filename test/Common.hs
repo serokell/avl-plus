@@ -23,6 +23,7 @@ import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, 
 import Test.QuickCheck.Instances as T ()
 
 import qualified Data.Tree.AVL as AVL
+import qualified Data.Tree.AVL.Store.Pure as Store
 
 -- | Extensional equality combinator.
 (.=.) :: (Eq b, Show b, Arbitrary a) => (a -> b) -> (a -> b) -> a -> Property
@@ -39,7 +40,7 @@ infixr 5 .=.
 --    | Default
 --    deriving (Ord, Generic)
 
-type Layer = AVL.MapLayer Int StringName Int Int
+type Layer = AVL.MapLayer IntHash StringName Int IntHash
 
 deriving instance Ord Layer
 
@@ -61,15 +62,22 @@ instance Hashable StringName
 instance Hashable (AVL.WithBounds StringName)
 instance Hashable AVL.Tilt
 
-instance AVL.Hash Int StringName Int where
+instance AVL.Hash IntHash StringName Int where
     hashOf tree = case tree of
-        AVL.MLBranch rev _ mk ck t l r' -> hash (hash rev + hash mk + hash ck + hash t + l + r')
-        AVL.MLLeaf   rev _ k  v  n p    -> hash (hash rev + hash k + hash v + hash n + hash p)
-        AVL.MLEmpty  _rev _             -> 0
+        AVL.MLBranch rev _ mk ck t l r' -> IntHash $ hash (hash rev + hash mk + hash ck + hash t + hash l + hash r')
+        AVL.MLLeaf   rev _ k  v  n p    -> IntHash $ hash (hash rev + hash k + hash v + hash n + hash p)
+        AVL.MLEmpty  _rev _             -> IntHash $ 0
 
--- newtype IntHash = IntHash { getIntHash :: Int }
---     deriving (Show, Eq, Arbitrary)
---
+newtype IntHash = IntHash { getIntHash :: Int }
+    deriving (Eq, Ord,  Arbitrary, Generic)
+
+instance Hashable IntHash
+
+instance Show IntHash where
+    show = take 8 . map convert . map (`mod` 16) . iterate (`div` 16) . abs . getIntHash
+      where
+        convert = ("0123456789ABCDEF" !!)
+
 newtype StringName = StringName { getStringName :: String }
     deriving (Eq, Ord, Generic)
 
@@ -122,7 +130,7 @@ instance Show (a -> b) where
 
 type StorageMonad = AVL.VoidStorage
 
-type M = AVL.Map Int StringName Int
+type M = AVL.Map IntHash StringName Int
 
 scanM :: Monad m => (a -> b -> m b) -> b -> [a] -> m [b]
 scanM _      _     []       = return []
@@ -146,3 +154,14 @@ it'
     ->  f (IO prop)
     ->  SpecWith ()
 it' msg func = it msg $ property $ fmap ioProperty func
+
+it''
+    ::  ( Testable   prop
+        , Arbitrary  src
+        , AVL.Params h k v
+        , Show       src
+        )
+    =>  String
+    ->  (src -> Store.Store h k v IO prop)
+    ->  SpecWith ()
+it'' msg func = it msg $ property $ fmap (ioProperty . Store.run) func
