@@ -14,4 +14,4 @@ main = hspec $ do
         Insertion.tests
         Deletion.tests
         Lookup.tests
-        -- Unsafe.tests
+        Unsafe.tests

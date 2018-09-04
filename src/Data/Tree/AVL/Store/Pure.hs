@@ -5,10 +5,12 @@ module Data.Tree.AVL.Store.Pure
 
       -- * Runner
     , run
+    , dump
     )
   where
 
 import Control.Lens (makeLenses, use, uses, (.=), (%=))
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Catch (throwM)
 import Control.Monad.State (StateT, evalStateT)
 
@@ -34,8 +36,7 @@ type Store h k v m = StateT (State h k v) m
 instance Base h k v m => KVRetrieve h (Isolated h k v) (Store h k v m) where
     retrieve k = do
         st <- use psStorage
-        (if k `Map.notMember` st then Debug.traceShow (k, "?", st) else id) $
-            uses psStorage (Map.lookup k) >>= maybe (throwM $ NotFound k) pure
+        uses psStorage (Map.lookup k) >>= maybe (throwM $ NotFound k) pure
 
 instance Base h k v m => KVStore h (Isolated h k v) (Store h k v m) where
     massStore pairs = do
@@ -55,3 +56,12 @@ run = flip evalStateT State
         $ rootHash
         $ assignHashes (AVL.empty @h @k @v)
     }
+
+dump :: forall h k v m . (MonadIO m, Base h k v m) => String -> Store h k v m ()
+dump msg = do
+    State storage root <- use id
+    liftIO $ do
+        putStrLn msg
+        print root
+        print storage
+        putStrLn ""

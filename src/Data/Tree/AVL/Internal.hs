@@ -28,6 +28,9 @@ module Data.Tree.AVL.Internal
     , getFreshlyRehashed
     , Isolated
 
+    , unsafeRootHash
+    , collect
+
       -- * High-level operations
     , rootHash
     , assignHashes
@@ -414,17 +417,17 @@ save tree = do
     let collection = collect assigned
     massStore collection
     return (unsafeRootHash assigned)
-  where
-    collect :: Map h k v -> [(h, Isolated h k v)]
-    collect it = case it of
-      Pure _ -> []
-      Free layer -> do
-        let hash  = unsafeRootHash it
-        let node  = unsafeIsolated layer
-        let left  = layer^?mlLeft .to collect `orElse` []
-        let right = layer^?mlRight.to collect `orElse` []
 
-        ((hash, node) : (left ++ right))
+collect :: Hash h k v => Map h k v -> [(h, Isolated h k v)]
+collect it = case it of
+  Pure _ -> []
+  Free layer -> do
+    let hash  = unsafeRootHash it
+    let node  = unsafeIsolated layer
+    let left  = layer^?mlLeft .to collect `orElse` []
+    let right = layer^?mlRight.to collect `orElse` []
+
+    ((hash, node) : (left ++ right))
 
 -- | Returns minimal key contained in a tree (or a 'minbound' if empty).
 minKey :: Retrieves h k v m => Map h k v -> m (WithBounds k)

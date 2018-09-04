@@ -155,7 +155,8 @@ runZipped :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a,
 runZipped action mode0 tree = do
     zipper             <- enter mode0 tree
     (a, tree1, trails) <- action' `evalStateT` zipper
-    return (a, tree1, prune trails (fullRehash tree))
+    proof              <- prune trails (fullRehash tree)
+    return (a, tree1, proof)
   where
     action' = do
       res    <- action
