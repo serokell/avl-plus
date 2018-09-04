@@ -112,7 +112,7 @@ data MapLayer h k v self
   | MLEmpty
     { _mlHash      :: h
     }
-    deriving (Eq, Functor, Foldable, Traversable, Generic)
+    deriving (Functor, Foldable, Traversable, Generic)
 
 deriveShow1 ''MapLayer
 
