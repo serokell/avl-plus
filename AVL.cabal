@@ -56,6 +56,7 @@ library
                MultiParamTypeClasses
                MultiWayIf
                NamedFieldPuns
+               OverloadedStrings
                PatternSynonyms
                RankNTypes
                RecordWildCards
@@ -118,6 +119,7 @@ test-suite avl-tree-sanity
                MultiParamTypeClasses
                MultiWayIf
                NamedFieldPuns
+               OverloadedStrings
                PatternSynonyms
                RankNTypes
                RecordWildCards

@@ -29,6 +29,7 @@ module Data.Tree.AVL.Internal
     , Isolated
 
     , unsafeRootHash
+    , unsafeLayerHash
     , collect
 
       -- * High-level operations
@@ -297,17 +298,17 @@ type Retrieves h k v m =
 -- | Debug preview of the tree.
 showMap :: (Show h, Show k, Show v) => Map h k v -> String
 showMap = Tree.drawTree . asTree
- where
-   asTree = \case
-     Free (MLBranch rev h _mk _ck t  l r) -> Tree.Node ("-< "    ++ show (rev) ++ ", " ++ show (h) ++ ", "  ++ show (t)) [asTree r, asTree l]
-     Free (MLLeaf   rev h  k  _v _n _p)   -> Tree.Node ("<3- "   ++ show (rev) ++ ", "  ++ show (h) ++ ", "  ++ show (k)) []
-     Free (MLEmpty  rev h)                -> Tree.Node ("Empty " ++ show (rev) ++ ", "  ++ show (h))             []
-     Pure  h                            -> Tree.Node ("Ref "   ++ show h)               []
+  where
+    asTree = \case
+      Free (MLBranch rev h _mk _ck t  l r) -> Tree.Node ("Branch " ++ show (rev, h, t))    [asTree r, asTree l]
+      Free (MLLeaf   rev h  k   v _n _p)   -> Tree.Node ("Leaf   " ++ show (rev, h, k, v)) []
+      Free (MLEmpty  rev h)                -> Tree.Node ("Empty  " ++ show (rev, h))       []
+      Pure  h                              -> Tree.Node ("Ref    " ++ show h)              []
 
 instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
     show = \case
       MLBranch _ h _mk _ck  t  l r -> "Branch" ++ show (h, t, l, r)
-      MLLeaf   _ h  k  _v  _n _p   -> "Leaf"   ++ show (h, k)
+      MLLeaf   _ h  k   v  _n _p   -> "Leaf"   ++ show (h, k, v)
       MLEmpty  _ h                 -> "Empty"  ++ show (h)
 
 -- | Calculate hash outside of 'rehash'.
@@ -322,6 +323,9 @@ rootHash = \case
 
 unsafeRootHash :: Map h k v -> h
 unsafeRootHash = fromJust . rootHash
+
+unsafeLayerHash :: MapLayer h k v c -> h
+unsafeLayerHash = fromJust . (^.mlHash)
 
 -- | Traverses tree in DFS manner meeting keys in acsending order.
 walkDFS
@@ -428,12 +432,14 @@ assignHashes :: Hash h k v => Map h k v -> Map h k v
 assignHashes = getFreshlyRehashed . fullRehash
 
 -- | Recursively store all the materialized nodes in the database.
-save :: forall h k v m . Stores h k v m => Map h k v -> m h
+save :: forall h k v m . Stores h k v m => Map h k v -> m (Map h k v)
 save tree = do
     let assigned   = assignHashes tree
     let collection = collect assigned
+    -- error $ "save/assigned: " ++ showMap assigned
+    --    ++ "\nsave/collection: " ++ show collection
     massStore collection
-    return (unsafeRootHash assigned)
+    return (ref (unsafeRootHash assigned))
 
 collect :: Hash h k v => Map h k v -> [(h, Isolated h k v)]
 collect it = case it of

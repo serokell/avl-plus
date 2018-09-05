@@ -11,14 +11,13 @@ module Data.Tree.AVL.Unsafe
     , overwrite
 
       -- * Methods
-    , assignRoot
-    , getRoot
-    , contour
+    , currentRoot
     )
   where
 
 import Control.Lens ((^?), (^.), to)
-import Control.Monad.Free
+import Control.Monad.Free (Free (..))
+import Control.Monad (when)
 
 -- import Data.Maybe (fromMaybe)
 import Data.Foldable (for_)
@@ -32,18 +31,20 @@ import Data.Tree.AVL
 
 -- | Allows for umpure storage of AVL that is rewritten on each write.
 class (KVStore h node m, KVRetrieve h node m) => KVMutate h node m where
-    root    :: m h        -- ^ Get current root of the tree
+    getRoot :: m h        -- ^ Get current root of the tree
     setRoot :: h -> m ()  -- ^ Set current root of the tree
     erase   :: h -> m ()  -- ^ Remove node with given hash
 
-getRoot :: forall h k v m . Mutates h k v m => m h
-getRoot = root @_ @(Isolated h k v)
+-- | Returns current root from storage.
+currentRoot :: forall h k v m . Mutates h k v m => m (Map h k v)
+currentRoot = ref <$> getRoot @_ @(Isolated h k v)
 
-assignRoot :: forall h k v m . Mutates h k v m => h -> m ()
-assignRoot = setRoot @_ @(Isolated h k v)
+assignRoot :: forall h k v m . Mutates h k v m => Map h k v -> m ()
+assignRoot new = do
+    setRoot @_ @(Isolated h k v) (unsafeRootHash new)
 
-eraseNode :: forall h k v m . Mutates h k v m => h -> m ()
-eraseNode = erase @_ @(Isolated h k v)
+eraseTopNode :: forall h k v m . Mutates h k v m => Map h k v -> m ()
+eraseTopNode = erase @_ @(Isolated h k v) . unsafeRootHash
 
 -- | Enriches 'massStore'/'retrive' capabilities with 'erase' and
 --   notion of single root.
@@ -56,10 +57,8 @@ contour = Set.fromList . go
     go = \case
       Pure hash -> pure hash
       Free node
-        | Just hash <- node^.mlHash ->
-            pure hash
-        | otherwise ->
-            children node >>= go
+        | Just hash <- node^.mlHash -> pure hash
+        | otherwise                 -> children node >>= go
 
 children :: MapLayer h k v c -> [c]
 children node = do
@@ -76,30 +75,19 @@ overwrite
     :: forall h k v m
     .  Mutates h k v m
     => Map h k v
-    -> m (Proof h k v)
+    -> m ()
 overwrite tree = do
-    let border = contour tree
-    let tree'  = assignHashes tree
-    old       <- getRoot @h @k @v
-    proofBody <- materialiseUpTo border (ref old)
-    hash <- save tree'
-    assignRoot @h @k @v hash
-    remove proofBody
-    return (Proof proofBody)
+    removeTo (contour tree) =<< currentRoot
+    assignRoot              =<< save tree
+    return ()
   where
-    materialiseUpTo :: Set.Set h -> Map h k v -> m (Map h k v)
-    materialiseUpTo border bush
-      | unsafeRootHash bush `Set.member` border
-        = return $ Pure (unsafeRootHash bush)
+    removeTo :: Set.Set h -> Map h k v -> m ()
+    removeTo border = go
+      where
+        go :: Map h k v -> m ()
+        go tree = do
+            layer <- load tree
+            when (unsafeRootHash tree `Set.notMember` border) $ do
+                eraseTopNode @h @k @v tree
+                for_ (children layer) go
 
-      | otherwise
-        = flip loadAndM bush $ \layer -> do
-            Free <$> for layer (materialiseUpTo border)
-
-    remove = \case
-      Pure _ ->
-        return ()
-
-      thunk@ (Free layer) -> do
-        eraseNode @h @k @v (unsafeRootHash thunk)
-        for_ (children layer) remove

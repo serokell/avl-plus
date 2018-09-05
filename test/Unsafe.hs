@@ -13,36 +13,26 @@ tests = describe "Unsafe" $ do
     describe "Sanity check" $ do
         it'' "can rematerialise in Pure mutated storage after insert" $
             \(k :: StringName, v :: Int, list) -> do
-                Store.dump ("before <- " ++ show list)
                 tree           <- AVL.fromList list :: Store.Store IntHash StringName Int StorageMonad M
-                hash           <- AVL.save            @IntHash tree
-                Store.dump "saved"
-                ()             <- AVL.assignRoot      @IntHash @StringName @Int hash
-                (proof, tree') <- AVL.insert          @IntHash k v tree
-                proof'         <- AVL.overwrite tree'
-                Store.dump ("tree' =\n" ++ AVL.showMap tree')
-                Store.dump ("overwritten <- " ++ show (AVL.contour tree'))
-                hash'          <- AVL.getRoot         @IntHash @StringName @Int
-                back           <- AVL.toList (AVL.ref @IntHash @StringName @Int hash')
-                  `catch` \(e :: AVL.NotFound IntHash) -> do
-                    liftIO $ putStrLn "=================================================="
-                    liftIO $ putStrLn "== FAILURE =="
-                    liftIO $ putStrLn "=================================================="
-                    error "foo"
+                ()             <- AVL.overwrite        tree
+                (proof, tree') <- AVL.insert       k v tree
+                ()             <- AVL.overwrite        tree'
+                full           <- AVL.currentRoot
+                back           <- AVL.toList @IntHash  full
 
-                let uniq = uniqued ((k, v) : list)
+                let uniq = uniqued (list ++ [(k, v)])
 
                 return (back == uniq)
 
-        -- it'' "can rematerialise in Pure mutated storage after delete" $
-        --     \(k :: StringName, v :: Int, list) -> do
-        --         tree  <- AVL.fromList ((k, v) : list) :: Store.Store IntHash StringName Int StorageMonad M
-        --         hash  <- AVL.save @IntHash tree
-        --         ()    <- Unsafe.assignRoot @IntHash @StringName @Int hash
-        --         _     <- Unsafe.mutateStorage $ AVL.delete @IntHash @_ @Int k
-        --         hash' <- Unsafe.getRoot    @IntHash @StringName @Int
-        --         back  <- AVL.toList (AVL.ref @IntHash @StringName @Int hash')
-        --         let uniq = uniqued $ filter ((k /=) . fst) $ list
-        --         unless (back == uniq) $ do
-        --             error $ show (back, uniq)
-        --         return (back == uniq)
+        it'' "can rematerialise in Pure mutated storage after delete" $
+            \(k :: StringName, list) -> do
+                tree           <- AVL.fromList list :: Store.Store IntHash StringName Int StorageMonad M
+                ()             <- AVL.overwrite       tree
+                (proof, tree') <- AVL.delete        k tree
+                ()             <- AVL.overwrite       tree'
+                full           <- AVL.currentRoot
+                back           <- AVL.toList @IntHash full
+
+                let uniq = uniqued (filter ((k /=) . fst) list)
+
+                return (back == uniq)

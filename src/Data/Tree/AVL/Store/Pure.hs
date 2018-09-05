@@ -13,9 +13,10 @@ import Control.Lens (makeLenses, use, uses, (.=), (%=))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Catch (throwM)
 import Control.Monad.State (StateT, evalStateT)
+import Control.Monad (unless)
 
 import Data.Monoid ((<>))
-import Data.Map as Map
+import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 
 import Data.Tree.AVL.Internal as AVL
@@ -40,22 +41,30 @@ instance Base h k v m => KVRetrieve h (Isolated h k v) (Store h k v m) where
 
 instance Base h k v m => KVStore h (Isolated h k v) (Store h k v m) where
     massStore pairs = do
+        st <- use psStorage
+
+        unless (null st) $ do
+            error $ "massStore/st:  " ++ show st
+               ++ "\nmassStore/st': " ++ show (st <> Map.fromList pairs)
+
         psStorage %= (<> Map.fromList pairs)
 
 instance Base h k v m => KVMutate h (Isolated h k v) (Store h k v m) where
-    root        = use psRoot
+    getRoot     = use psRoot
     setRoot new = psRoot .= new
     erase hash  = psStorage %= Map.delete hash
 
 -- | Unlifts 'Store' monad into 'Base' one.
 run :: forall h k v m a . Base h k v m => Store h k v m a -> m a
 run = flip evalStateT State
-    { _psStorage = Map.empty
-    , _psRoot
+    { _psStorage = Map.singleton emptyHash (MLEmpty 0 (Just emptyHash))
+    , _psRoot    = emptyHash
+    }
+  where
+    emptyHash
         = fromJust
         $ rootHash
         $ assignHashes (AVL.empty @h @k @v)
-    }
 
 dump :: forall h k v m . (MonadIO m, Base h k v m) => String -> Store h k v m ()
 dump msg = do
