@@ -22,8 +22,16 @@ import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, 
                              (===), (==>), property)
 import Test.QuickCheck.Instances as T ()
 
-import qualified Data.Tree.AVL as AVL
+import qualified Data.Tree.AVL.Deletion as AVL
+import qualified Data.Tree.AVL.Insertion as AVL
+import qualified Data.Tree.AVL.Internal as AVL
+import qualified Data.Tree.AVL.Lookup as AVL
+import qualified Data.Tree.AVL.Proof as AVL
+import qualified Data.Tree.AVL.Prune as AVL
+import qualified Data.Tree.AVL.Zipper as AVL
+import qualified Data.Tree.AVL.Unsafe as AVL
 import qualified Data.Tree.AVL.Store.Pure as Store
+import qualified Data.Tree.AVL.Store.Void as Store
 
 -- | Extensional equality combinator.
 (.=.) :: (Eq b, Show b, Arbitrary a) => (a -> b) -> (a -> b) -> a -> Property
@@ -92,43 +100,14 @@ instance Arbitrary StringName where
         a <- elements ['B'.. 'Y']
         return (StringName [a])
 
---instance Bounded StringName where
---    minBound = StringName "A"
---    maxBound = StringName "Z"
-
 instance (Eq k, Hashable k) => Default (HashMap k v) where
     def = fromList []
-
--- instance AVLPlus.Combined IntHash where
---     emptyOne = IntHash 0
---     combine (IntHash x, t, IntHash y) =
---         IntHash (x * 67 + fromEnum t * 79 + y * 121)
---
--- instance AVLPlus.Hash IntHash StringName Int where
---     hashOf
---         ( StringName k
---         , v
---         , StringName p
---         , StringName n )
---       =
---         IntHash $ 37 * length k + 53 * v + 67 * length p + 91 * length n
-
---instance
---    ( AVL.Hash h k v
---    , Arbitrary k
---    , Arbitrary v
---    , Show h
---    )
---      =>
---    Arbitrary (AVL.Map h k v)
---  where
---    arbitrary = AVL.fromList <$> arbitrary
 
 -- Requirement of QuickCheck
 instance Show (a -> b) where
     show _ = "<function>"
 
-type StorageMonad = AVL.VoidStorage
+type StorageMonad = Store.VoidStorage
 
 type M = AVL.Map IntHash StringName Int
 

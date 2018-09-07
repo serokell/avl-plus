@@ -3,6 +3,8 @@ module Insertion (tests) where
 import Common
 
 import qualified Data.Tree.AVL as AVL
+import qualified Data.Tree.AVL.Internal as AVL
+import qualified Data.Tree.AVL.Insertion as AVL
 
 tests :: Spec
 tests = describe "Insert" $ do
@@ -19,8 +21,8 @@ tests = describe "Insert" $ do
     describe "Proofs" $ do
         it' "Insert proof is verifiable" $ \(k, v, list) -> do
             tree        <- AVL.fromList list :: StorageMonad M
-            (proof,  _) <- AVL.insert k v tree
-            (proof1, _) <- AVL.insert k v (AVL.unProof proof)
+            (proof,  _) <- AVL.insert' k v tree
+            (proof1, _) <- AVL.insert' k v (AVL.unProof proof)
 
             let Just hash1 = AVL.rootHash (AVL.assignHashes tree)
 
@@ -28,8 +30,8 @@ tests = describe "Insert" $ do
 
         it' "Insert proof is replayable" $ \(k, v, list) -> do
             tree        <- AVL.fromList list :: StorageMonad M
-            (proof1, _) <- AVL.insert k v tree
-            (proof2, _) <- AVL.insert k v (AVL.unProof proof1)
+            (proof1, _) <- AVL.insert' k v tree
+            (proof2, _) <- AVL.insert' k v (AVL.unProof proof1)
 
             return (proof1 == proof2)
 
@@ -37,6 +39,6 @@ tests = describe "Insert" $ do
         --
         -- it' "Insert is idempotent" $ \(k, v, list) -> do
         --     tree <- AVL.fromList list :: StorageMonad M
-        --     (_, tree1) <- AVL.insert k v tree
-        --     (_, tree2) <- AVL.insert k v tree1
+        --     (_, tree1) <- AVL.insert' k v tree
+        --     (_, tree2) <- AVL.insert' k v tree1
         --     return (tree1 == tree2)

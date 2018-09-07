@@ -14,17 +14,17 @@ import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 -- | Remove given key from the 'Map', generates proof prefab.
-delete' :: Retrieves h k v m => k -> Map h k v -> m (Set Revision, Map h k v)
-delete' k tree = do
-    (_yes, res, trails) <- runZipped' (deleteZ k) DeleteMode tree
+delete :: Retrieves h k v m => k -> Map h k v -> m (Set Revision, Map h k v)
+delete k tree = do
+    (_yes, res, trails) <- runZipped (deleteZ k) DeleteMode tree
     return (trails, res)
 
 -- | Remove given key from the 'Map', generates proof.
 --
 --   It is idempotent.
-delete :: Retrieves h k v m => k -> Map h k v -> m (Proof h k v, Map h k v)
-delete k tree = do
-    (_yes, res, proof) <- runZipped (deleteZ k) DeleteMode tree
+delete' :: Retrieves h k v m => k -> Map h k v -> m (Proof h k v, Map h k v)
+delete' k tree = do
+    (_yes, res, proof) <- runZipped' (deleteZ k) DeleteMode tree
     return (proof, res)
 
 -- | Remove given key from the 'Map', with no proof.

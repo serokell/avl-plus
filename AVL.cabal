@@ -23,10 +23,10 @@ library
                  , Data.Tree.AVL.Lookup
                  , Data.Tree.AVL.Proof
                  , Data.Tree.AVL.Prune
-                 , Data.Tree.AVL.Unsafe
-                 , Data.Tree.AVL.VoidStorage
-                 , Data.Tree.AVL.Zipper
                  , Data.Tree.AVL.Store.Pure
+                 , Data.Tree.AVL.Store.Void
+                 , Data.Tree.AVL.Unsafe
+                 , Data.Tree.AVL.Zipper
   other-modules:
   build-depends:       base >=4.9 && <5
                      , containers

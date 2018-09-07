@@ -22,7 +22,7 @@ import Data.Maybe (fromJust)
 import Data.Tree.AVL.Internal as AVL
 import Data.Tree.AVL.Unsafe
 
-import Debug.Trace as Debug
+-- import Debug.Trace as Debug
 
 data State h k v = State
     { _psStorage :: Map.Map h (Isolated h k v)
@@ -36,7 +36,7 @@ type Store h k v m = StateT (State h k v) m
 
 instance Base h k v m => KVRetrieve h (Isolated h k v) (Store h k v m) where
     retrieve k = do
-        st <- use psStorage
+        -- st <- use psStorage
         uses psStorage (Map.lookup k) >>= maybe (throwM $ NotFound k) pure
 
 instance Base h k v m => KVStore h (Isolated h k v) (Store h k v m) where
@@ -66,6 +66,7 @@ run = flip evalStateT State
         $ rootHash
         $ assignHashes (AVL.empty @h @k @v)
 
+-- | Dumps storage into console with given message.
 dump :: forall h k v m . (MonadIO m, Base h k v m) => String -> Store h k v m ()
 dump msg = do
     State storage root <- use id

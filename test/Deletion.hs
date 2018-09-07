@@ -7,6 +7,8 @@ import Data.List ((\\))
 import Common
 
 import qualified Data.Tree.AVL as AVL
+import qualified Data.Tree.AVL.Internal as AVL
+import qualified Data.Tree.AVL.Deletion as AVL
 
 tests :: Spec
 tests = describe "Delete" $ do
@@ -35,8 +37,8 @@ tests = describe "Delete" $ do
     describe "Proofs" $ do
         it' "Delete proof is verifiable" $ \(k, v, list) -> do
             tree        <- AVL.fromList ((k, v) : list) :: StorageMonad M
-            (proof,  _) <- AVL.delete k tree
-            (proof1, _) <- AVL.delete k (AVL.unProof proof)
+            (proof,  _) <- AVL.delete' k tree
+            (proof1, _) <- AVL.delete' k (AVL.unProof proof)
 
             let Just hash1 = AVL.rootHash (AVL.assignHashes tree)
 
@@ -44,8 +46,8 @@ tests = describe "Delete" $ do
 
         it' "Delete proof is replayable" $ \(k, v, list) -> do
             tree        <- AVL.fromList ((k, v) : list) :: StorageMonad M
-            (proof1, _) <- AVL.delete k tree
-            (proof2, _) <- AVL.delete k (AVL.unProof proof1)
+            (proof1, _) <- AVL.delete' k tree
+            (proof2, _) <- AVL.delete' k (AVL.unProof proof1)
 
             return (proof1 == proof2)
 
@@ -53,8 +55,8 @@ tests = describe "Delete" $ do
             case uniqued list of
               (k, _) : rest -> do
                 tree        <- AVL.fromList rest :: StorageMonad M
-                (proof,  _) <- AVL.delete k tree
-                (proof1, _) <- AVL.delete k (AVL.unProof proof)
+                (proof,  _) <- AVL.delete' k tree
+                (proof1, _) <- AVL.delete' k (AVL.unProof proof)
 
                 let Just hash1 = AVL.rootHash (AVL.assignHashes tree)
 

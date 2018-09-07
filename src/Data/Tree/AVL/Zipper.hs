@@ -139,8 +139,8 @@ instance
     retrieve = lift . retrieve
 
 -- | Run zipper operation, collect proof prefabs.
-runZipped' :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Set Revision)
-runZipped' action mode0 tree = do
+runZipped :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Set Revision)
+runZipped action mode0 tree = do
     zipper <- enter mode0 tree
     action' `evalStateT` zipper
   where
@@ -151,8 +151,8 @@ runZipped' action mode0 tree = do
       return (res, tree', trails)
 
 -- | Run zipper operation, build proof.
-runZipped :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Proof h k v)
-runZipped action mode0 tree = do
+runZipped' :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Proof h k v)
+runZipped' action mode0 tree = do
     zipper             <- enter mode0 tree
     (a, tree1, trails) <- action' `evalStateT` zipper
     proof              <- prune trails (fullRehash tree)

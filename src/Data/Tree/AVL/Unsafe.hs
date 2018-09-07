@@ -21,11 +21,10 @@ import Control.Monad (when)
 
 -- import Data.Maybe (fromMaybe)
 import Data.Foldable (for_)
-import Data.Traversable (for)
 import Data.Monoid ((<>))
 import qualified Data.Set as Set
 
-import Data.Tree.AVL
+import Data.Tree.AVL.Internal
 
 -- import Debug.Trace as Debug
 
@@ -76,9 +75,9 @@ overwrite
     .  Mutates h k v m
     => Map h k v
     -> m ()
-overwrite tree = do
-    removeTo (contour tree) =<< currentRoot
-    assignRoot              =<< save tree
+overwrite tree' = do
+    removeTo (contour tree') =<< currentRoot
+    assignRoot               =<< save tree'
     return ()
   where
     removeTo :: Set.Set h -> Map h k v -> m ()
