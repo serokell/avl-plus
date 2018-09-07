@@ -12,19 +12,26 @@ module Data.Tree.AVL.Unsafe
 
       -- * Methods
     , currentRoot
+    , NoRootExists(..)
+
+    , intialiseStorageIfNotAlready
     )
   where
 
+import Control.Exception (Exception)
 import Control.Lens ((^?), (^.), to)
+import Control.Monad.Catch (catch)
 import Control.Monad.Free (Free (..))
-import Control.Monad (when)
+import Control.Monad (when, void)
 
 -- import Data.Maybe (fromMaybe)
 import Data.Foldable (for_)
 import Data.Monoid ((<>))
 import qualified Data.Set as Set
+import Data.Typeable (Typeable)
 
 import Data.Tree.AVL.Internal
+import Data.Tree.AVL.Insertion as AVL
 
 -- import Debug.Trace as Debug
 
@@ -33,6 +40,11 @@ class (KVStore h node m, KVRetrieve h node m) => KVMutate h node m where
     getRoot :: m h        -- ^ Get current root of the tree
     setRoot :: h -> m ()  -- ^ Set current root of the tree
     erase   :: h -> m ()  -- ^ Remove node with given hash
+
+data NoRootExists = NoRootExists
+    deriving (Show, Typeable)
+
+instance Exception NoRootExists
 
 -- | Returns current root from storage.
 currentRoot :: forall h k v m . Mutates h k v m => m (Map h k v)
@@ -90,3 +102,13 @@ overwrite tree' = do
                 eraseTopNode @h @k @v tree
                 for_ (children layer) go
 
+intialiseStorageIfNotAlready
+    :: forall h k v m
+    .  Mutates h k v m
+    => [(k, v)]
+    -> m ()
+intialiseStorageIfNotAlready kvs = do
+    void (currentRoot @h @k @v) `catch` \NoRootExists -> do
+        tree <- AVL.fromList @h @k @v kvs
+        assignRoot (empty @h @k @v)
+        overwrite @h @k @v tree

@@ -22,14 +22,7 @@ import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, 
                              (===), (==>), property)
 import Test.QuickCheck.Instances as T ()
 
-import qualified Data.Tree.AVL.Deletion as AVL
-import qualified Data.Tree.AVL.Insertion as AVL
 import qualified Data.Tree.AVL.Internal as AVL
-import qualified Data.Tree.AVL.Lookup as AVL
-import qualified Data.Tree.AVL.Proof as AVL
-import qualified Data.Tree.AVL.Prune as AVL
-import qualified Data.Tree.AVL.Zipper as AVL
-import qualified Data.Tree.AVL.Unsafe as AVL
 import qualified Data.Tree.AVL.Store.Pure as Store
 import qualified Data.Tree.AVL.Store.Void as Store
 
