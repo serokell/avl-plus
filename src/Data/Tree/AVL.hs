@@ -13,7 +13,7 @@ module Data.Tree.AVL
     , Mutates
 
       -- * Some base constraints
-    , Hash
+    , Hash(hashOf)
     , Params
     , Base
 
