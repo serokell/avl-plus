@@ -35,6 +35,7 @@ module Data.Tree.AVL
 
       -- * Root hash signature
     , rootHash
+    , emptyHash
 
       -- * Operations over AVL+
     , insert

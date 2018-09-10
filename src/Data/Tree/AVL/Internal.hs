@@ -45,6 +45,7 @@ module Data.Tree.AVL.Internal
     , branch
     , leaf
     , empty
+    , emptyHash
 
       -- * Getters
     , centerKey
@@ -487,6 +488,9 @@ orElse = flip fromMaybe
 -- | For clarity of rebalance procedure.
 pattern Node :: Revision -> Tilt -> a -> a -> MapLayer h k v a
 pattern Node rev d l r <- MLBranch rev _ _ _ d l r
+
+emptyHash :: forall h k v. Hash h k v => h
+emptyHash = fromJust $ rootHash $ assignHashes (empty @_ @k @v)
 
 -- | Create empty tree. Hash is not set.
 empty :: forall h k v . Hash h k v => Map h k v

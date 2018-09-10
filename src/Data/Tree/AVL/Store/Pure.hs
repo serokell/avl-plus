@@ -17,7 +17,6 @@ import Control.Monad (unless)
 
 import Data.Monoid ((<>))
 import qualified Data.Map as Map
-import Data.Maybe (fromJust)
 
 import Data.Tree.AVL.Internal as AVL
 import Data.Tree.AVL.Unsafe
@@ -57,14 +56,11 @@ instance Base h k v m => KVMutate h (Isolated h k v) (Store h k v m) where
 -- | Unlifts 'Store' monad into 'Base' one.
 run :: forall h k v m a . Base h k v m => Store h k v m a -> m a
 run = flip evalStateT State
-    { _psStorage = Map.singleton emptyHash (MLEmpty 0 (Just emptyHash))
-    , _psRoot    = emptyHash
+    { _psStorage = Map.singleton monoHash (MLEmpty 0 (Just monoHash))
+    , _psRoot    = monoHash
     }
   where
-    emptyHash
-        = fromJust
-        $ rootHash
-        $ assignHashes (AVL.empty @h @k @v)
+    monoHash = emptyHash @_ @k @v
 
 -- | Dumps storage into console with given message.
 dump :: forall h k v m . (MonadIO m, Base h k v m) => String -> Store h k v m ()
