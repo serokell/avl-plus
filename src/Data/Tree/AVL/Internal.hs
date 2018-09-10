@@ -267,7 +267,7 @@ instance (Show k, Typeable k) => Exception (NotFound k)
 type Params h k v =
     ( Ord h, Show h, Typeable h
     , Ord k, Show k, Typeable k
-    , Show k, Show v, Show h
+           , Show v, Typeable v
     , Hash h k v
     )
 
