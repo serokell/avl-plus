@@ -37,9 +37,6 @@ module Data.Tree.AVL.Internal
     , assignHashes
     , fullRehash
     , save
-    , walkDFS
-    , fold
-    , foldIf
     , size
     , toList
 
@@ -79,6 +76,7 @@ module Data.Tree.AVL.Internal
       -- * Key wrapper, free 'Bounded'
     , WithBounds (..)
     , fromWithBounds
+    , unsafeFromWithBounds
 
       -- * Version number
     , Revision
@@ -327,58 +325,6 @@ unsafeRootHash = fromJust . rootHash
 unsafeLayerHash :: MapLayer h k v c -> h
 unsafeLayerHash = fromJust . (^.mlHash)
 
--- | Traverses tree in DFS manner meeting keys in acsending order.
-walkDFS
-  :: forall h k v m b res
-  .  Retrieves h k v m
-  =>  ( b
-      , MapLayer h k v (Maybe h) -> b -> b
-      , b -> res
-      )
-  -> Map h k v
-  -> m res
-walkDFS (start, add, finish) root = finish <$> go start root
-  where
-    go :: b -> Map h k v -> m b
-    go acc mapping = do
-        load mapping >>= \point -> do
-            let point' = rootHash <$> point
-            case point of
-              MLBranch { _mlLeft = l, _mlRight = r } -> do
-                acc' <- go (add point' acc) l
-                go acc' r
-
-              MLLeaf {} -> do
-                return $ add point' acc
-
-              MLEmpty {} -> do
-                return acc
-
--- | Left-to-right fold.
-foldIf
-    :: forall h k v m b res
-    .  Retrieves h k v m
-    => ( k -> Bool
-       , b
-       , (k, v) -> b -> b
-       , b -> res
-       )
-    -> Map h k v
-    -> m res
-foldIf (good, start, add, finish) = walkDFS (start, collectKVAnd add, finish)
-  where
-    collectKVAnd :: ((k, v) -> b -> b) -> MapLayer h k v (Maybe h) -> b -> b
-    collectKVAnd act = \case
-        MLLeaf { _mlKey = (unsafeFromWithBounds -> k), _mlValue = v }
-            | good k ->
-                act (k, v)
-        _other ->
-            id
-
--- | Left-to-right fold.
-fold :: Retrieves h k v m => (b, (k, v) -> b -> b, b -> res) -> Map h k v -> m res
-fold (start, add, finish) = foldIf (\_ -> True, start, add, finish)
-
 -- -- | Get set of all node hashes from a tree.
 -- allRevisions :: forall k h v m . Retrieves h k v m => h -> m (Set Revision)
 -- allRevisions = walkDFS @h @k @v ([], addRevision, Set.fromList)
@@ -472,7 +418,7 @@ tilt = loadAnd $ \layer ->
     layer^?mlTilt `orElse` M
 
 -- | Sets left subtree in a branch.
-setLeft :: Retrieves h k v m => Map h k v    -> Map h k v -> m (Map h k v)
+setLeft :: Retrieves h k v m => Map h k v -> Map h k v -> m (Map h k v)
 setLeft left = onTopNode (mlLeft.~ left)
 
 -- | Sets right subtree in a branch.

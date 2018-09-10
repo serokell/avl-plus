@@ -66,6 +66,7 @@ import Prelude hiding (lookup)
 import Data.Tree.AVL.Deletion
 import Data.Tree.AVL.Insertion
 import Data.Tree.AVL.Internal
+import Data.Tree.AVL.Iteration
 import Data.Tree.AVL.Lookup
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
