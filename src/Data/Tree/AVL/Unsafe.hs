@@ -129,7 +129,7 @@ initialiseStorageIfNotAlready kvs = do
         tree <- AVL.fromList @h @k @v kvs
         p "...got tree"
         pr tree
-        assignRoot (assignHashes $ empty @h @k @v)
+        assignRoot =<< save (empty @h @k @v)
         p "...assigned"
         overwrite @h @k @v tree
         p "...overwriten."
