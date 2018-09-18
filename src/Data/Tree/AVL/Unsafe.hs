@@ -89,8 +89,12 @@ overwrite
     => Map h k v
     -> m ()
 overwrite tree' = do
+    p "overwrite"
+    pr tree'
     removeTo (contour tree') =<< currentRoot
+    p "removed up to contour"
     assignRoot               =<< save tree'
+    p "saved, root is assigned"
     return ()
   where
     removeTo :: Set.Set h -> Map h k v -> m ()
@@ -106,6 +110,9 @@ overwrite tree' = do
 p :: MonadIO m => String -> m ()
 p = liftIO . putStrLn
 
+pr :: (MonadIO m, Show a) => a -> m ()
+pr = liftIO . print
+
 initialiseStorageIfNotAlready
     :: forall h k v m
     .  Mutates h k v m
@@ -117,6 +124,7 @@ initialiseStorageIfNotAlready kvs = do
         p "...got exn, init"
         tree <- AVL.fromList @h @k @v kvs
         p "...got tree"
+        pr tree
         assignRoot (assignHashes $ empty @h @k @v)
         p "...assigned"
         overwrite @h @k @v tree
