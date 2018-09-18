@@ -21,7 +21,7 @@ module Data.Tree.AVL.Unsafe
 import Control.Exception (Exception, SomeException)
 import Control.Lens ((^?), (^.), to)
 import Control.Monad.Catch (catch, throwM)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Free (Free (..))
 import Control.Monad (when, void)
 
@@ -89,17 +89,9 @@ overwrite
     => Map h k v
     -> m ()
 overwrite tree' = do
-    p "overwrite"
-    pr tree'
     removeTo (contour tree') =<< currentRoot
-    p "removed up to contour"
     assignRoot               =<< save tree'
-    p "saved, root is assigned"
     return ()
-  `catch` \(e :: SomeException) -> do
-    p "E X C E P T I O N during overwrite:"
-    pr e
-    throwM e
   where
     removeTo :: Set.Set h -> Map h k v -> m ()
     removeTo border = go
@@ -111,26 +103,12 @@ overwrite tree' = do
                 eraseTopNode @h @k @v tree
                 for_ (children layer) go
 
-p :: MonadIO m => String -> m ()
-p = liftIO . putStrLn
-
-pr :: (MonadIO m, Show a) => a -> m ()
-pr = liftIO . print
-
 initialiseStorageIfNotAlready
     :: forall h k v m
     .  Mutates h k v m
     => [(k, v)]
     -> m ()
 initialiseStorageIfNotAlready kvs = do
-    p "optional init..."
     void (currentRoot @h @k @v) `catch` \NoRootExists -> do
-        p "...got exn, init"
-        tree <- AVL.fromList @h @k @v kvs
-        p "...got tree"
-        pr tree
         assignRoot =<< save (empty @h @k @v)
-        p "...assigned"
-        overwrite @h @k @v tree
-        p "...overwriten."
-    p "...done."
+        overwrite  =<< AVL.fromList @h @k @v kvs
