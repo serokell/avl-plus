@@ -13,7 +13,7 @@ import qualified Data.Set as Set
 
 import Data.Tree.AVL.Internal
 
--- | Traverses tree in DFS manner meeting keys in acsending order.
+-- | Traverses tree in DFS manner meeting keys in ascending order.
 walkDFS
   :: forall h k v m b res
   .  Retrieves h k v m

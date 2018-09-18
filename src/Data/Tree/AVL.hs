@@ -50,7 +50,7 @@ module Data.Tree.AVL
     , overwrite
     , currentRoot
     , NoRootExists(..)
-    , intialiseStorageIfNotAlready
+    , initialiseStorageIfNotAlready
 
       -- * Proof type, ways to construct and eliminate
     , Proof (..)

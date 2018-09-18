@@ -1,5 +1,7 @@
 module Unsafe (tests) where
 
+import Data.List (sort)
+
 import Common
 
 import qualified Data.Tree.AVL as AVL
@@ -33,3 +35,15 @@ tests = describe "Unsafe" $ do
                 let uniq = uniqued (filter ((k /=) . fst) list)
 
                 return (back == uniq)
+
+        it'' "toList . initialiseStorageIfNotAlready ~ id" $
+            \(kvs) -> do
+                tree <- AVL.fromList kvs :: Store.Store IntHash StringName Int StorageMonad M
+                AVL.overwrite tree
+                root <- AVL.currentRoot :: Store.Store IntHash StringName Int StorageMonad M
+                lst  <- AVL.toList root
+
+                Store.dump "after init"
+                liftIO $ print (kvs, lst)
+
+                return (lst == sort (uniqued kvs))

@@ -14,13 +14,14 @@ module Data.Tree.AVL.Unsafe
     , currentRoot
     , NoRootExists(..)
 
-    , intialiseStorageIfNotAlready
+    , initialiseStorageIfNotAlready
     )
   where
 
 import Control.Exception (Exception)
 import Control.Lens ((^?), (^.), to)
 import Control.Monad.Catch (catch)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Free (Free (..))
 import Control.Monad (when, void)
 
@@ -102,13 +103,22 @@ overwrite tree' = do
                 eraseTopNode @h @k @v tree
                 for_ (children layer) go
 
-intialiseStorageIfNotAlready
+p :: MonadIO m => String -> m ()
+p = liftIO . putStrLn
+
+initialiseStorageIfNotAlready
     :: forall h k v m
     .  Mutates h k v m
     => [(k, v)]
     -> m ()
-intialiseStorageIfNotAlready kvs = do
+initialiseStorageIfNotAlready kvs = do
+    p "optional init..."
     void (currentRoot @h @k @v) `catch` \NoRootExists -> do
+        p "...got exn, init"
         tree <- AVL.fromList @h @k @v kvs
+        p "...got tree"
         assignRoot (empty @h @k @v)
+        p "...assigned"
         overwrite @h @k @v tree
+        p "...overwriten."
+    p "...done."
