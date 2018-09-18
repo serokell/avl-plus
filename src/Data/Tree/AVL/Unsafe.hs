@@ -18,9 +18,9 @@ module Data.Tree.AVL.Unsafe
     )
   where
 
-import Control.Exception (Exception)
+import Control.Exception (Exception, SomeException)
 import Control.Lens ((^?), (^.), to)
-import Control.Monad.Catch (catch)
+import Control.Monad.Catch (catch, throwM)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Free (Free (..))
 import Control.Monad (when, void)
@@ -96,6 +96,10 @@ overwrite tree' = do
     assignRoot               =<< save tree'
     p "saved, root is assigned"
     return ()
+  `catch` \(e :: SomeException) -> do
+    p "E X C E P T I O N during overwrite:"
+    pr e
+    throwM e
   where
     removeTo :: Set.Set h -> Map h k v -> m ()
     removeTo border = go
