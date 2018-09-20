@@ -9,6 +9,7 @@ module Data.Tree.AVL.Unsafe
 
       -- * Wrappers
     , overwrite
+    , append
 
       -- * Methods
     , currentRoot
@@ -103,6 +104,16 @@ overwrite tree' = do
                 eraseTopNode @h @k @v tree
                 for_ (children layer) go
 
+
+-- | Stores tree in the storage alongside whatever is there and
+--   sets root pointer to its root.
+append
+    :: forall h k v m
+    .  Mutates h k v m
+    => Map h k v
+    -> m ()
+append tree = assignRoot =<< save tree
+
 initialiseStorageIfNotAlready
     :: forall h k v m
     .  Mutates h k v m
@@ -110,5 +121,5 @@ initialiseStorageIfNotAlready
     -> m ()
 initialiseStorageIfNotAlready kvs = do
     void (currentRoot @h @k @v) `catch` \NoRootExists -> do
-        assignRoot =<< save (empty @h @k @v)
+        append (empty @h @k @v)
         overwrite  =<< AVL.fromList @h @k @v kvs
