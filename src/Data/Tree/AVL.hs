@@ -95,6 +95,7 @@ module Data.Tree.AVL
 
       -- * Constructors/toList
     , empty
+    , ref
     , fromList
     , fromFoldable
     , toList
