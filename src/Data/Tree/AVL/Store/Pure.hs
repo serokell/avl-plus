@@ -31,7 +31,7 @@ data State h k v = State
 makeLenses ''State
 
 -- | Monad
-type Store h k v m = StateT (State h k v) m
+type Store h k v = StateT (State h k v)
 
 instance Base h k v m => KVRetrieve h (Isolated h k v) (Store h k v m) where
     retrieve k = do
@@ -54,7 +54,7 @@ instance Base h k v m => KVMutate h (Isolated h k v) (Store h k v m) where
     erase hash  = psStorage %= Map.delete hash
 
 -- | Unlifts 'Store' monad into 'Base' one.
-run :: forall h k v m a . Base h k v m => Store h k v m a -> m a
+run :: forall h k v m a . (Params h k v, Monad m) => Store h k v m a -> m a
 run = flip evalStateT State
     { _psStorage = Map.singleton monoHash (MLEmpty 0 (Just monoHash))
     , _psRoot    = monoHash
