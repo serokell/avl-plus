@@ -136,4 +136,8 @@ it''
     =>  String
     ->  (src -> Store.Store h k v IO prop)
     ->  SpecWith ()
-it'' msg func = it msg $ property $ fmap (ioProperty . Store.run) func
+it'' msg func =
+    it msg $ property $ \src ->
+        ioProperty $ do
+            st <- Store.newPureState
+            Store.run st (func src)

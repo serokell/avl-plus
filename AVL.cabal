@@ -36,6 +36,7 @@ library
                      , free
                      , lens
                      , mtl
+                     , stm
                      , transformers
                      , unordered-containers
   default-extensions:
