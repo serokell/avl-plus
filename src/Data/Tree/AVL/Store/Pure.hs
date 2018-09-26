@@ -54,11 +54,6 @@ instance (Base h k v m, MonadIO m) => KVRetrieve h (Isolated h k v) (Store h k v
 instance (Base h k v m, MonadIO m) => KVStore h (Isolated h k v) (Store h k v m) where
     massStore pairs = asState $ do
         st <- use psStorage
-
-        unless (null st) $ do
-            error $ "massStore/st:  " ++ show st
-               ++ "\nmassStore/st': " ++ show (st <> Map.fromList pairs)
-
         psStorage %= (<> Map.fromList pairs)
 
 instance (Base h k v m, MonadIO m) => KVMutate h (Isolated h k v) (Store h k v m) where
