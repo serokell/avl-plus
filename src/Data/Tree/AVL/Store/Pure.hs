@@ -2,6 +2,7 @@
 module Data.Tree.AVL.Store.Pure
     ( -- * Carrier monad
       Store
+    , State
 
       -- * Runner
     , run
