@@ -30,7 +30,7 @@ import Data.Tree.AVL.Unsafe
 
 data State h k v = State
     { _psStorage :: Map.Map h (Isolated h k v)
-    , _psRoot    :: h
+    , _psRoot    :: Maybe h
     }
 
 makeLenses ''State
@@ -62,8 +62,12 @@ instance (Base h k v m, MonadIO m) => KVStore h (Isolated h k v) (Store h k v m)
         psStorage %= (<> Map.fromList pairs)
 
 instance (Base h k v m, MonadIO m) => KVMutate h (Isolated h k v) (Store h k v m) where
-    getRoot     = asState $ use psRoot
-    setRoot new = asState $ psRoot .= new
+    getRoot = asState $ do
+        use psRoot >>= \case
+          Just root -> return root
+          Nothing   -> throwM NoRootExists
+
+    setRoot new = asState $ psRoot .= Just new
     erase hash  = asState $ psStorage %= Map.delete hash
 
 -- | Unlifts 'Store' monad into 'Base' one.
@@ -73,13 +77,11 @@ run = flip runReaderT
 newPureState :: forall h k v m . (Params h k v, MonadIO m) => m (TVar (State h k v))
 newPureState = liftIO $ newTVarIO emptyPureState
 
-emptyPureState :: forall h k v m . Params h k v => State h k v
+emptyPureState :: forall h k v . Params h k v => State h k v
 emptyPureState = State
-    { _psStorage = Map.singleton monoHash (MLEmpty 0 (Just monoHash))
-    , _psRoot    = monoHash
+    { _psStorage = Map.empty -- singleton monoHash (MLEmpty 0 (Just monoHash))
+    , _psRoot    = Nothing
     }
-  where
-    monoHash = emptyHash @_ @k @v
 
 -- | Dumps storage into console with given message.
 dump :: forall h k v m . (MonadIO m, Base h k v m) => String -> Store h k v m ()

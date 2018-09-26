@@ -12,6 +12,7 @@ tests = describe "Unsafe" $ do
     describe "Sanity check" $ do
         it'' "can rematerialise in Pure mutated storage after insert" $
             \(k :: StringName, v :: Int, list) -> do
+                AVL.initialiseStorageIfNotAlready @IntHash @StringName @Int []
                 tree       <- AVL.fromList list :: Store.Store IntHash StringName Int StorageMonad M
                 ()         <- AVL.overwrite        tree
                 (_, tree') <- AVL.insert       k v tree
@@ -25,6 +26,7 @@ tests = describe "Unsafe" $ do
 
         it'' "can rematerialise in Pure mutated storage after delete" $
             \(k :: StringName, list) -> do
+                AVL.initialiseStorageIfNotAlready @IntHash @StringName @Int []
                 tree       <- AVL.fromList list :: Store.Store IntHash StringName Int StorageMonad M
                 ()         <- AVL.overwrite       tree
                 (_, tree') <- AVL.delete        k tree
@@ -38,12 +40,9 @@ tests = describe "Unsafe" $ do
 
         it'' "toList . initialiseStorageIfNotAlready ~ id" $
             \(kvs) -> do
+                AVL.initialiseStorageIfNotAlready @IntHash @StringName @Int []
                 tree <- AVL.fromList kvs :: Store.Store IntHash StringName Int StorageMonad M
-                AVL.overwrite tree
+                ()   <- AVL.overwrite tree
                 root <- AVL.currentRoot :: Store.Store IntHash StringName Int StorageMonad M
                 lst  <- AVL.toList root
-
-                Store.dump "after init"
-                liftIO $ print (kvs, lst)
-
                 return (lst == sort (uniqued kvs))
