@@ -1,36 +1,40 @@
 {-|
     AVL+ tree.
 
-    To use it, you need to implement 'KVRetrieve', 'KVStore' and optionally,
-    'KVMutate' typeclasses for a monad you want to run actions in.
+    To use it, you need to implement 'KVRetrieve', 'KVStore' and,
+    optionally, 'KVMutate' typeclasses for a monad you want to run
+    actions in.
 
-    Do not use methods from KVWhatever-instances yourself! Use methods exported from this module.
+    Do not use methods from KVWhatever-instances yourself! Use methods
+    exported from this module.
 
-    The tree consists of 2 parts: materialised and non-materialised (= in-storage part).
+    The tree consists of 2 parts: materialised and non-materialised
+    (i.e. in-storage part). Materialised tree is an actual persistent
+    tree structure. Non-materialised tree is a kv-storage, filled with
+    (hash -> node) relation, which may or may not be persistent.
 
-    Materialised tree is actual persistent tree structure.
-
-    Non-materialised tree is a kv-storage, filled with (hash -> node) relation,
-    which may or may not be persistent.
-
-    Typical tree workflow is as follows:
+    Typical workflow is as follows:
 
     (1) Get the tree.
 
-        You either get it `Data.Tree.AVL.fromList` or using 'Data.Tree.AVL.currentRoot'.
-        Former will create materialised tree from list of kv-pairs and latter
-        will give you non-materialised tree which was an argument of last `append` or `overwrite`
-        call (or just 'empty' tree, if storage was clean).
+        You either get it usng `Data.Tree.AVL.fromList` or
+        'Data.Tree.AVL.currentRoot'.  The former will create
+        materialised tree from a list of kv-pairs, and the latter on
+        will give you a non-materialised tree which was an argument of
+        last `append` or `overwrite` call (or just 'empty' tree, if
+        storage was clean).
 
-    (2) Do things with it.
+    (2) Perform actions on it.
 
-        In fact, it behaves like ordinal `Data.Map.Map`, but with minimalistic interface.
-        You can 'Data.Tree.AVL.insert', 'Data.Tree.AVL.delete' or 'Data.Tree.AVL.lookup' on it,
-        whether it is materialised or not.
+        The tree behaves like an ordinal `Data.Map.Map`, but with
+        a minimalistic interface. You can 'Data.Tree.AVL.insert',
+        'Data.Tree.AVL.delete' or 'Data.Tree.AVL.lookup' on it,
+        (both on materialised version and not).
 
-        Each of these operations return new tree and proof prefab in form of 'Set' 'Revision'
-        you have to store somewhere. It is suggested you use each new tree produced as linearily
-        as possible and collect all the proof, like that:
+        Each of these operations returns a new tree and a proof in
+        form of a 'Set' 'Revision' you have to store somewhere. It is
+        suggested that you use each new tree produced as linearly as
+        possible and collect all the proofs, like this:
 
         > do  start                  <- AVL.currentRoot
         >     (     nodeset1,  tree) <- AVL.insert "foo" 1 start
@@ -40,32 +44,36 @@
         >     proof                  <- AVL.prune (nodeset1 <> nodeset2 <> nodeset3) tree
         >     return (mv, proof)
 
-        This block will return pair of @(Maybe v, AVL.Proof h k v)@. Latter allows you to unpack
-        materialised tree out of it an replay the same operations even on separate machine
-        to produce the same result. And this tree will be a lot smaller than full tree.
+        This block will return a pair @(Maybe v, AVL.Proof h k v)@.
+        The second element allows you to unpack the materialised tree
+        and replay the same operations even on a separate
+        machine to produce the same result. And this tree will be a
+        lot smaller than a full one.
 
-        It is not nessessary to use tree produced by 'Data.Tree.AVL.lookup';
-        however, path to node you've searched for will be materialised, which may speed
-        things up.
+        It is not nessessary to use tree produced by
+        'Data.Tree.AVL.lookup'; however, the path to node you've
+        searched for will be materialised, which may speed things up.
 
-    (3) Store tree or throw it out.
+    (3) Store the tree or throw it away.
 
-        If you call `append` or `overwrite` the tree you pass in will become new root in storage.
-        The `overwrite` will erase previous version from the storage, but
-        `append` will not, allowing you to rollback for O(1).
+        If you call `append` or `overwrite` the tree you pass will
+        become a new root in the storage.  The `overwrite` will erase
+        a previous version from the storage, but `append` will not,
+        allowing you to rollback for O(1).
 
         If you throw tree out, storage will not change.
 
-        These two operations are essentially transaction writers, with `overwrite` requiring
-        write-lock on storage, since it removes nodes from it.
+        These two operations are essentially transaction writers, with
+        `overwrite` requiring write-lock on storage, since it removes
+        nodes from it.
 
-        The `append` operation only adds nodes to storage, so no locking is needed, you can read
-        while you write. The only operation to notice changes in storage is `currentRoot`.
+        The `append` operation only adds nodes to the storage, so no
+        locking is needed, you can read while you write. The only
+        operation to notice changes in storage is `currentRoot`.
 
-    There are default storages, like 'Data.Tree.AVL.Store.Void' and 'Data.Tree.AVL.Store.Pure'.
+    There are several storages -- see 'Data.Tree.AVL.Store.Pure' (pure
+    storage) and 'Data.Tree.AVL.Store.Void' (for testing purposes).
 
-    'Data.Tree.AVL.Store.Void' is an 'IO' monad and 'Data.Tree.AVL.Store.Void.VoidStorageT'
-    transformer. Former and latter both throw 'NotFound' on any re
 -}
 module Data.Tree.AVL
     ( -- * Required interfaces

@@ -32,27 +32,24 @@ module Data.Tree.AVL.Zipper
     )
   where
 
-import           Control.Exception          (Exception)
-import           Control.Lens               (Getter, Lens', makeLenses, use, (%=),
-                                             (.=), (^.))
+import Control.Exception (Exception)
+import Control.Lens (Getter, Lens', makeLenses, use, (%=), (.=), (^.))
 
-import           Control.Monad              (unless, when)
-import           Control.Monad.Catch        (catch, throwM)
-import           Control.Monad.State.Strict (StateT, evalStateT, lift)
+import Control.Monad (unless, when)
+import Control.Monad.Catch (catch, throwM)
+import Control.Monad.State.Strict (StateT, evalStateT, lift)
 
-import           Data.Monoid                ((<>))
-import           Data.Set                   (Set)
-import           Data.Typeable              (Typeable)
+import Data.Monoid ((<>))
+import Data.Set (Set)
+import Data.Typeable (Typeable)
 
 --import Debug.Trace as Debug (trace)
 
-import           Data.Tree.AVL.Internal
-import           Data.Tree.AVL.Proof
-import           Data.Tree.AVL.Prune
+import Data.Tree.AVL.Internal
+import Data.Tree.AVL.Proof
+import Data.Tree.AVL.Prune
 
---import qualified Debug.Trace as Debug
-
-import qualified Data.Set                   as Set (empty, fromList, insert)
+import qualified Data.Set as Set (empty, fromList, insert)
 
 -- | Zipper representation.
 --
@@ -86,9 +83,9 @@ type Range k = (WithBounds k, WithBounds k)
 -- | Tree layers.
 data TreeZipperCxt h k v
     = WentRightFrom
-        (Map h k v)  -- the node we came from (parent)
-        (Range k)    -- the key diapasone of parent
-         Revision            -- previous revision of _current_ (AFAIR) node
+        (Map h k v)  -- ^ the node we came from (parent)
+        (Range k)    -- ^ the key diapasone of parent
+         Revision    -- ^ previous revision of _current_ (AFAIR) node
     | WentLeftFrom
         (Map h k v)
         (Range k)
@@ -351,7 +348,7 @@ correctTilt was became tilt0 side = do
       res = case modus of
         UpdateMode | deeper  -> roll tilt0 side
         DeleteMode | shorter -> roll tilt0 (another side)
-        _          -> tilt0
+        _                    -> tilt0
 
     return res
 
