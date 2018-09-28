@@ -452,13 +452,7 @@ replaceWith :: Retrieves h k v m => Map h k v -> Zipped h k v m ()
 replaceWith newTree = do
     change (locus .= newTree)
 
---materializeTop3 :: Map h k v m -> m (MapLayer h k v (MapLayer h k v (MapLayer h k v h)))
---materializeTop3 tree = do
---  layer <- load tree
-
-
---dematerializeTop3 :: MapLayer h k v (MapLayer h k v (MapLayer h k v h)) -> Map h k v m
-
+-- | Fix imbalances around current locus of editation.
 rebalance :: forall h k v m . Retrieves h k v m => Zipped h k v m ()
 rebalance = do
     tree <- use locus
@@ -468,7 +462,6 @@ rebalance = do
     n3 <- freshRevision
 
     let
-      --(|-) :: [Revision] -> m (Map h k v) -> m ([Revision], Map h k v)
       revs |- nodeGen = do
         gen <- nodeGen
         return (revs, gen)
@@ -478,8 +471,6 @@ rebalance = do
         l <- left
         r <- right
         fork l r
-
-    --wasGood <- isBalancedToTheLeaves tree
 
     (revs, newTree) <- (load tree >>= \case
       Node r1 L2 left d -> do
@@ -514,12 +505,6 @@ rebalance = do
 
     markAll revs
 
-    --isGood <- isBalancedToTheLeaves newTree
-
-    --liftIO $ when (not isGood) $ do
-    --    putStrLn $ "WAS " ++ showMap tree
-    --    putStrLn $ "NOW " ++ showMap newTree
-
     replaceWith newTree
 
 --track :: Show a => String -> a -> Zipped h k v m ()
@@ -532,6 +517,7 @@ goto key0 = do
     raiseUntilHaveInRange key0
     descentOnto key0
 
+-- | Raise, until given key is in range.
 raiseUntilHaveInRange :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()
 raiseUntilHaveInRange key0 = goUp
   where

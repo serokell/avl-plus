@@ -63,6 +63,7 @@ eraseTopNode = erase @_ @(Isolated h k v) . unsafeRootHash
 --   notion of single root.
 type Mutates h k v m = (Base h k v m, KVMutate h (Isolated h k v) m)
 
+-- | Retrieve all hashes of non-materialised subtrees.
 contour :: forall h k v . Params h k v => Map h k v -> Set.Set h
 contour = Set.fromList . go
   where
@@ -114,6 +115,8 @@ append
     -> m ()
 append tree = assignRoot =<< save tree
 
+-- | Initialises storage with given set of kv-pairs,
+--   if root is not present there.
 initialiseStorageIfNotAlready
     :: forall h k v m
     .  Mutates h k v m

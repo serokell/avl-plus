@@ -26,6 +26,7 @@ lookup' k tree0 = do
     (mv, tree, proof) <- runZipped' (lookupZ k) UpdateMode tree0
     return ((mv, proof), tree)
 
+-- | The implementation of lookup.
 lookupZ :: Retrieves h k v m => k -> Zipped h k v m (Maybe v)
 lookupZ k = do
     goto (Plain k)
