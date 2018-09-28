@@ -3,8 +3,8 @@ module Insertion (tests) where
 import Common
 
 import qualified Data.Tree.AVL as AVL
-import qualified Data.Tree.AVL.Internal as AVL
 import qualified Data.Tree.AVL.Insertion as AVL
+import qualified Data.Tree.AVL.Internal as AVL
 
 tests :: Spec
 tests = describe "Insert" $ do

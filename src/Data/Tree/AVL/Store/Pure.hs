@@ -1,8 +1,8 @@
 -- | Pure in-memory storage for AVL tree.
 module Data.Tree.AVL.Store.Pure
     ( -- * Carrier monad
-      Store
-    , State
+      PureStore
+    , PureState
 
       -- * Runner
     , run
@@ -25,65 +25,69 @@ import Data.Monoid ((<>))
 import Data.Tree.AVL.Internal as AVL
 import Data.Tree.AVL.Unsafe
 
--- import Debug.Trace as Debug
-
-data State h k v = State
+-- | Pure state containing avl changes as a regular 'Map'.
+data PureState h k v = PureState
     { _psStorage :: Map.Map h (Isolated h k v)
     , _psRoot    :: Maybe h
     }
 
-makeLenses ''State
+makeLenses ''PureState
 
--- | Monad
-type Store h k v = ReaderT (TVar (State h k v))
+-- | ReaderT over a TVar accessible 'PureState'.
+type PureStore h k v = ReaderT (TVar (PureState h k v))
 
-asState :: MonadIO m => StateT (State h k v) m a -> Store h k v m a
-asState action = do
+asPureState :: MonadIO m => StateT (PureState h k v) m a -> PureStore h k v m a
+asPureState action = do
     var <- ask
     st  <- liftIO $ atomically $ readTVar var
     (b, st') <- lift $ runStateT action st
     liftIO $ atomically $ writeTVar var st'
     return b
 
-instance (Base h k v m, MonadIO m) => KVRetrieve h (Isolated h k v) (Store h k v m) where
-    retrieve k = asState $
+instance (Base h k v m, MonadIO m) => KVRetrieve h (Isolated h k v) (PureStore h k v m) where
+    retrieve k = asPureState $
         uses psStorage (Map.lookup k) >>= maybe (throwM $ NotFound k) pure
 
-instance (Base h k v m, MonadIO m) => KVStore h (Isolated h k v) (Store h k v m) where
-    massStore pairs = asState $
+instance (Base h k v m, MonadIO m) => KVStore h (Isolated h k v) (PureStore h k v m) where
+    massStore pairs = asPureState $
         psStorage %= (<> Map.fromList pairs)
 
-instance (Base h k v m, MonadIO m) => KVMutate h (Isolated h k v) (Store h k v m) where
-    getRoot = asState $ do
+instance (Base h k v m, MonadIO m) => KVMutate h (Isolated h k v) (PureStore h k v m) where
+    getRoot = asPureState $
         use psRoot >>= \case
           Just root -> return root
           Nothing   -> throwM NoRootExists
 
-    setRoot new = asState $ psRoot .= Just new
-    erase hash  = asState $ psStorage %= Map.delete hash
+    setRoot new = asPureState $ psRoot .= Just new
+    erase hash  = asPureState $ psStorage %= Map.delete hash
 
--- | Unlifts 'Store' monad into 'Base' one.
-run :: forall h k v m a . (Params h k v, Monad m) => TVar (State h k v) -> Store h k v m a -> m a
+-- | Unlifts 'PureStore' monad into 'Base' one.
+run :: forall h k v m a. (Params h k v, Monad m)
+    => TVar (PureState h k v)
+    -> PureStore h k v m a
+    -> m a
 run = flip runReaderT
 
-newPureState :: forall h k v m . (Params h k v, MonadIO m) => m (TVar (State h k v))
+newPureState ::
+       forall h k v m. (Params h k v, MonadIO m)
+    => m (TVar (PureState h k v))
 newPureState = liftIO $ newTVarIO emptyPureState
 
-emptyPureState :: forall h k v . Params h k v => State h k v
-emptyPureState = State
+emptyPureState :: forall h k v . Params h k v => PureState h k v
+emptyPureState = PureState
     { _psStorage = Map.empty -- singleton monoHash (MLEmpty 0 (Just monoHash))
     , _psRoot    = Nothing
     }
 
 -- | Dumps storage into console with given message.
-dump :: forall h k v m . (MonadIO m, Base h k v m) => String -> Store h k v m ()
-dump msg = asState $ do
-    State storage root <- use id
+dump :: forall h k v m . (MonadIO m, Base h k v m) => String -> PureStore h k v m ()
+dump msg = asPureState $ do
+    PureState storage root <- use id
     liftIO $ do
         putStrLn msg
         print root
         print storage
         putStrLn ""
 
-clean :: forall h k v m . Base h k v m => Store h k v m ()
-clean = asState $ put emptyPureState
+clean :: forall h k v m . Base h k v m => PureStore h k v m ()
+clean = asPureState $ put emptyPureState

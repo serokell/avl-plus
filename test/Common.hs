@@ -1,7 +1,11 @@
-module Common (module Common, module Control.Lens, module T) where
+module Common
+    ( module Common
+    , module Control.Lens
+    , module T
+    ) where
 
 import Control.Lens hiding (Empty, elements, locus)
-import Control.Monad as T (when, unless)
+import Control.Monad as T (unless, when)
 import Control.Monad.Catch as T (catch)
 import Control.Monad.IO.Class as T (liftIO)
 import Control.Monad.Trans.Class as T (lift)
@@ -19,7 +23,7 @@ import GHC.Generics (Generic)
 
 import Test.Hspec as T
 import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, forAll, ioProperty,
-                             (===), (==>), property)
+                             property, (===), (==>))
 import Test.QuickCheck.Instances as T ()
 
 import qualified Data.Tree.AVL.Internal as AVL
@@ -123,9 +127,10 @@ it'
         , Functor   f
         )
     =>  String
-    ->  f (IO prop)
+    ->  f (StorageMonad prop)
     ->  SpecWith ()
-it' msg func = it msg $ property $ fmap ioProperty func
+it' msg func =
+    it msg $ property $ fmap (ioProperty . Store.runVoidStorageT) func
 
 it''
     ::  ( Testable   prop
@@ -134,10 +139,10 @@ it''
         , Show       src
         )
     =>  String
-    ->  (src -> Store.Store h k v IO prop)
+    ->  (src -> Store.PureStore h k v StorageMonad prop)
     ->  SpecWith ()
 it'' msg func =
     it msg $ property $ \src ->
-        ioProperty $ do
+        ioProperty $ Store.runVoidStorageT $ do
             st <- Store.newPureState
             Store.run st (func src)

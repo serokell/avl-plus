@@ -1,25 +1,19 @@
--- | The worst storage possible.
+-- | A stub storage that throws 'NotFound' on any 'retrieve'.
 
 module Data.Tree.AVL.Store.Void
-    ( -- * No-storage monad
-      VoidStorage
-
-      -- * No-storage transformer
-    , VoidStorageT (..)
+    ( -- * No-storage transformer.
+      VoidStorageT (..)
+      -- * No-storage monad.
+    , VoidStorage
     )
   where
 
-import           Control.Monad.Catch
-import           Control.Monad.State
+import Control.Monad.Catch
+import Control.Monad.State
 
-import           Data.Typeable
+import Data.Typeable
 
-import           Data.Tree.AVL.Internal
-
--- | It is IO, so you can run any AVL operations in it.
---
---   Just don't expect that it will succeed in 'retrieve'.
-type VoidStorage = IO
+import Data.Tree.AVL.Internal
 
 -- | Wrapper. Cancels any capabilities of @m@ to store stuff.
 newtype VoidStorageT m a = VoidStorageT { runVoidStorageT :: m a }
@@ -28,8 +22,8 @@ newtype VoidStorageT m a = VoidStorageT { runVoidStorageT :: m a }
 instance MonadTrans VoidStorageT where
     lift = VoidStorageT
 
-instance (Show k, Typeable k) => KVRetrieve k n VoidStorage where
-    retrieve k = throwM (NotFound k)
-
 instance (Show k, Typeable k, MonadCatch m, MonadIO m) => KVRetrieve k n (VoidStorageT m) where
     retrieve k = throwM (NotFound k)
+
+-- | IO Wrapper that fails on any access attempt.
+type VoidStorage = VoidStorageT IO

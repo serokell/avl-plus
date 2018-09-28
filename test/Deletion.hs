@@ -7,8 +7,8 @@ import Data.List ((\\))
 import Common
 
 import qualified Data.Tree.AVL as AVL
-import qualified Data.Tree.AVL.Internal as AVL
 import qualified Data.Tree.AVL.Deletion as AVL
+import qualified Data.Tree.AVL.Internal as AVL
 
 tests :: Spec
 tests = describe "Delete" $ do
