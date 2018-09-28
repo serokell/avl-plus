@@ -100,7 +100,7 @@ module Data.Tree.AVL.Internal
 import Control.Exception   (Exception)
 import Control.Lens        (makeLenses, to, (&), (.~), (^.), (^?), (%~))
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Free  (Free (Free, Pure))
 
 import Data.Maybe          (fromJust, isNothing, fromMaybe)

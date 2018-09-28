@@ -19,23 +19,20 @@ module Data.Tree.AVL.Unsafe
     )
   where
 
-import Control.Exception (Exception, SomeException)
-import Control.Lens ((^?), (^.), to)
-import Control.Monad.Catch (catch, throwM)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Exception (Exception)
+import Control.Lens (to, (^.), (^?))
+import Control.Monad (void, when)
+import Control.Monad.Catch (catch)
 import Control.Monad.Free (Free (..))
-import Control.Monad (when, void)
 
--- import Data.Maybe (fromMaybe)
 import Data.Foldable (for_)
 import Data.Monoid ((<>))
 import qualified Data.Set as Set
 import Data.Typeable (Typeable)
 
-import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Insertion as AVL
+import Data.Tree.AVL.Internal
 
--- import Debug.Trace as Debug
 
 -- | Allows for umpure storage of AVL that is rewritten on each write.
 class (KVStore h node m, KVRetrieve h node m) => KVMutate h node m where

@@ -12,16 +12,15 @@ module Data.Tree.AVL.Store.Pure
     )
   where
 
-import Control.Concurrent.STM (TVar, readTVar, writeTVar, atomically, newTVarIO)
-import Control.Lens (makeLenses, use, uses, (.=), (%=))
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
+import Control.Lens (makeLenses, use, uses, (%=), (.=))
 import Control.Monad.Catch (throwM)
-import Control.Monad.State (StateT, runStateT, put)
-import Control.Monad.Reader (ReaderT, runReaderT, ask, lift)
-import Control.Monad (unless)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader (ReaderT, ask, lift, runReaderT)
+import Control.Monad.State (StateT, put, runStateT)
 
-import Data.Monoid ((<>))
 import qualified Data.Map as Map
+import Data.Monoid ((<>))
 
 import Data.Tree.AVL.Internal as AVL
 import Data.Tree.AVL.Unsafe
@@ -47,13 +46,11 @@ asState action = do
     return b
 
 instance (Base h k v m, MonadIO m) => KVRetrieve h (Isolated h k v) (Store h k v m) where
-    retrieve k = asState $ do
-        -- st <- use psStorage
+    retrieve k = asState $
         uses psStorage (Map.lookup k) >>= maybe (throwM $ NotFound k) pure
 
 instance (Base h k v m, MonadIO m) => KVStore h (Isolated h k v) (Store h k v m) where
-    massStore pairs = asState $ do
-        st <- use psStorage
+    massStore pairs = asState $
         psStorage %= (<> Map.fromList pairs)
 
 instance (Base h k v m, MonadIO m) => KVMutate h (Isolated h k v) (Store h k v m) where
