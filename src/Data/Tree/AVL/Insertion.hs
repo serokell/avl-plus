@@ -3,26 +3,24 @@
 --   Can be repeated on the proof it generates with the same result.
 
 module Data.Tree.AVL.Insertion
-  ( -- Different variants of insert
-    insert
-  , insert'
-  , insertWithNoProof
+    ( -- Different variants of insert
+      insert
+    , insert'
+    , insertWithNoProof
 
-    -- 'Map' constructors
-  , fromList
-  , fromFoldable
-  ) where
+      -- 'Map' constructors
+    , fromList
+    , fromFoldable
+    ) where
 
-import Control.Lens               (use, (.=))
-import Control.Monad              (unless, foldM, void)
-
-import Data.Set                   (Set)
+import Control.Lens (use, (.=))
+import Control.Monad (foldM, unless, void)
+import Data.Set (Set)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
---import qualified Debug.Trace as Debug
 
 -- | Inserts given value for given key into the 'Map', generates proof prefab.
 --
@@ -102,10 +100,7 @@ insertZ k v = do
                         here  <- use locus
                         here' <- setPrevKey (Plain k) here
                         locus .= here'
-      _ -> do
-        error $ "insert: `goto k` ended in non-terminal node"
-
-    return ()
+      _ -> error $ "insert: `goto k` ended in non-terminal node"
   where
     splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
@@ -135,16 +130,16 @@ insertZ k v = do
 
     isInside k0 (l, h) = k0 >= l && k0 <= h
 
-fromList :: Retrieves h k v m
-    => [(k, v)]
-    -> m (Map h k v)
 -- | Monomorphised version of 'fromFoldable'.
+fromList :: Retrieves h k v m => [(k, v)] -> m (Map h k v)
 fromList = fromFoldable
 
-fromFoldable :: forall h k v m f . Retrieves h k v m => Foldable f => f (k, v) -> m (Map h k v)
+fromFoldable ::
+       forall h k v m f. (Retrieves h k v m, Foldable f)
+    => f (k, v)
+    -> m (Map h k v)
 -- | Construct a tree from any Foldable (and calculate all hashes).
-fromFoldable list = do
-    foldM push empty list
+fromFoldable list = foldM push empty list
   where
     push :: Map h k v -> (k, v) -> m (Map h k v)
     push tree (k, v) = insertWithNoProof k v tree

@@ -6,10 +6,10 @@ module Data.Tree.AVL.Lookup
     ( -- * Lookups
       Data.Tree.AVL.Lookup.lookup
     , lookup'
-    )
-  where
+    ) where
 
 import Data.Set (Set)
+
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
@@ -31,14 +31,7 @@ lookupZ :: Retrieves h k v m => k -> Zipped h k v m (Maybe v)
 lookupZ k = do
     goto (Plain k)
     withLocus $ \case
-      MLLeaf {_mlKey, _mlValue} ->
-        if _mlKey == Plain k
-        then return (Just _mlValue)
-        else return Nothing
-
-      MLEmpty {} ->
-        return Nothing
-
-      _ ->
-        error $ "lookup: `goto ended in non-terminal node"
-
+        MLLeaf {_mlKey, _mlValue} ->
+            return $ if _mlKey == Plain k then Just _mlValue else Nothing
+        MLEmpty {} -> return Nothing
+        _ -> error $ "lookup: `goto ended in non-terminal node"

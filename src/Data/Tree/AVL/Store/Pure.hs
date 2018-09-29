@@ -49,15 +49,10 @@ instance (Base h k v m, MonadIO m) => KVRetrieve h (Isolated h k v) (PureStore h
         uses psStorage (Map.lookup k) >>= maybe (throwM $ NotFound k) pure
 
 instance (Base h k v m, MonadIO m) => KVStore h (Isolated h k v) (PureStore h k v m) where
-    massStore pairs = asPureState $
-        psStorage %= (<> Map.fromList pairs)
+    massStore pairs = asPureState $ psStorage %= (<> Map.fromList pairs)
 
 instance (Base h k v m, MonadIO m) => KVMutate h (Isolated h k v) (PureStore h k v m) where
-    getRoot = asPureState $
-        use psRoot >>= \case
-          Just root -> return root
-          Nothing   -> throwM NoRootExists
-
+    getRoot = asPureState $ maybe (throwM NoRootExists) pure =<< use psRoot
     setRoot new = asPureState $ psRoot .= Just new
     erase hash  = asPureState $ psStorage %= Map.delete hash
 
