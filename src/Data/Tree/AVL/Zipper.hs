@@ -135,7 +135,7 @@ instance
   where
     retrieve = lift . retrieve
 
--- | Run zipper operation, collect proof prefabs.
+-- | Run zipper operation, collect prefabricated proofs.
 runZipped :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Set Revision)
 runZipped action mode0 tree = do
     zipper <- enter mode0 tree

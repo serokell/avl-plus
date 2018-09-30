@@ -5,8 +5,7 @@ module Data.Tree.AVL.Store.Void
       VoidStorageT (..)
       -- * No-storage monad.
     , VoidStorage
-    )
-  where
+    ) where
 
 import Control.Monad.Catch
 import Control.Monad.State

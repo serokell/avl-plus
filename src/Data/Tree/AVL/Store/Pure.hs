@@ -9,8 +9,7 @@ module Data.Tree.AVL.Store.Pure
     , dump
     , newPureState
     , clean
-    )
-  where
+    ) where
 
 import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
 import Control.Lens (makeLenses, use, uses, (%=), (.=))
