@@ -16,13 +16,13 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
--- | Remove given key from the 'Map', generates a prefabricated proof.
+-- | Remove given key from the 'Map', generates raw proof.
 delete :: Retrieves h k v m => k -> Map h k v -> m (Set Revision, Map h k v)
 delete k tree = do
     (_yes, res, trails) <- runZipped (deleteZ k) DeleteMode tree
     return (trails, res)
 
--- | Remove given key from the 'Map', generates a proof.
+-- | Remove given key from the 'Map', generates baked proof.
 --
 --   It is idempotent.
 delete' :: Retrieves h k v m => k -> Map h k v -> m (Proof h k v, Map h k v)
@@ -45,7 +45,7 @@ deleteZ :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m Bool
 deleteZ k = withLocus $ \case
     MLLeaf { _mlKey } ->
         if _mlKey == Plain k
-        then True <$ replaceWith (empty :: Map h k v)
+        then True  <$ replaceWith (empty :: Map h k v)
         else False <$ mark "deleteZ/node exists"
 
     MLEmpty {} -> False <$ mark "deleteZ/empty"
@@ -62,7 +62,7 @@ deleteZ k = withLocus $ \case
                 -- we need to mark another child, so it ends in a proof
                 _ <- case side of
                     L -> descentRight >> up
-                    R -> descentLeft >> up
+                    R -> descentLeft  >> up
 
                 newTree <- withLocus $ \case
                     MLBranch { _mlLeft = left, _mlRight = right } ->

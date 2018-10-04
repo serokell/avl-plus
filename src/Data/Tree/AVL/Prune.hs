@@ -18,7 +18,7 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 
 
--- | Prune all subtrees that haven't been touched.
+-- | Proof baking: Cut off subtrees that haven't been touched.
 prune ::
        forall h k v m. Retrieves h k v m
     => Set Revision

@@ -21,8 +21,14 @@ newtype StoreT m a = StoreT { runStoreT :: m a }
 instance MonadTrans StoreT where
     lift = StoreT
 
+-- | This "storage" always throws when you try to read from it.
+--   It does this, because on light client you haven't any storage,
+--   (all you have is a tree from proof).
+--
+--   So, if operations to be proven require you to read from storage,
+--   its an error (namely, 'Notfound').
 instance (Show k, Typeable k, MonadCatch m, MonadIO m) => KVRetrieve k n (StoreT m) where
     retrieve k = throwM (NotFound k)
 
--- | IO Wrapper that fails on any access attempt.
+-- | Storage monad that fails on any access attempt.
 type Store = StoreT IO

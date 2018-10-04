@@ -184,10 +184,6 @@ markAll :: Retrieves h k v m => [Revision] -> Zipped h k v m ()
 markAll revs = do
     trail %= (<> Set.fromList revs)
 
--- rehashLocus :: Retrieves h k v m => Zipped h k v m ()
--- rehashLocus = do
---     locus %= rehash
-
 data AlreadyOnTop = AlreadyOnTop deriving (Show, Typeable)
 
 instance Exception AlreadyOnTop
@@ -195,10 +191,9 @@ instance Exception AlreadyOnTop
 -- | Move to the parent node; update & rebalance it if required.
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
 up = do
-    -- rehashLocus
-    ctx   <- use context
+    ctx  <- use context
     rev1 <- revisionHere
-    side  <- case ctx of
+    side <- case ctx of
       WentLeftFrom tree range rev0 : rest -> do
         load tree >>= \case
           MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
@@ -226,8 +221,6 @@ up = do
 
           _other -> do
             throwM AlreadyOnTop
-            --isolated1 <- lift $ traverse rootHash _other
-            --error $ "up: zipper is broken " ++ show isolated1
 
       WentRightFrom tree range rev0 : rest -> do
         load tree >>= \case
@@ -251,14 +244,6 @@ up = do
 
           _other -> do
             throwM AlreadyOnTop
-            --isolated1 <- lift $ traverse rootHash _other
-            --liftIO $ print isolated1
-            --error "up: zipper is broken"
-
-      -- [JustStarted _rev0] -> do
-      --     rebalance        -- TODO: investigate
-      --     context .= []
-      --     return L
 
       [] -> do
           throwM AlreadyOnTop
@@ -391,31 +376,6 @@ roll tilt0 side =
       L -> pred tilt0
       R -> succ tilt0
 
--- printLocus :: Retrieves h k v m => String -> Zipped h k v m ()
--- printLocus str = do
---     tree     <- use locus
---     isolated <- isolate tree
---     liftIO $ print $ str ++ ": " ++ show isolated
-
--- dump :: Retrieves h k v m => String -> Zipped h k v m ()
--- dump str = do
---     tree     <- use locus
---     isolated <- isolate tree
---     ctx      <- use context
---     ls <- for ctx $ \case
---       WentRightFrom what krange rev -> do
---         res <- isolate what
---         return $ show (krange, rev) ++ " <- " ++ show res
-
---       WentLeftFrom what krange rev -> do
---         res <- isolate what
---         return $ show (krange, rev) ++ " -> " ++ show res
-
---       JustStarted rev -> do
---         return $ "start " ++ show rev
-
---     liftIO $ putStrLn $ str ++ ":\n  " ++ show isolated ++ "\n   --\n" ++ unlines (map ("  " ++) ls)
-
 -- | Perform a zipper action upon current node, then update set its revision
 --   to be a new one.
 change
@@ -501,12 +461,7 @@ rebalance = do
         return ([], tree)
 
     markAll revs
-
     replaceWith newTree
-
---track :: Show a => String -> a -> Zipped h k v m ()
---track msg val = do
---    Debug.trace (msg <> " " <> show val) $ return ()
 
 -- | Teleport to a 'Leaf' with given key from anywhere.
 goto :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()

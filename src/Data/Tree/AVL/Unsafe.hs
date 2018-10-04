@@ -59,7 +59,10 @@ eraseTopNode = erase @_ @(Isolated h k v) . unsafeRootHash
 --   notion of single root.
 type Mutates h k v m = (Base h k v m, KVMutate h (Isolated h k v) m)
 
--- | Retrieve all the hashes of non-materialised subtrees.
+-- | Retrieve hashes of nearest subtrees that weren't materialised.
+--
+--   We will later remove all nodes that transitively refer to
+--   these [non-materialised] nodes.
 contour :: forall h k v . Params h k v => Map h k v -> Set.Set h
 contour = Set.fromList . go
   where
@@ -88,7 +91,7 @@ overwrite
     -> m ()
 overwrite tree' = do
     removeTo (contour tree') =<< currentRoot
-    assignRoot               =<< save tree'
+    append tree'
   where
     removeTo :: Set.Set h -> Map h k v -> m ()
     removeTo border = go

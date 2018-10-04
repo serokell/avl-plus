@@ -22,8 +22,8 @@ import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 
--- | Inserts given value for given key into the 'Map', generates a
---   prefabricated proof.
+-- | Inserts given value for given key into the 'Map', generates
+--   raw proof.
 --
 --   It is idempotent in terms of 'Map' content, however, without 'Eq' @k@
 --   constraint 'Map's will be different.
@@ -32,7 +32,7 @@ insert k v tree = do
     ((), res, trails) <- runZipped (insertZ k v) UpdateMode tree
     return (trails, res)
 
--- | Inserts given value for given key into the 'Map', generates a proof.
+-- | Inserts given value for given key into the 'Map', generates baked proof.
 --
 --   See 'insert''.
 insert' :: Retrieves h k v m => k -> v -> Map h k v -> m (Proof h k v, Map h k v)
@@ -69,7 +69,8 @@ insertZ k v = do
             prev = _mlPrevKey
             next = _mlNextKey
         if Plain k == key0  -- update case, replace with new value
-        then change $ do
+        then
+            change $ do
                 here  <- use locus
                 here' <- setValue v here
                 locus .= here'

@@ -35,6 +35,7 @@ makeLenses ''State
 -- | ReaderT over a TVar accessible 'State'.
 type StoreT h k v = ReaderT (TVar (State h k v))
 
+-- | Nicer way to assign things via lenses.
 asState :: MonadIO m => StateT (State h k v) m a -> StoreT h k v m a
 asState action = do
     var <- ask
@@ -51,9 +52,9 @@ instance (Base h k v m, MonadIO m) => KVStore h (Isolated h k v) (StoreT h k v m
     massStore pairs = asState $ psStorage %= (<> Map.fromList pairs)
 
 instance (Base h k v m, MonadIO m) => KVMutate h (Isolated h k v) (StoreT h k v m) where
-    getRoot = asState $ maybe (throwM NoRootExists) pure =<< use psRoot
-    setRoot new = asState $ psRoot .= Just new
-    erase hash  = asState $ psStorage %= Map.delete hash
+    getRoot      = asState $ maybe (throwM NoRootExists) pure =<< use psRoot
+    setRoot new  = asState $ psRoot    .= Just new
+    erase   hash = asState $ psStorage %= Map.delete hash
 
 -- | Unlifts 'StoreT' monad into 'Base' one.
 runStoreT :: forall h k v m a. (Params h k v, Monad m)
