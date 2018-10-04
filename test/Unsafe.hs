@@ -5,7 +5,7 @@ import Data.List (sort)
 import Common
 
 import qualified Data.Tree.AVL as AVL
-import qualified Data.Tree.AVL.Store.Pure as Store
+import qualified Data.Tree.AVL.Store.Pure as Pure
 
 tests :: Spec
 tests = describe "Unsafe" $ do
@@ -13,7 +13,7 @@ tests = describe "Unsafe" $ do
         it'' "can rematerialise in Pure mutated storage after insert" $
             \(k :: StringName, v :: Int, list) -> do
                 AVL.initialiseStorageIfNotAlready @IntHash @StringName @Int []
-                tree       <- AVL.fromList list :: Store.PureStore IntHash StringName Int StorageMonad M
+                tree       <- AVL.fromList list :: Pure.StoreT IntHash StringName Int StorageMonad M
                 ()         <- AVL.overwrite        tree
                 (_, tree') <- AVL.insert       k v tree
                 ()         <- AVL.overwrite        tree'
@@ -27,7 +27,7 @@ tests = describe "Unsafe" $ do
         it'' "can rematerialise in Pure mutated storage after delete" $
             \(k :: StringName, list) -> do
                 AVL.initialiseStorageIfNotAlready @IntHash @StringName @Int []
-                tree       <- AVL.fromList list :: Store.PureStore IntHash StringName Int StorageMonad M
+                tree       <- AVL.fromList list :: Pure.StoreT IntHash StringName Int StorageMonad M
                 ()         <- AVL.overwrite       tree
                 (_, tree') <- AVL.delete        k tree
                 ()         <- AVL.overwrite       tree'
@@ -41,8 +41,8 @@ tests = describe "Unsafe" $ do
         it'' "toList . initialiseStorageIfNotAlready ~ id" $
             \(kvs) -> do
                 AVL.initialiseStorageIfNotAlready @IntHash @StringName @Int []
-                tree <- AVL.fromList kvs :: Store.PureStore IntHash StringName Int StorageMonad M
+                tree <- AVL.fromList kvs :: Pure.StoreT IntHash StringName Int StorageMonad M
                 ()   <- AVL.overwrite tree
-                root <- AVL.currentRoot :: Store.PureStore IntHash StringName Int StorageMonad M
+                root <- AVL.currentRoot :: Pure.StoreT IntHash StringName Int StorageMonad M
                 lst  <- AVL.toList root
                 return (lst == sort (uniqued kvs))

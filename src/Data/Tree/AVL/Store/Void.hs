@@ -2,9 +2,9 @@
 
 module Data.Tree.AVL.Store.Void
     ( -- * No-storage transformer.
-      VoidStorageT (..)
+      StoreT (..)
       -- * No-storage monad.
-    , VoidStorage
+    , Store
     ) where
 
 import Control.Monad.Catch
@@ -15,14 +15,14 @@ import Data.Typeable
 import Data.Tree.AVL.Internal
 
 -- | Wrapper. Cancels any capabilities of @m@ to store stuff.
-newtype VoidStorageT m a = VoidStorageT { runVoidStorageT :: m a }
+newtype StoreT m a = StoreT { runStoreT :: m a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch)
 
-instance MonadTrans VoidStorageT where
-    lift = VoidStorageT
+instance MonadTrans StoreT where
+    lift = StoreT
 
-instance (Show k, Typeable k, MonadCatch m, MonadIO m) => KVRetrieve k n (VoidStorageT m) where
+instance (Show k, Typeable k, MonadCatch m, MonadIO m) => KVRetrieve k n (StoreT m) where
     retrieve k = throwM (NotFound k)
 
 -- | IO Wrapper that fails on any access attempt.
-type VoidStorage = VoidStorageT IO
+type Store = StoreT IO

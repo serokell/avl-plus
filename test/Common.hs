@@ -27,8 +27,8 @@ import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, 
 import Test.QuickCheck.Instances as T ()
 
 import qualified Data.Tree.AVL.Internal as AVL
-import qualified Data.Tree.AVL.Store.Pure as Store
-import qualified Data.Tree.AVL.Store.Void as Store
+import qualified Data.Tree.AVL.Store.Pure as Pure
+import qualified Data.Tree.AVL.Store.Void as Void
 
 -- | Extensional equality combinator.
 (.=.) :: (Eq b, Show b, Arbitrary a) => (a -> b) -> (a -> b) -> a -> Property
@@ -104,7 +104,7 @@ instance (Eq k, Hashable k) => Default (HashMap k v) where
 instance Show (a -> b) where
     show _ = "<function>"
 
-type StorageMonad = Store.VoidStorage
+type StorageMonad = Void.Store
 
 type M = AVL.Map IntHash StringName Int
 
@@ -130,7 +130,7 @@ it'
     ->  f (StorageMonad prop)
     ->  SpecWith ()
 it' msg func =
-    it msg $ property $ fmap (ioProperty . Store.runVoidStorageT) func
+    it msg $ property $ fmap (ioProperty . Void.runStoreT) func
 
 it''
     ::  ( Testable   prop
@@ -139,10 +139,10 @@ it''
         , Show       src
         )
     =>  String
-    ->  (src -> Store.PureStore h k v StorageMonad prop)
+    ->  (src -> Pure.StoreT h k v StorageMonad prop)
     ->  SpecWith ()
 it'' msg func =
     it msg $ property $ \src ->
-        ioProperty $ Store.runVoidStorageT $ do
-            st <- Store.newPureState
-            Store.run st (func src)
+        ioProperty $ Void.runStoreT $ do
+            st <- Pure.newState
+            Pure.runStoreT st (func src)
