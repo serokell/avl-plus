@@ -1,46 +1,42 @@
-
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE RankNTypes            #-}
-
 module Lookup (tests) where
 
 import Common
 
 import qualified Data.Tree.AVL as AVL
+import qualified Data.Tree.AVL.Internal as AVL
+import qualified Data.Tree.AVL.Lookup as AVL
 
-tests :: [Test]
-tests =
-    [ testGroup "Lookup"
-        [ cachedProperty "Generated proofs are verified" $ \(k, list) -> do
+tests :: Spec
+tests = describe "Lookup" $ do
+    it' "Lookup actually works" $ \(list) -> do
+        case uniqued list of
+          [] -> do
+            return True
+
+          (k, v) : rest -> do
+            tree              <- AVL.fromList ((k, v) : rest) :: StorageMonad M
+            ((Just v1, _), _) <- AVL.lookup k tree
+
+            return (v == v1)
+
+    describe "Proofs" $ do
+        it' "Generated proofs are verified" $ \(k, list) -> do
             tree            <- AVL.fromList list :: StorageMonad M
-            ((_, proof), _) <- AVL.lookup k tree
+            ((_, proof), _) <- AVL.lookup' k tree
 
-            return $ AVL.checkProof (AVL.rootHash tree) proof
+            let Just hash = AVL.rootHash (AVL.assignHashes tree)
 
-        , cachedProperty "Generated proofs are replayable" $ \(k, list) -> do
-            tree            <- AVL.fromList list :: StorageMonad M
-            ((_, proof), _) <- AVL.lookup k tree
+            return $ AVL.checkProof hash proof
 
+        it' "Generated proofs are replayable" $ \(k, list) -> do
+            tree              <- AVL.fromList list :: StorageMonad M
+            ((res, proof), _) <- AVL.lookup' k tree
+
+            let Just hash = AVL.rootHash (AVL.assignHashes tree)
             let AVL.Proof subtree = proof
 
-            _ <- AVL.sandboxed $ do
-                AVL.lookup k subtree
+            ((res1, proof1), _) <- AVL.lookup' k subtree
 
-            return $ AVL.checkProof (AVL.rootHash tree) proof
-
-        , cachedProperty "Lookup actually works" $ \(list) -> do
-            case uniqued list of
-              [] -> do
-                return True
-
-              (k, v) : rest -> do
-                tree              <- AVL.fromList ((k, v) : rest) :: StorageMonad M
-                ((Just v1, _), _) <- AVL.lookup k tree
-
-                return (v == v1)
-        ]
-    ]
+            return $ AVL.checkProof hash proof
+                  && res   == res1
+                  && proof == proof1

@@ -1,20 +1,17 @@
 
 import qualified Algorithm
 import qualified Insertion
-import qualified Iteration
-import qualified Proof
+import qualified Deletion
 import qualified Lookup
-import qualified Cache
+import qualified Unsafe
 
-import           Test.Framework (defaultMain)
+import Common
 
 main :: IO ()
-main = defaultMain
-    (   []
-    ++  Iteration.tests
-    ++  Algorithm.tests
-    ++  Proof.tests
-    ++  Insertion.tests
-    ++  Lookup.tests
-    ++  Cache.tests
-    )
+main = hspec $ do
+    describe "AVL+ tree" $ do
+        Algorithm.tests
+        Insertion.tests
+        Deletion.tests
+        Lookup.tests
+        Unsafe.tests

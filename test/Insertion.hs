@@ -1,76 +1,44 @@
-
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE RankNTypes            #-}
-
 module Insertion (tests) where
-
-import Universum (allM, for_)
-
-import Data.List ((\\))
 
 import Common
 
 import qualified Data.Tree.AVL as AVL
+import qualified Data.Tree.AVL.Insertion as AVL
+import qualified Data.Tree.AVL.Internal as AVL
 
---prettyMuchBalanced :: Float -> M -> StorageMonad Bool
---prettyMuchBalanced delta tree = do
---    size <- AVL.size tree
---    if size == 0
---    then do
---        return True
+tests :: Spec
+tests = describe "Insert" $ do
+    it' "toList . fromList == sort . unique" $ \list -> do
+        tree <- AVL.fromList list :: StorageMonad M
+        back <- AVL.toList tree
+        let uniq = uniqued list
+        return (back == uniq)
 
---    else do
---        lengths <- AVL.pathLengths tree
---        size    <- AVL.size tree
---        let
---          cast :: (Integral a, Num b) => a -> b
---          cast = fromIntegral
+    it' "Tree is as balanced as possible" $ \list -> do
+        tree <- AVL.fromList list :: StorageMonad M
+        AVL.isBalancedToTheLeaves tree
 
---          averagePath  = cast (sum lengths) / cast (length lengths) :: Float
---          sizeLog2plus = log (cast (size + 1)) / log 2 * (1 + delta)
+    describe "Proofs" $ do
+        it' "Insert proof is verifiable" $ \(k, v, list) -> do
+            tree        <- AVL.fromList list :: StorageMonad M
+            (proof,  _) <- AVL.insert' k v tree
+            (proof1, _) <- AVL.insert' k v (AVL.unProof proof)
 
---        return $ averagePath <= sizeLog2plus
+            let Just hash1 = AVL.rootHash (AVL.assignHashes tree)
 
-tests :: [Test]
-tests =
-    [ testGroup "Insert"
-        [ cachedProperty "toList . fromList == sort . unique" $ \list -> do
-            tree <- AVL.fromList list :: StorageMonad M
-            back <- AVL.toList tree
-            let uniq = uniqued list
-            return (back == uniq)
+            return $ AVL.checkProof hash1 proof1
 
-        , cachedProperty
-            "Tree is as balanced as possible" $ \list -> do
-                tree <- AVL.fromList list :: StorageMonad M
-                AVL.isBalancedToTheLeaves tree
-        ]
+        it' "Insert proof is replayable" $ \(k, v, list) -> do
+            tree        <- AVL.fromList list :: StorageMonad M
+            (proof1, _) <- AVL.insert' k v tree
+            (proof2, _) <- AVL.insert' k v (AVL.unProof proof1)
 
-    , testGroup "Deletion"
-        [ cachedProperty "Tree is still balanced after delete" $ \list -> do
-            tree  <- AVL.fromList list :: StorageMonad M
-            trees <- scanM (AVL.deleteWithNoProof . fst) tree list
-            yes   <- allM  (AVL.isBalancedToTheLeaves)   trees
+            return (proof1 == proof2)
 
-            for_ trees $ AVL.isBalancedToTheLeaves
-
-            return yes
-
-        , cachedProperty "Deletion deletes" $ \list -> do
-            if length list == 0
-            then do
-                return True
-
-            else do
-                let (k, _) : _  = list
-                tree  <- AVL.fromList list :: StorageMonad M
-                tree1 <- AVL.deleteWithNoProof k tree
-                list' <- AVL.toList tree1
-                let diff = uniqued list \\ list'
-                return $ length diff == 1 && fst (head diff) == k
-        ]
-    ]
+        -- -- It is not, unless we give `Eq v` constraint to the `insertZ`.
+        --
+        -- it' "Insert is idempotent" $ \(k, v, list) -> do
+        --     tree <- AVL.fromList list :: StorageMonad M
+        --     (_, tree1) <- AVL.insert' k v tree
+        --     (_, tree2) <- AVL.insert' k v tree1
+        --     return (tree1 == tree2)

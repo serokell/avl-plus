@@ -1,25 +1,15 @@
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE PartialTypeSignatures      #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
-{-# LANGUAGE UndecidableInstances       #-}
-
-module Common (module Common, module Control.Lens, module T) where
+module Common
+    ( module Common
+    , module Control.Lens
+    , module T
+    ) where
 
 import Control.Lens hiding (Empty, elements, locus)
-import Control.Monad as T (when)
+import Control.Monad as T (unless, when)
 import Control.Monad.Catch as T (catch)
 import Control.Monad.IO.Class as T (liftIO)
 import Control.Monad.Trans.Class as T (lift)
 
-import Data.Binary (Binary, decodeOrFail, encode)
-import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Default as T (Default (def))
 import Data.Foldable ()
 import Data.Function (on)
@@ -31,21 +21,14 @@ import Data.String (IsString (fromString))
 
 import GHC.Generics (Generic)
 
-import Test.Framework as T (Test, TestName, defaultMain, testGroup)
-import Test.Framework.Providers.QuickCheck2 as T (testProperty)
+import Test.Hspec as T
 import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, forAll, ioProperty,
-                             (===), (==>))
+                             property, (===), (==>))
 import Test.QuickCheck.Instances as T ()
 
-import qualified Data.Tree.AVL as AVL
-
-instance (Binary x, Eq x, Show x) => AVL.Serialisable x where
-    serialise   = toStrict . encode
-    deserialise = decodeErrorToMaybe . decodeOrFail . fromStrict
-      where
-        decodeErrorToMaybe = either
-            (\(_, _, err) -> Left err)
-            (\(_, _, it)  -> Right it)
+import qualified Data.Tree.AVL.Internal as AVL
+import qualified Data.Tree.AVL.Store.Pure as Pure
+import qualified Data.Tree.AVL.Store.Void as Void
 
 -- | Extensional equality combinator.
 (.=.) :: (Eq b, Show b, Arbitrary a) => (a -> b) -> (a -> b) -> a -> Property
@@ -62,20 +45,9 @@ infixr 5 .=.
 --    | Default
 --    deriving (Ord, Generic)
 
-type Layer = AVL.MapLayer Int StringName Int Int
-
-instance Binary Layer
+type Layer = AVL.MapLayer IntHash StringName Int IntHash
 
 deriving instance Ord Layer
-instance Hashable Layer
-
-instance Hashable b => Hashable (AVL.WithBounds b)
-instance Binary   b => Binary   (AVL.WithBounds b)
-
-instance Hashable StringName
-
-instance Binary   AVL.Tilt
-instance Hashable AVL.Tilt
 
 --instance Show InitialHash where
 --    show = \case
@@ -91,18 +63,28 @@ instance Hashable AVL.Tilt
 --instance AVL.Hash InitialHash StringName Int where
 --    hashOf = InitialHash
 
-instance AVL.Hash Int StringName Int where
-    hashOf tree = case tree of
-        AVL.MLBranch _ mk ck t l r' -> hash (hash mk + hash ck + hash t + l + r')
-        AVL.MLLeaf   _ k  v  n p    -> hash (hash k + hash v + hash n + hash p)
-        AVL.MLEmpty  _              -> 0
-    defHash = 0
+instance Hashable StringName
+instance Hashable (AVL.WithBounds StringName)
+instance Hashable AVL.Tilt
 
--- newtype IntHash = IntHash { getIntHash :: Int }
---     deriving (Show, Eq, Arbitrary)
---
+instance AVL.Hash IntHash StringName Int where
+    hashOf tree = case tree of
+        AVL.MLBranch rev _ mk ck t l r' -> IntHash $ hash (hash rev + hash mk + hash ck + hash t + hash l + hash r')
+        AVL.MLLeaf   rev _ k  v  n p    -> IntHash $ hash (hash rev + hash k + hash v + hash n + hash p)
+        AVL.MLEmpty  _rev _             -> IntHash $ 0
+
+newtype IntHash = IntHash { getIntHash :: Int }
+    deriving (Eq, Ord,  Arbitrary, Generic)
+
+instance Hashable IntHash
+
+instance Show IntHash where
+    show = take 8 . map convert . map (`mod` 16) . iterate (`div` 16) . abs . getIntHash
+      where
+        convert = ("0123456789ABCDEF" !!)
+
 newtype StringName = StringName { getStringName :: String }
-    deriving (Eq, Ord, Generic, Binary)
+    deriving (Eq, Ord, Generic)
 
 instance IsString StringName where
     fromString = StringName
@@ -115,56 +97,16 @@ instance Arbitrary StringName where
         a <- elements ['B'.. 'Y']
         return (StringName [a])
 
---instance Bounded StringName where
---    minBound = StringName "A"
---    maxBound = StringName "Z"
-
 instance (Eq k, Hashable k) => Default (HashMap k v) where
     def = fromList []
-
--- instance AVLPlus.Combined IntHash where
---     emptyOne = IntHash 0
---     combine (IntHash x, t, IntHash y) =
---         IntHash (x * 67 + fromEnum t * 79 + y * 121)
---
--- instance AVLPlus.Hash IntHash StringName Int where
---     hashOf
---         ( StringName k
---         , v
---         , StringName p
---         , StringName n )
---       =
---         IntHash $ 37 * length k + 53 * v + 67 * length p + 91 * length n
-
---instance
---    ( AVL.Hash h k v
---    , Arbitrary k
---    , Arbitrary v
---    , Show h
---    )
---      =>
---    Arbitrary (AVL.Map h k v)
---  where
---    arbitrary = AVL.fromList <$> arbitrary
 
 -- Requirement of QuickCheck
 instance Show (a -> b) where
     show _ = "<function>"
 
-type StorageMonad       = AVL.HashMapStore Int AVL.NullStore
-type CachedStorageMonad = AVL.HashMapStore Int StorageMonad
+type StorageMonad = Void.Store
 
-type M = AVL.Map Int StringName Int
-
-cachedProperty :: (Testable a, Arbitrary b, Show b) => TestName -> (b -> StorageMonad a) -> Test
-cachedProperty msg prop =
-    testProperty msg $
-        forAll arbitrary $ \b ->
-            ioProperty $ do
-                (a, _st) <- AVL.runOnEmptyCache $ do
-                    prop b
-
-                return a
+type M = AVL.Map IntHash StringName Int
 
 scanM :: Monad m => (a -> b -> m b) -> b -> [a] -> m [b]
 scanM _      _     []       = return []
@@ -178,3 +120,29 @@ unique = nubBy  ((==) `on` fst)
 
 uniqued :: Ord a => [(a, b)] -> [(a, b)]
 uniqued = sortBy (comparing fst) . unique . reverse
+
+it'
+    ::  ( Testable (f Property)
+        , Testable  prop
+        , Functor   f
+        )
+    =>  String
+    ->  f (StorageMonad prop)
+    ->  SpecWith ()
+it' msg func =
+    it msg $ property $ fmap (ioProperty . Void.runStoreT) func
+
+it''
+    ::  ( Testable   prop
+        , Arbitrary  src
+        , AVL.Params h k v
+        , Show       src
+        )
+    =>  String
+    ->  (src -> Pure.StoreT h k v StorageMonad prop)
+    ->  SpecWith ()
+it'' msg func =
+    it msg $ property $ \src ->
+        ioProperty $ Void.runStoreT $ do
+            st <- Pure.newState
+            Pure.runStoreT st (func src)
