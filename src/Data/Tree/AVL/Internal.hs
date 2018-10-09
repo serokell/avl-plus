@@ -19,24 +19,24 @@
 
 module Data.Tree.AVL.Internal where
 
-import Control.Exception (Exception)
-import Control.Lens (makeLenses, (&), (.~), (^.), (^?))
-import Control.Monad (void)
-import Control.Monad.Catch (MonadCatch, catch)
-import Control.Monad.Free (Free (Free, Pure))
+import           Control.Exception   (Exception)
+import           Control.Lens        (makeLenses, (&), (.~), (^.), (^?))
+import           Control.Monad       (void)
+import           Control.Monad.Catch (MonadCatch, catch)
+import           Control.Monad.Free  (Free (Free, Pure))
 
-import Data.ByteString (ByteString)
-import Data.Foldable (for_)
+import           Data.ByteString     (ByteString)
+import           Data.Foldable       (for_)
 --import           Data.Hashable       (Hashable)
-import Data.Set (Set)
-import Data.Tree as Tree
-import Data.Typeable (Typeable)
+import           Data.Set            (Set)
+import           Data.Tree           as Tree
+import           Data.Typeable       (Typeable)
 
-import GHC.Generics (Generic)
+import           GHC.Generics        (Generic)
 
-import Text.Show.Deriving (deriveShow1)
+import           Text.Show.Deriving  (deriveShow1)
 
-import qualified Data.Set as Set (fromList)
+import qualified Data.Set            as Set (fromList)
 
 -------------------------------------------------------------------------------
 -- Datatypes
@@ -246,11 +246,13 @@ isolate :: Stores h k v m => Map h k v -> m (Map h k v)
 isolate = openAnd $ close . fmap (Pure . rootHash)
 
 -- | Unwrap the tree, possibly materializing its top node from the database.
-open :: Stores h k v m => Map h k v -> m (MapLayer h k v (Map h k v))
+open :: forall h k v m . (Hash h k v, Stores h k v m) => Map h k v -> m (MapLayer h k v (Map h k v))
 open = \case
-  Pure key -> do
-    actual <- retrieve key
-    return (Pure <$> actual)
+  Pure key ->
+    let eH = emptyHash @h @k @v
+     in if key == eH
+           then pure $ MLEmpty eH
+           else fmap Pure <$> retrieve key
   Free layer -> do
     return layer
 
@@ -359,7 +361,10 @@ pattern Node h d l r <- MLBranch h _ _ d l r
 
 -- | Create empty tree.
 empty :: forall h k v . Hash h k v => Map h k v
-empty = close $ MLEmpty $ hashOf (MLEmpty (defHash @h @k @v) :: MapLayer h k v h)
+empty = close $ MLEmpty (emptyHash @h @k @v)
+
+emptyHash :: forall h k v . Hash h k v => h
+emptyHash = hashOf (MLEmpty (defHash @h @k @v) :: MapLayer h k v h)
 
 -- | Construct a branch from 2 subtrees.
 branch :: forall h k v m. Stores h k v m => Tilt -> Map h k v -> Map h k v -> m (Map h k v)
