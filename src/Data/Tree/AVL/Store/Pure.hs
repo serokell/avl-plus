@@ -63,6 +63,7 @@ runStoreT :: forall h k v m a. (Params h k v, Monad m)
     -> m a
 runStoreT = flip runReaderT
 
+-- | Creates new empty state.
 newState ::
        forall h k v m. (Params h k v, MonadIO m)
     => m (TVar (State h k v))
@@ -84,5 +85,6 @@ dump msg = asState $ do
         print storage
         putStrLn ""
 
+-- | Resets current state to empty.
 clean :: forall h k v m . Base h k v m => StoreT h k v m ()
 clean = asState $ put emptyState

@@ -83,9 +83,9 @@ type Range k = (WithBounds k, WithBounds k)
 -- | Tree layers.
 data TreeZipperCxt h k v
     = WentRightFrom
-        (Map h k v)  -- ^ the node we came from (parent)
-        (Range k)    -- ^ the key diapasone of parent
-         Revision    -- ^ previous revision of _current_ (AFAIR) node
+        (Map h k v)  -- the node we came from (parent)
+        (Range k)    -- the key diapasone of parent
+         Revision    -- previous revision of _current_ (AFAIR) node
     | WentLeftFrom
         (Map h k v)
         (Range k)
