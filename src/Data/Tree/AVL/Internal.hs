@@ -30,7 +30,6 @@ module Data.Tree.AVL.Internal
 
     , unsafeRootHash
     , unsafeLayerHash
-    , collect
 
       -- * High-level operations
     , rootHash
@@ -344,7 +343,7 @@ load = \case
 loadAnd :: Retrieves h k v m => (MapLayer h k v (Map h k v) -> a) -> Map h k v -> m a
 loadAnd f tree = f <$> load tree
 
--- -- | Unwrap the tree and apply a monadic action.
+-- | Unwrap the tree and apply a monadic action.
 loadAndM :: Retrieves h k v m => (MapLayer h k v (Map h k v) -> m a) -> Map h k v -> m a
 loadAndM f tree = f =<< load tree
 
@@ -379,8 +378,8 @@ save tree = do
     massStore collection
     return (ref (unsafeRootHash assigned))
 
--- @heimdell pls document. Also, it uses unsafeX functions, should
--- that be mentioned in the docs?
+-- | Turns a 'Map' into relation of (hash, isolated-node),
+--   to use in 'save'.
 collect :: Hash h k v => Map h k v -> [(h, Isolated h k v)]
 collect it = case it of
     Pure _ -> []
@@ -475,6 +474,7 @@ orElse = flip fromMaybe
 pattern Node :: Revision -> Tilt -> a -> a -> MapLayer h k v a
 pattern Node rev d l r <- MLBranch rev _ _ _ d l r
 
+-- | Root hash of the empty tree.
 emptyHash :: forall h k v. Hash h k v => h
 emptyHash = fromJust $ rootHash $ assignHashes (empty @_ @k @v)
 

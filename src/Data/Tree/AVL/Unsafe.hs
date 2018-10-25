@@ -40,6 +40,8 @@ class (KVStore h node m, KVRetrieve h node m) => KVMutate h node m where
     setRoot :: h -> m ()  -- ^ Set current root of the tree
     erase   :: h -> m ()  -- ^ Remove node with given hash
 
+-- | Exception to be thrown by storage, if 'getRoot' impl can't
+--   return current root.
 data NoRootExists = NoRootExists
     deriving (Show, Typeable)
 
