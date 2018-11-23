@@ -22,9 +22,9 @@ import Data.Tree.AVL.Proof
 prune ::
        forall h k v m. Retrieves h k v m
     => Set Revision
-    -> FreshlyRehashed h k v
+    -> Map h k v
     -> m (Proof h k v)
-prune hashes (getFreshlyRehashed -> tree) =
+prune hashes (fullRehash -> tree) =
     Proof <$> go tree
   where
     go :: Map h k v -> m (Map h k v)

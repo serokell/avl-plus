@@ -3,7 +3,6 @@ module Lookup (tests) where
 import Common
 
 import qualified Data.Tree.AVL as AVL
-import qualified Data.Tree.AVL.Internal as AVL
 import qualified Data.Tree.AVL.Lookup as AVL
 
 tests :: Spec
@@ -24,7 +23,7 @@ tests = describe "Lookup" $ do
             tree            <- AVL.fromList list :: StorageMonad M
             ((_, proof), _) <- AVL.lookup' k tree
 
-            let Just hash = AVL.rootHash (AVL.assignHashes tree)
+            let Just hash = AVL.rootHash (AVL.fullRehash tree)
 
             return $ AVL.checkProof hash proof
 
@@ -32,7 +31,7 @@ tests = describe "Lookup" $ do
             tree              <- AVL.fromList list :: StorageMonad M
             ((res, proof), _) <- AVL.lookup' k tree
 
-            let Just hash = AVL.rootHash (AVL.assignHashes tree)
+            let Just hash = AVL.rootHash (AVL.fullRehash tree)
             let AVL.Proof subtree = proof
 
             ((res1, proof1), _) <- AVL.lookup' k subtree

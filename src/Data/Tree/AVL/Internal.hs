@@ -24,17 +24,14 @@ module Data.Tree.AVL.Internal
       -- * AVL map type, its layer and variants
     , Map
     , MapLayer (..)
-    , FreshlyRehashed
-    , getFreshlyRehashed
     , Isolated
 
+    , fullRehash
     , unsafeRootHash
     , unsafeLayerHash
 
       -- * High-level operations
     , rootHash
-    , assignHashes
-    , fullRehash
     , save
     , size
     , toList
@@ -219,12 +216,6 @@ type Map h k v = Free (MapLayer h k v) h
 -- | AVL node that was isolated (hashes were put where in places of subtrees).
 type Isolated h k v = MapLayer h k v h
 
--- | AVL node that was just assigned its hashes. Required for pruning.
-newtype FreshlyRehashed h k v = FreshlyRehashed
-    { getFreshlyRehashed :: Map h k v
-        -- ^ Get rehashed map.
-    }
-
 #if !MIN_VERSION_free(5,0,2)
 deriving instance Generic (Free t a)
 #endif
@@ -366,17 +357,13 @@ onTopNode f tree = do
     layer <- load tree
     return $ close (f layer)
 
--- | Rehash tree and unwrap it from 'FreshlyRehashed'.
-assignHashes :: Hash h k v => Map h k v -> Map h k v
-assignHashes = getFreshlyRehashed . fullRehash
-
 -- | Recursively store all the materialized nodes in the database.
 save :: forall h k v m . Stores h k v m => Map h k v -> m (Map h k v)
 save tree = do
-    let assigned   = assignHashes tree
-    let collection = collect assigned
+    let rehashed   = fullRehash tree
+    let collection = collect rehashed
     massStore collection
-    return (ref (unsafeRootHash assigned))
+    return (ref (unsafeRootHash rehashed))
 
 -- | Turns a 'Map' into relation of (hash, isolated-node),
 --   to use in 'save'.
@@ -440,8 +427,8 @@ setRevision rev = onTopNode $ \case
 --
 --   Does so recursively. Will not go below node with already calculated hash
 --   or unloaded one.
-fullRehash :: Hash h k v => Map h k v -> FreshlyRehashed h k v
-fullRehash = FreshlyRehashed . go
+fullRehash :: Hash h k v => Map h k v -> Map h k v
+fullRehash = go
   where
     go = \case
         Free layer -> do
@@ -476,7 +463,7 @@ pattern Node rev d l r <- MLBranch rev _ _ _ d l r
 
 -- | Root hash of the empty tree.
 emptyHash :: forall h k v. Hash h k v => h
-emptyHash = fromJust $ rootHash $ assignHashes (empty @_ @k @v)
+emptyHash = fromJust $ rootHash $ fullRehash (empty @_ @k @v)
 
 -- | Create empty tree. Hash is not set.
 empty :: forall h k v . Hash h k v => Map h k v
