@@ -26,12 +26,12 @@ module Data.Tree.AVL.Internal
     , MapLayer (..)
     , Isolated
 
-    , fullRehash
     , unsafeRootHash
     , unsafeLayerHash
 
       -- * High-level operations
     , rootHash
+    , fullRehash
     , save
     , size
     , toList
@@ -231,6 +231,11 @@ makeLenses ''MapLayer
 -- * Typeclasses
 -------------------------------------------------------------------------------
 
+-- | Interface for calculating hash of the 'Map' node.
+class Hash h k v where
+    hashOf :: MapLayer h k v h -> h
+    -- ^ Take hash of the 'MapLayer'
+
 -- | DB monad capable of retrieving 'isolate'd nodes.
 class KVRetrieve hash node m where
     retrieve :: hash -> m node
@@ -238,11 +243,6 @@ class KVRetrieve hash node m where
 -- | DB monad capable of storing 'isolate'd nodes altogether.
 class KVStore hash node m where
     massStore :: [(hash, node)] -> m ()
-
--- | Interface for calculating hash of the 'Map' node.
-class Hash h k v where
-    hashOf :: MapLayer h k v h -> h
-    -- ^ Take hash of the 'MapLayer'
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
