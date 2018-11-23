@@ -40,8 +40,8 @@
         >     (     nodeset1,  tree) <- AVL.insert "foo" 1 start
         >     ((mv, nodeset2), tree) <- AVL.lookup "bar"   tree
         >     (     nodeset3,  tree) <- AVL.delete "qux"   tree
-        >     ()                     <- AVL.overwrite tree
         >     proof                  <- AVL.prune (nodeset1 <> nodeset2 <> nodeset3) tree
+        >     ()                     <- AVL.overwrite tree
         >     return (mv, proof)
 
         This block will return a pair @(Maybe v, AVL.Proof h k v)@.
