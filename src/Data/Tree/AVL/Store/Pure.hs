@@ -86,5 +86,5 @@ dump msg = asState $ do
         putStrLn ""
 
 -- | Resets current state to empty.
-clean :: forall h k v m . Base h k v m => StoreT h k v m ()
+clean :: forall h k v m . (MonadIO m, Base h k v m) => StoreT h k v m ()
 clean = asState $ put emptyState

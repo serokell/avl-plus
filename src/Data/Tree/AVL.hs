@@ -136,15 +136,20 @@ module Data.Tree.AVL
 
       -- * For debug
     , showMap
+    , loadAndM
+    , getFreshlyRehashed
+    , insert'
+    , delete'
+    , lookup'
     ) where
 
-import Prelude hiding (lookup)
+import           Prelude                 hiding (lookup)
 
-import Data.Tree.AVL.Deletion
-import Data.Tree.AVL.Insertion
-import Data.Tree.AVL.Internal
-import Data.Tree.AVL.Iteration
-import Data.Tree.AVL.Lookup
-import Data.Tree.AVL.Proof
-import Data.Tree.AVL.Prune
-import Data.Tree.AVL.Unsafe
+import           Data.Tree.AVL.Deletion
+import           Data.Tree.AVL.Insertion
+import           Data.Tree.AVL.Internal
+import           Data.Tree.AVL.Iteration
+import           Data.Tree.AVL.Lookup
+import           Data.Tree.AVL.Proof
+import           Data.Tree.AVL.Prune
+import           Data.Tree.AVL.Unsafe

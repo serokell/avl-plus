@@ -99,7 +99,6 @@ module Data.Tree.AVL.Internal
 import Control.Exception   (Exception)
 import Control.Lens        (makeLenses, to, (&), (.~), (^.), (^?), (%~), view)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Free  (Free (Free, Pure))
 
 import Data.Maybe          (fromJust, isNothing, fromMaybe)
@@ -273,7 +272,6 @@ type Params h k v =
 type Base h k v m =
     ( Params h k v
     , MonadCatch m
-    , MonadIO m
     )
 
 -- | Ability to write into the storage.
@@ -297,8 +295,8 @@ showMap :: (Show h, Show k, Show v) => Map h k v -> String
 showMap = Tree.drawTree . asTree
   where
     asTree = \case
-      Free (MLBranch rev h _mk _ck t  l r) -> Tree.Node ("Branch " ++ show (rev, h, t))    [asTree r, asTree l]
-      Free (MLLeaf   rev h  k   v _n _p)   -> Tree.Node ("Leaf   " ++ show (rev, h, k, v)) []
+      Free (MLBranch rev h mk ck t  l r) -> Tree.Node ("Branch " ++ show (rev, h, t, mk, ck))    [asTree r, asTree l]
+      Free (MLLeaf   rev h  k   v n p)   -> Tree.Node ("Leaf   " ++ show (rev, h, k, v, n, p)) []
       Free (MLEmpty  rev h)                -> Tree.Node ("Empty  " ++ show (rev, h))       []
       Pure  h                              -> Tree.Node ("Ref    " ++ show h)              []
 
