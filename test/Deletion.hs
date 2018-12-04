@@ -40,7 +40,7 @@ tests = describe "Delete" $ do
             (proof,  _) <- AVL.delete' k tree
             (proof1, _) <- AVL.delete' k (AVL.unProof proof)
 
-            let Just hash1 = AVL.rootHash (AVL.assignHashes tree)
+            let Just hash1 = AVL.rootHash (AVL.fullRehash tree)
 
             return $ AVL.checkProof hash1 proof1
 
@@ -58,7 +58,7 @@ tests = describe "Delete" $ do
                 (proof,  _) <- AVL.delete' k tree
                 (proof1, _) <- AVL.delete' k (AVL.unProof proof)
 
-                let Just hash1 = AVL.rootHash (AVL.assignHashes tree)
+                let Just hash1 = AVL.rootHash (AVL.fullRehash tree)
 
                 return $ AVL.checkProof hash1 proof1
 

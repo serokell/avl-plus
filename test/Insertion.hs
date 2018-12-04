@@ -24,7 +24,7 @@ tests = describe "Insert" $ do
             (proof,  _) <- AVL.insert' k v tree
             (proof1, _) <- AVL.insert' k v (AVL.unProof proof)
 
-            let Just hash1 = AVL.rootHash (AVL.assignHashes tree)
+            let Just hash1 = AVL.rootHash (AVL.fullRehash tree)
 
             return $ AVL.checkProof hash1 proof1
 
