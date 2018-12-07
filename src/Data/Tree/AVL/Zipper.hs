@@ -266,15 +266,15 @@ descentLeft :: forall h k v m . Retrieves h k v m => Zipped h k v m ()
 descentLeft = do
     tree  <- use locus
     range <- use keyRange
-    
+
     mark "descentLeft"
-    
+
     load tree >>= \case
       MLBranch { _mlLeft = left, _mlCenterKey = center } -> do
         locus    .= left
         context  %= (WentLeftFrom tree range :)
         keyRange .= refine L range center
-        
+
         mark "descentLeft/exit"
 
       _layer -> do
@@ -285,15 +285,15 @@ descentRight :: Retrieves h k v m => Zipped h k v m ()
 descentRight = do
     tree  <- use locus
     range <- use keyRange
-    
+
     mark "descentRight"
-    
+
     load tree >>= \case
       MLBranch { _mlRight = right, _mlCenterKey = center } -> do
         locus    .= right
         context  %= (WentRightFrom tree range :)
         keyRange .= refine R range center
-        
+
         mark "descentRight/exit"
 
       _layer -> do

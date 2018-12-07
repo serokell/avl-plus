@@ -89,21 +89,21 @@ module Data.Tree.AVL.Internal
     )
   where
 
-import Control.Exception      (Exception)
-import Control.Lens           (makeLenses, to, (&), (.~), (^.), (^?), (%~), view)
+import Control.Exception (Exception)
+import Control.Lens (makeLenses, to, view, (%~), (&), (.~), (^.), (^?))
+import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Free (Free (Free, Pure))
 import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Free     (Free (Free, Pure))
-import Control.Monad.Catch    (MonadCatch)
 
-import Data.Maybe             (fromJust, isNothing, fromMaybe)
+import Data.Maybe (fromJust, fromMaybe, isNothing)
 import qualified Data.Tree as Tree
-import Data.Typeable          (Typeable)
+import Data.Typeable (Typeable)
 
-import GHC.Generics           (Generic)
+import GHC.Generics (Generic)
 
-import Data.Eq.Deriving       (deriveEq1)
-import Data.Ord.Deriving      (deriveOrd1)
-import Text.Show.Deriving     (deriveShow1)
+import Data.Eq.Deriving (deriveEq1)
+import Data.Ord.Deriving (deriveOrd1)
+import Text.Show.Deriving (deriveShow1)
 
 -------------------------------------------------------------------------------
 -- * Datatypes
@@ -183,11 +183,11 @@ data MapLayer h k v self
     , _mlRight     :: self          -- ^ Left subtree or subtree hash.
     }
   | MLLeaf
-    { _mlHash     :: Maybe h
-    , _mlKey      :: WithBounds k    -- ^ Key of the leaf node.
-    , _mlValue    :: v               -- ^ Value of the leaf node.
-    , _mlNextKey  :: WithBounds k    -- ^ Next key, for [non]existence check.
-    , _mlPrevKey  :: WithBounds k    -- ^ Previous key.
+    { _mlHash    :: Maybe h
+    , _mlKey     :: WithBounds k    -- ^ Key of the leaf node.
+    , _mlValue   :: v               -- ^ Value of the leaf node.
+    , _mlNextKey :: WithBounds k    -- ^ Next key, for [non]existence check.
+    , _mlPrevKey :: WithBounds k    -- ^ Previous key.
     }
   | MLEmpty
     { _mlHash     :: Maybe h
