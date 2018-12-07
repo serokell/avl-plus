@@ -51,18 +51,18 @@ tests = describe "Delete" $ do
 
             tree        <- AVL.fromList ((k, v) : list) :: StorageMonad M
             (proof1, _) <- AVL.delete k tree
-            -- (proof2, _) <- AVL.delete k . AVL.unProof =<< AVL.prune proof1 tree
+            (proof2, _) <- AVL.delete k . AVL.unProof =<< AVL.prune proof1 tree
 
-            -- unless (proof1 == proof2) $ do
-            --     put "=="
-            --     put $ AVL.showMap tree
-            --     put "--"
-            --     put $ show proof1
-            --     put "--"
-            --     put $ show proof2
+            unless (proof1 == proof2) $ do
+                put "=="
+                put $ AVL.showMap tree
+                put "--"
+                put $ show proof1
+                put "--"
+                put $ show proof2
 
-            -- return (proof1 == proof2)
-            error "foo" :: StorageMonad Bool
+            return (proof1 == proof2)
+                :: StorageMonad Bool
 
         it' "Delete proof is verifiable (even if there's nothing to delete)" $ \list -> do
             case uniqued list of

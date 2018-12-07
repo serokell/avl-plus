@@ -24,27 +24,22 @@ module Data.Tree.AVL.Zipper
     , withLocus
     , change
     , replaceWith
-    , freshRevision
     , mark
-    , showWhereWeWere
 
       -- * Current point iterator is standing on
     , locus
 
-    , tzIndent
-    , group
-    , say
-    , dump
     )
   where
 
 import Control.Exception (Exception)
-import Control.Lens (Getter, Lens', makeLenses, use, (%=), (.=), (^.), (+=), (-=))
+import Control.Lens (Getter, Lens', makeLenses, use, uses, (%=), (.=))
 
 import Control.Monad (unless, when)
-import Control.Monad.Catch (catch, throwM, finally)
-import Control.Monad.State.Strict (StateT, evalStateT, lift, liftIO)
+import Control.Monad.Catch (catch, throwM)
+import Control.Monad.State.Strict (StateT, evalStateT, lift)
 
+import Data.Maybe (isJust)
 import Data.Monoid ((<>))
 import Data.Set (Set)
 import Data.Typeable (Typeable)
@@ -54,8 +49,6 @@ import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
 
 import qualified Data.Set as Set (empty, fromList, insert)
-
-import Debug.Trace as Debug
 
 -- | Zipper representation.
 --
@@ -80,9 +73,7 @@ data TreeZipper h k v = TreeZipper
     , _tzHere     ::  Map h k v             -- ^ Current point
     , _tzKeyRange :: (Range k)              -- ^ Range of keys covered by locus
     , _tzMode     ::  Mode                  -- ^ Update or delete
-    , _tzTouched  ::  Set Revision          -- ^ Set of nodes we touched
-    , _tzCounter  ::  Revision              -- ^ 
-    , _tzIndent   ::  Int
+    , _tzTouched  ::  Set h                 -- ^ Set of nodes we touched
     }
 
 type Range k = (WithBounds k, WithBounds k)
@@ -92,11 +83,9 @@ data TreeZipperCxt h k v
     = WentRightFrom
         (Map h k v)  -- the node we came from (parent)
         (Range k)    -- the key diapasone of parent
-         Revision    -- previous revision of _current_ (AFAIR) node
     | WentLeftFrom
         (Map h k v)
         (Range k)
-         Revision
 
 --deriving instance Retrieves h k v => Show (TreeZipperCxt h k v)
 
@@ -120,15 +109,13 @@ locus    :: Lens'  (TreeZipper h k v) (Map h k v)
 context  :: Lens'  (TreeZipper h k v) [TreeZipperCxt h k v]
 keyRange :: Lens'  (TreeZipper h k v) (Range k)
 mode     :: Getter (TreeZipper h k v)  Mode
-trail    :: Lens'  (TreeZipper h k v) (Set Revision)
-counter  :: Lens'  (TreeZipper h k v)  Revision
+trail    :: Lens'  (TreeZipper h k v) (Set h)
 
 mode     = tzMode
 keyRange = tzKeyRange
 locus    = tzHere
 context  = tzContext
 trail    = tzTouched
-counter  = tzCounter
 
 -- | Monad, carrying zipper as state.
 type Zipped h k v m = StateT (TreeZipper h k v) m
@@ -143,58 +130,22 @@ instance
     retrieve = lift . retrieve
 
 -- | Run zipper operation, collect prefabricated proofs.
-runZipped :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Set Revision)
+runZipped :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Set h)
 runZipped action mode0 tree = do
-    zipper <- enter mode0 tree
-    action' `evalStateT` zipper
+    action' `evalStateT` enter mode0 tree
   where
     action' = do
       res    <- action
       tree'  <- exit
       trails <- use trail
-      dump "exit"
       return (res, tree', trails)
 
 -- | Run zipper operation, build proof.
 runZipped' :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Proof h k v)
 runZipped' action mode0 tree = do
-    zipper             <- enter mode0 tree
-    (a, tree1, trails) <- action' `evalStateT` zipper
+    (a, tree1, trails) <- runZipped action mode0 tree
     proof              <- prune trails (fullRehash tree)
     return (a, tree1, proof)
-  where
-    action' = do
-      res    <- action
-      tree'  <- exit
-      trails <- use trail
-      dump "exit"
-      return (res, tree', trails)
-
-group :: Retrieves h k v m => String -> Zipped h k v m a -> Zipped h k v m a
-group name action = do
-    say name
-    say "===="
-    tzIndent += 1
-    action `finally` do
-        tzIndent -= 1
-
-getIndent :: Retrieves h k v m => Zipped h k v m (String -> String)
-getIndent = do
-    indent <- use tzIndent
-    return (unlines . map (replicate (2 * indent) ' ' ++) . lines)
-
-dump :: Retrieves h k v m => String -> Zipped h k v m ()
-dump msg = do
-    tree  <- use locus
-    i <- getIndent
-    liftIO $ putStrLn $ i $ "## " ++ msg
-    liftIO $ putStrLn $ i $ showMap tree
-    liftIO $ putStrLn ""
-
-say :: Retrieves h k v m => String -> Zipped h k v m ()
-say msg = do
-    i <- getIndent
-    liftIO $ putStr $ i $ msg
 
 -- | Materialise tree node at locus and give it to action for introspection.
 --
@@ -205,25 +156,20 @@ withLocus action = do
     layer <- load loc
     action layer
 
-showWhereWeWere :: Monad m => String -> Zipped h k v m ()
-showWhereWeWere msg = do
-    steps <- use tzTouched
-    ()    <- Debug.trace (msg ++ ": " ++ show steps) $ return ()
-    return ()
-
 -- | Add current node identity to the set of nodes touched.
 mark :: Retrieves h k v m => String -> Zipped h k v m ()
 mark _msg = do
-    rev <- revisionHere
-    trail %= Set.insert rev
+    uses locus rootHash >>= \case
+      Just hash -> do
+        trail %= Set.insert hash
 
-revisionHere :: Retrieves h k v m => Zipped h k v m Revision
-revisionHere = withLocus $ return . (^.mlRevision)
+      Nothing -> do
+        return ()
 
 -- | Add given node identities to the set of nodes touched.
-markAll :: Retrieves h k v m => [Revision] -> Zipped h k v m ()
-markAll revs = do
-    trail %= (<> Set.fromList revs)
+markAll :: Retrieves h k v m => [Maybe h] -> Zipped h k v m ()
+markAll hashes = do
+    trail %= (<> Set.fromList [hash | Just hash <- hashes])
 
 data AlreadyOnTop = AlreadyOnTop deriving (Show, Typeable)
 
@@ -232,25 +178,22 @@ instance Exception AlreadyOnTop
 -- | Move to the parent node; update & rebalance it if required.
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
 up = do
-  group "UP" $ do
-    ctx  <- use context
-    rev1 <- revisionHere
-    side <- case ctx of
-      WentLeftFrom tree range _rev0 : rest -> do
+    ctx   <- use context
+    hash1 <- uses locus rootHash
+    side  <- case ctx of
+      WentLeftFrom tree range : rest -> do
         load tree >>= \case
-          MLBranch {_mlHash = hash, _mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            if hash /= Nothing  -- if current node didn't change
+          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
+            if isJust hash1  -- if current node didn't change
             then do
-                say "L..."
                 locus .= tree  -- set unchanged parent one
 
             else do
-                say "L!!!"
                 -- install current node inside parent
                 -- prepare it to 'rebalance'
                 now    <- use locus
                 tilt'  <- correctTilt left now tilt0 L
-                became <- branch rev1 tilt' now right
+                became <- branch tilt' now right
 
                 replaceWith became  -- replace current node with possibly updated
                                     -- parent
@@ -264,22 +207,19 @@ up = do
             return L            -- return the side we went from
 
           _other -> do
-            say "TOP...L?" 
             throwM AlreadyOnTop
 
-      WentRightFrom tree range _rev0 : rest -> do
+      WentRightFrom tree range : rest -> do
         load tree >>= \case
-          MLBranch {_mlHash = hash, _mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            if hash /= Nothing
+          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
+            if isJust hash1
             then do
-                say "R..."
                 locus .= tree
 
             else do
-                say "R!!!"
                 now    <- use locus
                 tilt'  <- correctTilt right now tilt0 R
-                became <- branch rev1 tilt' left now
+                became <- branch tilt' left now
 
                 replaceWith became
                 rebalance
@@ -290,11 +230,9 @@ up = do
             return R
 
           _other -> do
-            say "TOP...R?"
             throwM AlreadyOnTop
 
       [] -> do
-          say "TOP..."      
           throwM AlreadyOnTop
 
     return side
@@ -310,17 +248,13 @@ exit = uplift
         use locus
 
 -- | Open the tree for iteration.
-enter :: Retrieves h k v m => Mode -> Map h k v -> m (TreeZipper h k v)
-enter mode0 tree = do
-  rev <- loadAnd (^.mlRevision) tree
-  return TreeZipper
+enter :: Mode -> Map h k v -> TreeZipper h k v
+enter mode0 tree = TreeZipper
     { _tzContext  = []
     , _tzHere     = tree
     , _tzKeyRange = (minBound, maxBound)
     , _tzMode     = mode0
     , _tzTouched  = Set.empty
-    , _tzCounter  = rev
-    , _tzIndent   = 0
     }
 
 data WentDownOnNonBranch h = WentDownOnNonBranch h deriving (Show, Typeable)
@@ -338,8 +272,7 @@ descentLeft = do
     load tree >>= \case
       MLBranch { _mlLeft = left, _mlCenterKey = center } -> do
         locus    .= left
-        rev <- revisionHere
-        context  %= (WentLeftFrom tree range rev :)
+        context  %= (WentLeftFrom tree range :)
         keyRange .= refine L range center
         
         mark "descentLeft/exit"
@@ -358,8 +291,7 @@ descentRight = do
     load tree >>= \case
       MLBranch { _mlRight = right, _mlCenterKey = center } -> do
         locus    .= right
-        rev <- revisionHere
-        context  %= (WentRightFrom tree range rev :)
+        context  %= (WentRightFrom tree range :)
         keyRange .= refine R range center
         
         mark "descentRight/exit"
@@ -446,20 +378,11 @@ change action = do
     mark "change" -- automatically add node the list of touched
     a <- action
 
-    rev    <- freshRevision
     loc    <- use locus
-    newLoc <- lift $ setRevision rev loc
-    _      <- lift $ clearHash newLoc
-
-    locus .= newLoc
+    newLoc <- lift $ clearHash loc
+    locus  .= newLoc
 
     return a
-
--- | Generate fresh, unique revision (per tree instance).
-freshRevision :: Monad m => Zipped h k v m Revision
-freshRevision = do
-    counter %= (+ 1)
-    use counter
 
 -- | Place new tree into the locus, update its revision.
 replaceWith :: Retrieves h k v m => Map h k v -> Zipped h k v m ()
@@ -471,53 +394,42 @@ rebalance :: forall h k v m . Retrieves h k v m => Zipped h k v m ()
 rebalance = do
     tree <- use locus
 
-    n1 <- freshRevision
-    n2 <- freshRevision
-    n3 <- freshRevision
+    let hashes |- nodeGen = nodeGen <* markAll hashes
 
-    let
-      revs |- nodeGen = do
-        gen <- nodeGen
-        return (revs, gen)
+    let combine fork left right = do
+            l <- left
+            r <- right
+            fork l r
 
-    let
-      combine fork left right = do
-        l <- left
-        r <- right
-        fork l r
-
-    (revs, newTree) <- (load tree >>= \case
+    newTree <- load tree >>= \case
       Node r1 L2 left d -> do
         load left >>= \case
-          Node r2 L1 a b     -> [r1, r2]     |- combine (branch n1 M)  (pure a)           (branch n2 M  b d)
-          Node r2 M  a b     -> [r1, r2]     |- combine (branch n1 R1) (pure a)           (branch n3 L1 b d)
+          Node r2 L1 a b     -> [r1, r2]     |- combine (branch M)  (pure a)        (branch M  b d)
+          Node r2 M  a b     -> [r1, r2]     |- combine (branch R1) (pure a)        (branch L1 b d)
           Node r2 R1 a right -> do
             load right >>= \case
-              Node r3 R1 b c -> [r1, r2, r3] |- combine (branch n1 M)  (branch n2 L1 a b) (branch n3 M  c d)
-              Node r3 L1 b c -> [r1, r2, r3] |- combine (branch n1 M)  (branch n2 M  a b) (branch n3 R1 c d)
-              Node r3 M  b c -> [r1, r2, r3] |- combine (branch n1 M)  (branch n2 M  a b) (branch n3 M  c d)
-              _              -> return ([], tree)
+              Node r3 R1 b c -> [r1, r2, r3] |- combine (branch M)  (branch L1 a b) (branch M  c d)
+              Node r3 L1 b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch R1 c d)
+              Node r3 M  b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch M  c d)
+              _              -> return tree
 
-          _ -> return ([], tree)
+          _ -> return tree
 
       Node r1 R2 a right -> do
         load right >>= \case
-          Node r2 R1 b c     -> [r1, r2]     |- combine (branch n1 M)  (branch n2 M  a b) (pure c)
-          Node r2 M  b c     -> [r1, r2]     |- combine (branch n1 L1) (branch n2 R1 a b) (pure c)
+          Node r2 R1 b c     -> [r1, r2]     |- combine (branch M)  (branch M  a b) (pure c)
+          Node r2 M  b c     -> [r1, r2]     |- combine (branch L1) (branch R1 a b) (pure c)
           Node r2 L1 left d  -> do
             load left >>= \case
-              Node r3 R1 b c -> [r1, r2, r3] |- combine (branch n1 M)  (branch n2 L1 a b) (branch n3 M  c d)
-              Node r3 L1 b c -> [r1, r2, r3] |- combine (branch n1 M)  (branch n2 M  a b) (branch n3 R1 c d)
-              Node r3 M  b c -> [r1, r2, r3] |- combine (branch n1 M)  (branch n2 M  a b) (branch n3 M  c d)
-              _              -> return ([], tree)
+              Node r3 R1 b c -> [r1, r2, r3] |- combine (branch M)  (branch L1 a b) (branch M  c d)
+              Node r3 L1 b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch R1 c d)
+              Node r3 M  b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch M  c d)
+              _              -> return tree
 
-          _ -> return ([], tree)
+          _ -> return tree
 
-      _ -> return ([], tree))
-     `catch` \(NotFound (_ :: h)) ->
-        return ([], tree)
+      _ -> return tree
 
-    markAll revs
     replaceWith newTree
 
 -- | Teleport to a 'Leaf' with given key from anywhere.

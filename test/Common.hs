@@ -69,9 +69,9 @@ instance Hashable AVL.Tilt
 
 instance AVL.Hash IntHash StringName Int where
     hashOf tree = case tree of
-        AVL.MLBranch rev _ mk ck t l r' -> IntHash $ hash (hash rev + hash mk + hash ck + hash t + hash l + hash r')
-        AVL.MLLeaf   rev _ k  v  n p    -> IntHash $ hash (hash rev + hash k + hash v + hash n + hash p)
-        AVL.MLEmpty  _rev _             -> IntHash $ 0
+        AVL.MLBranch _ mk ck t l r' -> IntHash $ hash (hash mk + hash ck + hash t + hash l + hash r')
+        AVL.MLLeaf   _ k  v  n p    -> IntHash $ hash (hash k + hash v + hash n + hash p)
+        AVL.MLEmpty  _              -> IntHash $ 0
 
 newtype IntHash = IntHash { getIntHash :: Int }
     deriving (Eq, Ord,  Arbitrary, Generic)

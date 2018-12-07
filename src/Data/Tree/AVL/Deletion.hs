@@ -17,7 +17,7 @@ import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 -- | Remove given key from the 'Map', generates raw proof.
-delete :: Retrieves h k v m => k -> Map h k v -> m (Set Revision, Map h k v)
+delete :: Retrieves h k v m => k -> Map h k v -> m (Set h, Map h k v)
 delete k tree = do
     (_yes, res, trails) <- runZipped (deleteZ k) DeleteMode tree
     return (trails, res)
@@ -42,7 +42,7 @@ deleteWithNoProof k tree = do
 
 -- | Deletion algorithm.
 deleteZ :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m Bool
-deleteZ k = group ("delete " ++ show k) $ withLocus $ \case
+deleteZ k = withLocus $ \case
     MLLeaf { _mlKey } ->
         if _mlKey == Plain k
         then True  <$ replaceWith (empty :: Map h k v)
@@ -52,7 +52,6 @@ deleteZ k = group ("delete " ++ show k) $ withLocus $ \case
 
     MLBranch {} -> do
         goto (Plain k)
-        showWhereWeWere "after goto k"
         withLocus $ \case
           MLLeaf { _mlKey = key0, _mlPrevKey = prev, _mlNextKey = next } -> do
             if key0 /= Plain k
@@ -60,13 +59,11 @@ deleteZ k = group ("delete " ++ show k) $ withLocus $ \case
             else do
                 side <- up  -- return to a parent of node to be deleted
 
-                showWhereWeWere "before another child marked"
                 -- we need to mark another child, so it ends in a proof
                 _ <- case side of
                     L -> descentRight >> up
                     R -> descentLeft  >> up
 
-                showWhereWeWere "another child marked"
                 newTree <- withLocus $ \case
                     MLBranch { _mlLeft = left, _mlRight = right } ->
                         return $ case side of

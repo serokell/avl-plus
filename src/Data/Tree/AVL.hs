@@ -99,7 +99,6 @@ module Data.Tree.AVL
     , MapLayer (..)
     , Tilt
     , WithBounds
-    , Revision
 
       -- * Constructors/toList
     , empty

@@ -48,7 +48,6 @@ module Data.Tree.AVL.Internal
     , tilt
 
       -- * Setters
-    , setRevision
     , setNextKey
     , setPrevKey
     , setValue
@@ -69,15 +68,11 @@ module Data.Tree.AVL.Internal
     , mlValue
     , mlHash
     , mlTilt
-    , mlRevision
 
       -- * Key wrapper, free 'Bounded'
     , WithBounds (..)
     , fromWithBounds
     , unsafeFromWithBounds
-
-      -- * Version number
-    , Revision
 
       -- * Amount of disbalance
     , Tilt (..)
@@ -94,21 +89,21 @@ module Data.Tree.AVL.Internal
     )
   where
 
-import Control.Exception   (Exception)
-import Control.Lens        (makeLenses, to, (&), (.~), (^.), (^?), (%~), view)
-import Control.Monad.Catch (MonadMask)
+import Control.Exception      (Exception)
+import Control.Lens           (makeLenses, to, (&), (.~), (^.), (^?), (%~), view)
 import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Free  (Free (Free, Pure))
+import Control.Monad.Free     (Free (Free, Pure))
+import Control.Monad.Catch    (MonadCatch)
 
-import Data.Maybe          (fromJust, isNothing, fromMaybe)
+import Data.Maybe             (fromJust, isNothing, fromMaybe)
 import qualified Data.Tree as Tree
-import Data.Typeable       (Typeable)
+import Data.Typeable          (Typeable)
 
-import GHC.Generics        (Generic)
+import GHC.Generics           (Generic)
 
-import Data.Eq.Deriving    (deriveEq1)
-import Data.Ord.Deriving   (deriveOrd1)
-import Text.Show.Deriving  (deriveShow1)
+import Data.Eq.Deriving       (deriveEq1)
+import Data.Ord.Deriving      (deriveOrd1)
+import Text.Show.Deriving     (deriveShow1)
 
 -------------------------------------------------------------------------------
 -- * Datatypes
@@ -173,11 +168,6 @@ unsafeFromWithBounds = fromMaybe err . fromWithBounds
   where
     err = error "unsafeFromWithBounds: 'Top' or 'Bottom' values cannot be converted"
 
--- | Unique number, identifying given node of given state in the tree.
---
---   Is used to signal and check that node was changed.
-type Revision = Integer
-
 -- | Representation of AVL+ tree with data in leaves.
 
 -- | One layer of AVL Tree structure.
@@ -185,8 +175,7 @@ type Revision = Integer
 --   current level and be syncronised with any changes in tree.
 data MapLayer h k v self
   = MLBranch
-    { _mlRevision  :: Revision      -- ^ So we can check if node changed and not rehash it
-    , _mlHash      :: Maybe h       -- ^ Hash of the subtree.
+    { _mlHash      :: Maybe h       -- ^ Hash of the subtree.
     , _mlMinKey    :: WithBounds k  -- ^ Minimal key used in tree.
     , _mlCenterKey :: WithBounds k  -- ^ Minimal key of the right subtree.
     , _mlTilt      :: Tilt          -- ^ Amount of disbalance.
@@ -194,16 +183,14 @@ data MapLayer h k v self
     , _mlRight     :: self          -- ^ Left subtree or subtree hash.
     }
   | MLLeaf
-    { _mlRevision :: Revision
-    , _mlHash     :: Maybe h
+    { _mlHash     :: Maybe h
     , _mlKey      :: WithBounds k    -- ^ Key of the leaf node.
     , _mlValue    :: v               -- ^ Value of the leaf node.
     , _mlNextKey  :: WithBounds k    -- ^ Next key, for [non]existence check.
     , _mlPrevKey  :: WithBounds k    -- ^ Previous key.
     }
   | MLEmpty
-    { _mlRevision :: Revision
-    , _mlHash     :: Maybe h
+    { _mlHash     :: Maybe h
     }
     deriving (Eq, Show, Functor, Foldable, Traversable, Generic)
 
@@ -264,7 +251,7 @@ type Params h k v =
 -- tree to operate.
 type Base h k v m =
     ( Params h k v
-    , MonadMask m
+    , MonadCatch m
     , MonadIO m
     )
 
@@ -289,9 +276,9 @@ showMap :: (Show h, Show k, Show v) => Map h k v -> String
 showMap = Tree.drawTree . asTree
   where
     asTree = \case
-      Free (MLBranch rev h _mk _ck t  l r) -> Tree.Node ("Branch " ++ show (rev, h, _mk, _ck, t))    [asTree r, asTree l]
-      Free (MLLeaf   rev h  k   v _n _p)   -> Tree.Node ("Leaf   " ++ show (rev, h, k, v, _n, _p)) []
-      Free (MLEmpty  rev h)                -> Tree.Node ("Empty  " ++ show (rev, h))       []
+      Free (MLBranch h _mk _ck t  l r) -> Tree.Node ("Branch " ++ show (h, _mk, _ck, t))    [asTree r, asTree l]
+      Free (MLLeaf   h  k   v _n _p)   -> Tree.Node ("Leaf   " ++ show (h, k, v, _n, _p)) []
+      Free (MLEmpty  h)                -> Tree.Node ("Empty  " ++ show (h))       []
       Pure  h                              -> Tree.Node ("Ref    " ++ show h)              []
 
 -- instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
@@ -418,12 +405,6 @@ setPrevKey k = onTopNode (mlPrevKey .~ k)
 setValue :: Retrieves h k v m => v -> Map h k v -> m (Map h k v)
 setValue v = onTopNode (mlValue .~ v)
 
--- | Sets node [unique] version number.
-setRevision :: Retrieves h k v m => Revision -> Map h k v -> m (Map h k v)
-setRevision rev = onTopNode $ \case
-    it@ MLEmpty {} -> it
-    other -> other & mlRevision .~ rev
-
 -- | Wipes node hash out.
 clearHash :: Retrieves h k v m => Map h k v -> m (Map h k v)
 clearHash = onTopNode $ mlHash .~ Nothing
@@ -463,8 +444,8 @@ orElse :: Maybe a -> a -> a
 orElse = flip fromMaybe
 
 -- | For clarity of rebalance procedure.
-pattern Node :: Revision -> Tilt -> a -> a -> MapLayer h k v a
-pattern Node rev d l r <- MLBranch rev _ _ _ d l r
+pattern Node :: Maybe h -> Tilt -> a -> a -> MapLayer h k v a
+pattern Node h d l r <- MLBranch h _ _ d l r
 
 -- | Root hash of the empty tree.
 emptyHash :: forall h k v. Hash h k v => h
@@ -472,17 +453,17 @@ emptyHash = fromJust $ rootHash $ fullRehash (empty @_ @k @v)
 
 -- | Create empty tree. Hash is not set.
 empty :: forall h k v . Hash h k v => Map h k v
-empty = close $ MLEmpty 0 Nothing
+empty = close $ MLEmpty Nothing
 
 -- | Construct a branch from 2 subtrees. Hash is not set.
-branch :: Retrieves h k v m => Revision -> Tilt -> Map h k v -> Map h k v -> m (Map h k v)
-branch rev tilt0 left right = do
+branch :: Retrieves h k v m => Tilt -> Map h k v -> Map h k v -> m (Map h k v)
+branch tilt0 left right = do
     [minL, minR] <- traverse minKey [left, right]
-    return $ close $ MLBranch rev Nothing (min minL minR) minR tilt0 left right
+    return $ close $ MLBranch Nothing (min minL minR) minR tilt0 left right
 
 -- | Create a leaf. Hash is not set.
-leaf :: Retrieves h k v m => Revision -> k -> v -> WithBounds k -> WithBounds k -> m (Map h k v)
-leaf rev k v p n = return $ close $ MLLeaf rev Nothing (Plain k) v n p
+leaf :: Retrieves h k v m => k -> v -> WithBounds k -> WithBounds k -> m (Map h k v)
+leaf k v p n = return $ close $ MLLeaf Nothing (Plain k) v n p
 
 -- | Disband tree into assoc list.
 toList :: Retrieves h k v m => Map h k v -> m [(k, v)]

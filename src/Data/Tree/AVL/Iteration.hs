@@ -20,13 +20,13 @@ walkDFS
       , b -> res
       )
   -> Map h k v
-  -> m (res, Set.Set Revision)
+  -> m (res, Set.Set h)
 walkDFS (start, add, finish) root = runWriterT $ finish <$> go start root
   where
-    go :: b -> Map h k v -> WriterT (Set.Set Revision) m b
+    go :: b -> Map h k v -> WriterT (Set.Set h) m b
     go acc mapping =
         lift (load mapping) >>= \point -> do
-            tell (Set.singleton (point^.mlRevision))
+            maybe (return ()) (tell . Set.singleton) (point^.mlHash)
             let point' = rootHash <$> point
             case point of
                 MLBranch { _mlLeft = l, _mlRight = r } -> do
@@ -45,7 +45,7 @@ foldIf
        , b -> res
        )
     -> Map h k v
-    -> m (res, Set.Set Revision)
+    -> m (res, Set.Set h)
 foldIf (good, start, add, finish) = walkDFS (start, collectKVAnd add, finish)
   where
     collectKVAnd :: ((k, v) -> b -> b) -> MapLayer h k v (Maybe h) -> b -> b
@@ -62,5 +62,5 @@ fold
        , b -> res
        )
     -> Map h k v
-    -> m (res, Set.Set Revision)
+    -> m (res, Set.Set h)
 fold (start, add, finish) = foldIf (\_ -> True, start, add, finish)

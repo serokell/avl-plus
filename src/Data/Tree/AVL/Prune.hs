@@ -21,7 +21,7 @@ import Data.Tree.AVL.Proof
 -- | Proof baking: Cut off subtrees that haven't been touched.
 prune ::
        forall h k v m. Retrieves h k v m
-    => Set Revision
+    => Set h
     -> Map h k v
     -> m (Proof h k v)
 prune hashes (fullRehash -> tree) =
@@ -30,7 +30,7 @@ prune hashes (fullRehash -> tree) =
     go :: Map h k v -> m (Map h k v)
     go bush = do
         layer <- load bush
-        if Set.notMember (layer^.mlRevision) hashes
+        if maybe False (`Set.notMember` hashes) (layer^.mlHash)
         then return $ Free (layer <&> ref . unsafeRootHash)
         else case layer of
             MLBranch {_mlLeft = l, _mlRight = r} -> do
