@@ -7,7 +7,7 @@ module Common
 import Control.Lens hiding (Empty, elements, locus)
 import Control.Monad as T (unless, when)
 import Control.Monad.Catch as T (catch)
-import Control.Monad.IO.Class as T (liftIO)
+import Control.Monad.IO.Class as T (MonadIO, liftIO)
 import Control.Monad.Trans.Class as T (lift)
 
 import Data.Default as T (Default (def))
@@ -146,3 +146,6 @@ it'' msg func =
         ioProperty $ Void.runStoreT $ do
             st <- Pure.newState
             Pure.runStoreT st (func src)
+
+put :: (MonadIO m) => String -> m ()
+put = liftIO . putStrLn

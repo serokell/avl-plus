@@ -58,7 +58,7 @@ library
                MultiParamTypeClasses
                MultiWayIf
                NamedFieldPuns
-               OverloadedStrings
+--             OverloadedStrings
                PatternSynonyms
                RankNTypes
                RecordWildCards

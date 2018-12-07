@@ -26,30 +26,36 @@ module Data.Tree.AVL.Zipper
     , replaceWith
     , freshRevision
     , mark
+    , showWhereWeWere
 
       -- * Current point iterator is standing on
     , locus
+
+    , tzIndent
+    , group
+    , say
+    , dump
     )
   where
 
 import Control.Exception (Exception)
-import Control.Lens (Getter, Lens', makeLenses, use, (%=), (.=), (^.))
+import Control.Lens (Getter, Lens', makeLenses, use, (%=), (.=), (^.), (+=), (-=))
 
 import Control.Monad (unless, when)
-import Control.Monad.Catch (catch, throwM)
-import Control.Monad.State.Strict (StateT, evalStateT, lift)
+import Control.Monad.Catch (catch, throwM, finally)
+import Control.Monad.State.Strict (StateT, evalStateT, lift, liftIO)
 
 import Data.Monoid ((<>))
 import Data.Set (Set)
 import Data.Typeable (Typeable)
-
---import Debug.Trace as Debug (trace)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
 
 import qualified Data.Set as Set (empty, fromList, insert)
+
+import Debug.Trace as Debug
 
 -- | Zipper representation.
 --
@@ -75,7 +81,8 @@ data TreeZipper h k v = TreeZipper
     , _tzKeyRange :: (Range k)              -- ^ Range of keys covered by locus
     , _tzMode     ::  Mode                  -- ^ Update or delete
     , _tzTouched  ::  Set Revision          -- ^ Set of nodes we touched
-    , _tzCounter  ::  Revision              -- ^ UID
+    , _tzCounter  ::  Revision              -- ^ 
+    , _tzIndent   ::  Int
     }
 
 type Range k = (WithBounds k, WithBounds k)
@@ -145,6 +152,7 @@ runZipped action mode0 tree = do
       res    <- action
       tree'  <- exit
       trails <- use trail
+      dump "exit"
       return (res, tree', trails)
 
 -- | Run zipper operation, build proof.
@@ -159,7 +167,34 @@ runZipped' action mode0 tree = do
       res    <- action
       tree'  <- exit
       trails <- use trail
+      dump "exit"
       return (res, tree', trails)
+
+group :: Retrieves h k v m => String -> Zipped h k v m a -> Zipped h k v m a
+group name action = do
+    say name
+    say "===="
+    tzIndent += 1
+    action `finally` do
+        tzIndent -= 1
+
+getIndent :: Retrieves h k v m => Zipped h k v m (String -> String)
+getIndent = do
+    indent <- use tzIndent
+    return (unlines . map (replicate (2 * indent) ' ' ++) . lines)
+
+dump :: Retrieves h k v m => String -> Zipped h k v m ()
+dump msg = do
+    tree  <- use locus
+    i <- getIndent
+    liftIO $ putStrLn $ i $ "## " ++ msg
+    liftIO $ putStrLn $ i $ showMap tree
+    liftIO $ putStrLn ""
+
+say :: Retrieves h k v m => String -> Zipped h k v m ()
+say msg = do
+    i <- getIndent
+    liftIO $ putStr $ i $ msg
 
 -- | Materialise tree node at locus and give it to action for introspection.
 --
@@ -169,6 +204,12 @@ withLocus action = do
     loc   <- use locus
     layer <- load loc
     action layer
+
+showWhereWeWere :: Monad m => String -> Zipped h k v m ()
+showWhereWeWere msg = do
+    steps <- use tzTouched
+    ()    <- Debug.trace (msg ++ ": " ++ show steps) $ return ()
+    return ()
 
 -- | Add current node identity to the set of nodes touched.
 mark :: Retrieves h k v m => String -> Zipped h k v m ()
@@ -191,17 +232,20 @@ instance Exception AlreadyOnTop
 -- | Move to the parent node; update & rebalance it if required.
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
 up = do
+  group "UP" $ do
     ctx  <- use context
     rev1 <- revisionHere
     side <- case ctx of
-      WentLeftFrom tree range rev0 : rest -> do
+      WentLeftFrom tree range _rev0 : rest -> do
         load tree >>= \case
-          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            if rev0 == rev1  -- if current node didn't change
+          MLBranch {_mlHash = hash, _mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
+            if hash /= Nothing  -- if current node didn't change
             then do
+                say "L..."
                 locus .= tree  -- set unchanged parent one
 
             else do
+                say "L!!!"
                 -- install current node inside parent
                 -- prepare it to 'rebalance'
                 now    <- use locus
@@ -220,16 +264,19 @@ up = do
             return L            -- return the side we went from
 
           _other -> do
+            say "TOP...L?" 
             throwM AlreadyOnTop
 
-      WentRightFrom tree range rev0 : rest -> do
+      WentRightFrom tree range _rev0 : rest -> do
         load tree >>= \case
-          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            if rev0 == rev1
+          MLBranch {_mlHash = hash, _mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
+            if hash /= Nothing
             then do
+                say "R..."
                 locus .= tree
 
             else do
+                say "R!!!"
                 now    <- use locus
                 tilt'  <- correctTilt right now tilt0 R
                 became <- branch rev1 tilt' left now
@@ -243,9 +290,11 @@ up = do
             return R
 
           _other -> do
+            say "TOP...R?"
             throwM AlreadyOnTop
 
       [] -> do
+          say "TOP..."      
           throwM AlreadyOnTop
 
     return side
@@ -271,6 +320,7 @@ enter mode0 tree = do
     , _tzMode     = mode0
     , _tzTouched  = Set.empty
     , _tzCounter  = rev
+    , _tzIndent   = 0
     }
 
 data WentDownOnNonBranch h = WentDownOnNonBranch h deriving (Show, Typeable)
@@ -282,34 +332,40 @@ descentLeft :: forall h k v m . Retrieves h k v m => Zipped h k v m ()
 descentLeft = do
     tree  <- use locus
     range <- use keyRange
+    
     mark "descentLeft"
+    
     load tree >>= \case
       MLBranch { _mlLeft = left, _mlCenterKey = center } -> do
-          locus .= left
-          rev <- revisionHere
-          context %= (WentLeftFrom tree range rev :)
-          keyRange .= refine L range center
-          mark "descentLeft/exit"
+        locus    .= left
+        rev <- revisionHere
+        context  %= (WentLeftFrom tree range rev :)
+        keyRange .= refine L range center
+        
+        mark "descentLeft/exit"
 
       _layer -> do
-          throwM $ WentDownOnNonBranch (rootHash tree)
+        throwM $ WentDownOnNonBranch (rootHash tree)
 
 -- | Move into the right branch of the current node.
 descentRight :: Retrieves h k v m => Zipped h k v m ()
 descentRight = do
     tree  <- use locus
     range <- use keyRange
+    
     mark "descentRight"
+    
     load tree >>= \case
       MLBranch { _mlRight = right, _mlCenterKey = center } -> do
-          locus .= right
-          rev <- revisionHere
-          context %= (WentRightFrom tree range rev :)
-          keyRange .= refine R range center
-          mark "descentRight/exit"
+        locus    .= right
+        rev <- revisionHere
+        context  %= (WentRightFrom tree range rev :)
+        keyRange .= refine R range center
+        
+        mark "descentRight/exit"
 
       _layer -> do
-          throwM $ WentDownOnNonBranch (rootHash tree)
+        throwM $ WentDownOnNonBranch (rootHash tree)
 
 -- | Using side and current 'centerKey', select a key subrange we end in.
 refine
@@ -393,6 +449,7 @@ change action = do
     rev    <- freshRevision
     loc    <- use locus
     newLoc <- lift $ setRevision rev loc
+    _      <- lift $ clearHash newLoc
 
     locus .= newLoc
 

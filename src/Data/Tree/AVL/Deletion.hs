@@ -42,7 +42,7 @@ deleteWithNoProof k tree = do
 
 -- | Deletion algorithm.
 deleteZ :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m Bool
-deleteZ k = withLocus $ \case
+deleteZ k = group ("delete " ++ show k) $ withLocus $ \case
     MLLeaf { _mlKey } ->
         if _mlKey == Plain k
         then True  <$ replaceWith (empty :: Map h k v)
@@ -52,6 +52,7 @@ deleteZ k = withLocus $ \case
 
     MLBranch {} -> do
         goto (Plain k)
+        showWhereWeWere "after goto k"
         withLocus $ \case
           MLLeaf { _mlKey = key0, _mlPrevKey = prev, _mlNextKey = next } -> do
             if key0 /= Plain k
@@ -59,11 +60,13 @@ deleteZ k = withLocus $ \case
             else do
                 side <- up  -- return to a parent of node to be deleted
 
+                showWhereWeWere "before another child marked"
                 -- we need to mark another child, so it ends in a proof
                 _ <- case side of
                     L -> descentRight >> up
                     R -> descentLeft  >> up
 
+                showWhereWeWere "another child marked"
                 newTree <- withLocus $ \case
                     MLBranch { _mlLeft = left, _mlRight = right } ->
                         return $ case side of

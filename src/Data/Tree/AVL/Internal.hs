@@ -54,6 +54,7 @@ module Data.Tree.AVL.Internal
     , setValue
     , setLeft
     , setRight
+    , clearHash
 
       -- * Introspection
     , load
@@ -95,7 +96,7 @@ module Data.Tree.AVL.Internal
 
 import Control.Exception   (Exception)
 import Control.Lens        (makeLenses, to, (&), (.~), (^.), (^?), (%~), view)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadMask)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Free  (Free (Free, Pure))
 
@@ -204,7 +205,7 @@ data MapLayer h k v self
     { _mlRevision :: Revision
     , _mlHash     :: Maybe h
     }
-    deriving (Eq, Functor, Foldable, Traversable, Generic)
+    deriving (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 deriveEq1 ''MapLayer
 deriveOrd1 ''MapLayer
@@ -263,7 +264,7 @@ type Params h k v =
 -- tree to operate.
 type Base h k v m =
     ( Params h k v
-    , MonadCatch m
+    , MonadMask m
     , MonadIO m
     )
 
@@ -288,16 +289,16 @@ showMap :: (Show h, Show k, Show v) => Map h k v -> String
 showMap = Tree.drawTree . asTree
   where
     asTree = \case
-      Free (MLBranch rev h _mk _ck t  l r) -> Tree.Node ("Branch " ++ show (rev, h, t))    [asTree r, asTree l]
-      Free (MLLeaf   rev h  k   v _n _p)   -> Tree.Node ("Leaf   " ++ show (rev, h, k, v)) []
+      Free (MLBranch rev h _mk _ck t  l r) -> Tree.Node ("Branch " ++ show (rev, h, _mk, _ck, t))    [asTree r, asTree l]
+      Free (MLLeaf   rev h  k   v _n _p)   -> Tree.Node ("Leaf   " ++ show (rev, h, k, v, _n, _p)) []
       Free (MLEmpty  rev h)                -> Tree.Node ("Empty  " ++ show (rev, h))       []
       Pure  h                              -> Tree.Node ("Ref    " ++ show h)              []
 
-instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
-    show = \case
-      MLBranch _ h _mk _ck  t  l r -> "Branch" ++ show (h, t, l, r)
-      MLLeaf   _ h  k   v  _n _p   -> "Leaf"   ++ show (h, k, v)
-      MLEmpty  _ h                 -> "Empty"  ++ show (h)
+-- instance (Show h, Show k, Show v, Show self) => Show (MapLayer h k v self) where
+--     show = \case
+--       MLBranch _ h _mk _ck  t  l r -> "Branch" ++ show (h, t, l, r)
+--       MLLeaf   _ h  k   v  _n _p   -> "Leaf"   ++ show (h, k, v)
+--       MLEmpty  _ h                 -> "Empty"  ++ show (h)
 
 -- | Calculate hash outside of 'rehash'.
 hashOf' :: forall h k v a. Hash h k v => MapLayer a k v h -> h
@@ -422,6 +423,10 @@ setRevision :: Retrieves h k v m => Revision -> Map h k v -> m (Map h k v)
 setRevision rev = onTopNode $ \case
     it@ MLEmpty {} -> it
     other -> other & mlRevision .~ rev
+
+-- | Wipes node hash out.
+clearHash :: Retrieves h k v m => Map h k v -> m (Map h k v)
+clearHash = onTopNode $ mlHash .~ Nothing
 
 -- | Recalculate 'rootHash' of the node.
 --
