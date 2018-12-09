@@ -12,7 +12,7 @@ module Data.Tree.AVL.Store.Pure
     ) where
 
 import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
-import Control.Lens (makeLenses, use, uses, (%=), (.=))
+import Lens.Micro.Platform (makeLenses, use, use, (%=), (.=), (<&>))
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT, ask, lift, runReaderT)
@@ -46,7 +46,7 @@ asState action = do
 
 instance (Base h k v m, MonadIO m) => KVRetrieve h (Isolated h k v) (StoreT h k v m) where
     retrieve k = asState $
-        uses psStorage (Map.lookup k) >>= maybe (throwM $ NotFound k) pure
+        use psStorage <&> Map.lookup k >>= maybe (throwM $ NotFound k) pure
 
 instance (Base h k v m, MonadIO m) => KVStore h (Isolated h k v) (StoreT h k v m) where
     massStore pairs = asState $ psStorage %= (<> Map.fromList pairs)

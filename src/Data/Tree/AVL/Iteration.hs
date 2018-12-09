@@ -5,7 +5,7 @@ module Data.Tree.AVL.Iteration
     , fold
     ) where
 
-import Control.Lens ((^.))
+import Lens.Micro.Platform ((^.))
 import Control.Monad.Writer.Strict (WriterT (runWriterT), lift, tell)
 import qualified Data.Set as Set
 

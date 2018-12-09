@@ -1,14 +1,13 @@
 module Common
     ( module Common
-    , module Control.Lens
+    , module Lenses
     , module T
     ) where
 
-import Control.Lens hiding (Empty, elements, locus)
+import Lens.Micro.Platform as Lenses
 import Control.Monad as T (unless, when)
 import Control.Monad.Catch as T (catch)
 import Control.Monad.IO.Class as T (MonadIO, liftIO)
-import Control.Monad.Trans.Class as T (lift)
 
 import Data.Default as T (Default (def))
 import Data.Foldable ()

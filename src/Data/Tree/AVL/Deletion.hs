@@ -8,7 +8,7 @@ module Data.Tree.AVL.Deletion
     , delete'
     ) where
 
-import Control.Lens (use, (.=))
+import Lens.Micro.Platform (use, (.=))
 import Control.Monad (unless)
 import Data.Set (Set)
 
