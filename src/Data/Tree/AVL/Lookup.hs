@@ -32,6 +32,6 @@ lookupZ k = do
     goto (Plain k)
     withLocus $ \case
         MLLeaf {_mlKey, _mlValue} ->
-            return $ if _mlKey == Plain k then Just _mlValue else Nothing
+            return $ if _mlKey == k then Just _mlValue else Nothing
         MLEmpty {} -> return Nothing
         _ -> error $ "lookup: `goto ended in non-terminal node"
