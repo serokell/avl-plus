@@ -89,8 +89,8 @@ module Data.Tree.AVL.Internal
     )
   where
 
-import Control.Exception (Exception)
-import Control.Lens (makeLenses, to, view, (%~), (&), (.~), (^.), (^?))
+import Control.Exception   (Exception)
+import Lens.Micro.Platform (makeLenses, to, view, (&), (.~), (^.), (^?), (%~))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Free (Free (Free, Pure))
 import Control.Monad.IO.Class (MonadIO)

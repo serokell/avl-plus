@@ -34,10 +34,9 @@ library
                      , deriving-compat
                      , exceptions
                      , free
-                     , lens
+                     , microlens-platform
                      , mtl
                      , stm
-                     , transformers
                      , unordered-containers
   default-extensions:
                AllowAmbiguousTypes
@@ -95,10 +94,9 @@ test-suite avl-tree-sanity
                      , data-default
                      , exceptions
                      , hashable
-                     , lens
+                     , microlens-platform
                      , hspec
-                     , transformers
-                     , universum
+                    --  , universum
                      , unordered-containers
                      , QuickCheck
                      , quickcheck-instances

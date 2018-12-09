@@ -9,7 +9,7 @@ module Data.Tree.AVL.Prune
       prune
     ) where
 
-import Control.Lens ((&), (.~), (<&>), (^.))
+import Lens.Micro.Platform ((&), (.~), (<&>), (^.))
 import Control.Monad.Free (Free (Free))
 import Data.Set (Set)
 import qualified Data.Set as Set (notMember)

@@ -33,7 +33,7 @@ module Data.Tree.AVL.Zipper
   where
 
 import Control.Exception (Exception)
-import Control.Lens (Getter, Lens', makeLenses, use, uses, (%=), (.=))
+import Lens.Micro.Platform (SimpleGetter, Lens', makeLenses, use, (%=), (.=), (<&>))
 
 import Control.Monad (unless, when)
 import Control.Monad.Catch (catch, throwM)
@@ -108,8 +108,8 @@ makeLenses ''TreeZipper
 locus    :: Lens'  (TreeZipper h k v) (Map h k v)
 context  :: Lens'  (TreeZipper h k v) [TreeZipperCxt h k v]
 keyRange :: Lens'  (TreeZipper h k v) (Range k)
-mode     :: Getter (TreeZipper h k v)  Mode
 trail    :: Lens'  (TreeZipper h k v) (Set h)
+mode     :: SimpleGetter (TreeZipper h k v)  Mode
 
 mode     = tzMode
 keyRange = tzKeyRange
@@ -159,7 +159,7 @@ withLocus action = do
 -- | Add current node identity to the set of nodes touched.
 mark :: Retrieves h k v m => String -> Zipped h k v m ()
 mark _msg = do
-    uses locus rootHash >>= \case
+    use locus <&> rootHash >>= \case
       Just hash -> do
         trail %= Set.insert hash
 
@@ -179,7 +179,7 @@ instance Exception AlreadyOnTop
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
 up = do
     ctx   <- use context
-    hash1 <- uses locus rootHash
+    hash1 <- use locus <&> rootHash
     side  <- case ctx of
       WentLeftFrom tree range : rest -> do
         load tree >>= \case

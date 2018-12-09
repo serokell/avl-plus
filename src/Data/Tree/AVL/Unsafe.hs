@@ -19,7 +19,7 @@ module Data.Tree.AVL.Unsafe
     ) where
 
 import Control.Exception (Exception)
-import Control.Lens (to, (^.), (^?))
+import Lens.Micro.Platform (to, (^.), (^?))
 import Control.Monad (void, when)
 import Control.Monad.Catch (catch)
 import Control.Monad.Free (Free (..))

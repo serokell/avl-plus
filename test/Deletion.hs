@@ -1,6 +1,7 @@
 module Deletion (tests) where
 
-import Universum (allM, for_)
+import Data.Foldable (for_)
+import Data.Traversable (for)
 
 import Data.List ((\\))
 
@@ -15,7 +16,7 @@ tests = describe "Delete" $ do
     it' "Tree is still balanced after delete" $ \list -> do
         tree  <- AVL.fromList list :: StorageMonad M
         trees <- scanM (AVL.deleteWithNoProof . fst) tree list
-        yes   <- allM  (AVL.isBalancedToTheLeaves)   trees
+        yes   <- and <$> for trees AVL.isBalancedToTheLeaves
 
         for_ trees $ AVL.isBalancedToTheLeaves
 

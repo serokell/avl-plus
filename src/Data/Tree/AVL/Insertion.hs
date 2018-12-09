@@ -13,7 +13,7 @@ module Data.Tree.AVL.Insertion
     , fromFoldable
     ) where
 
-import Control.Lens (use, (.=))
+import Lens.Micro.Platform (use, (.=))
 import Control.Monad (foldM, unless, void)
 import Data.Set (Set)
 
