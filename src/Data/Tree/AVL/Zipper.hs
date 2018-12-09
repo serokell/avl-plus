@@ -78,6 +78,7 @@ data TreeZipper h k v = TreeZipper
     , _tzKeyRange :: (Range k)              -- ^ Range of keys covered by locus
     , _tzMode     ::  Mode                  -- ^ Update or delete
     , _tzTouched  ::  Set h                 -- ^ Set of nodes we touched
+    , _tzDirty    ::  Bool
     }
 
 type Range k = (WithBounds k, WithBounds k)
@@ -87,7 +88,9 @@ data TreeZipperCtx h k v = TreeZipperCtx
     { _tzcSize  :: Side       -- ^ the direction we came from
     , _tzcFrom  :: Map h k v  -- ^ the node we came from (parent)
     , _tzcRange :: Range k    -- ^ the key range we were at
+    , _tzcDirty :: Bool
     }
+    deriving Show
 
 --deriving instance Retrieves h k v => Show (TreeZipperCxt h k v)
 
@@ -155,6 +158,8 @@ say = liftIO . putStrLn
 dump :: Retrieves h k v m => Zipped h k v m ()
 dump = do
     say . showMap =<< use locus
+    ctx <- use context
+    say (show $ map (rootHash . _tzcFrom) ctx)
 
 -- | Materialise tree node at locus and give it to action for introspection.
 --
@@ -184,14 +189,15 @@ instance Exception AlreadyOnTop
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
 up = do
     ctx   <- use context
-    hash1 <- use locus <&> rootHash
+    dirty <- use tzDirty
     side  <- case ctx of
-      TreeZipperCtx L tree range : rest -> do
+      TreeZipperCtx L tree range wasDirty : rest -> do
         load tree >>= \case
           MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            if hash1 /= rootHash tree  -- if current node didn't change
+            if not dirty  -- if current node didn't change
             then do
                 locus .= tree  -- set unchanged parent one
+                tzDirty .= (dirty || wasDirty)
 
             else do
                 -- install current node inside parent
@@ -205,6 +211,7 @@ up = do
                                     -- also, make parent dirty, so next 'up'
                                     -- will check if it needs to update
                 rebalance
+                tzDirty .= True
 
             context  .= rest    -- pop parent layer from context stack
             keyRange .= range   -- restore parent 'keyRange'
@@ -214,12 +221,13 @@ up = do
           _other -> do
             throwM AlreadyOnTop
 
-      TreeZipperCtx R tree range : rest -> do
+      TreeZipperCtx R tree range wasDirty : rest -> do
         load tree >>= \case
           MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            if hash1 /= rootHash tree
+            if not dirty
             then do
                 locus .= tree
+                tzDirty .= (dirty || wasDirty)
 
             else do
                 now    <- use locus
@@ -228,6 +236,7 @@ up = do
 
                 replaceWith became
                 rebalance
+                tzDirty .= True
 
             context  .= rest
             keyRange .= range
@@ -244,7 +253,7 @@ up = do
 
 -- | Return to the root node.
 exit :: Retrieves h k v m => Zipped h k v m (Map h k v)
-exit = say "before uplift" *> uplift <* say "after uplift"
+exit = uplift
   where
     uplift = do
         _ <- up
@@ -260,6 +269,7 @@ enter mode0 tree = TreeZipper
     , _tzKeyRange = (minBound, maxBound)
     , _tzMode     = mode0
     , _tzTouched  = Set.empty
+    , _tzDirty    = False
     }
 
 data WentDownOnNonBranch h = WentDownOnNonBranch h deriving (Show, Typeable)
@@ -277,8 +287,10 @@ descentLeft = do
     load tree >>= \case
       MLBranch { _mlLeft = left, _mlCenterKey = center } -> do
         locus    .= left
-        context  %= (TreeZipperCtx L tree range :)
+        dirty    <- use tzDirty
+        context  %= (TreeZipperCtx L tree range dirty :)
         keyRange .= refine L range center
+        tzDirty  .= False
 
         mark "descentLeft/exit"
 
@@ -296,8 +308,10 @@ descentRight = do
     load tree >>= \case
       MLBranch { _mlRight = right, _mlCenterKey = center } -> do
         locus    .= right
-        context  %= (TreeZipperCtx R tree range :)
+        dirty    <- use tzDirty
+        context  %= (TreeZipperCtx R tree range dirty :)
         keyRange .= refine R range center
+        tzDirty  .= False
 
         mark "descentRight/exit"
 
@@ -381,7 +395,9 @@ change action = do
         error "change: calling this in ReadonlyMode is prohibited"
 
     mark "change" -- automatically add node the list of touched
-    action
+    res <- action
+    tzDirty .= True
+    return res
 
 -- | Place new tree into the locus, update its revision.
 replaceWith :: Retrieves h k v m => Map h k v -> Zipped h k v m ()

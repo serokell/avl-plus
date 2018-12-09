@@ -56,17 +56,14 @@ insertWithNoProof k v tree = do
 -- | Insertion algorithm.
 insertZ :: forall h k v m . Retrieves h k v m => k -> v -> Zipped h k v m ()
 insertZ k v = do
-    say $ "inserting " ++ show k
     goto (Plain k)             -- teleport to a key (or near it if absent)
     withLocus $ \case
       MLEmpty {} -> do
-        say "replacing empty"
         replaceWith =<< leaf k v
 
       MLLeaf { _mlKey = key0 } -> do
         if k == key0  -- update case, replace with new value
         then do
-            say "updating"
             change $ do
                 here  <- use locus
                 here' <- setValue v here
@@ -74,23 +71,15 @@ insertZ k v = do
         else do
             if k < key0
             then do
-                say "sib"
-                dump
                 splitInsertBefore =<< leaf k v
-                say "sib: done"
-                dump
                 gotoPrevKey k
-                say "gpk: done"
-                dump
 
             else do
-                say "sia"
                 splitInsertAfter =<< leaf k v
                 gotoNextKey k
 
       _ ->
         error $ "insert: `goto k` ended in non-terminal node"
- <* say "inserted"
   where
     splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
