@@ -96,7 +96,8 @@ module Data.Tree.AVL
 
       -- * Main type ('Map') and all other types
     , Map
-    , MapLayer (..)
+    , MapLayer
+    , MapLayerTemplate (..)
     , Tilt
     , WithBounds
 
@@ -129,7 +130,6 @@ module Data.Tree.AVL
 
       -- * Proof type, ways to construct and eliminate
     , Proof (..)
-    , fullRehash
     , prune
     , checkProof
 

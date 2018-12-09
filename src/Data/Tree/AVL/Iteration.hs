@@ -16,7 +16,7 @@ walkDFS
   :: forall h k v m b res
   .  Retrieves h k v m
   =>  ( b
-      , MapLayer h k v (Maybe h) -> b -> b
+      , MapLayer h k v h -> b -> b
       , b -> res
       )
   -> Map h k v
@@ -26,13 +26,13 @@ walkDFS (start, add, finish) root = runWriterT $ finish <$> go start root
     go :: b -> Map h k v -> WriterT (Set.Set h) m b
     go acc mapping =
         lift (load mapping) >>= \point -> do
-            maybe (return ()) (tell . Set.singleton) (point^.mlHash)
+            tell $ Set.singleton $ point^.mlHash
             let point' = rootHash <$> point
             case point of
                 MLBranch { _mlLeft = l, _mlRight = r } -> do
                   acc' <- go (add point' acc) l
                   go acc' r
-                MLLeaf {} -> return $ add point' acc
+                MLLeaf  {} -> return $ add point' acc
                 MLEmpty {} -> return acc
 
 -- | Left-to-right fold.
@@ -48,10 +48,9 @@ foldIf
     -> m (res, Set.Set h)
 foldIf (good, start, add, finish) = walkDFS (start, collectKVAnd add, finish)
   where
-    collectKVAnd :: ((k, v) -> b -> b) -> MapLayer h k v (Maybe h) -> b -> b
+    collectKVAnd :: ((k, v) -> b -> b) -> MapLayer h k v h -> b -> b
     collectKVAnd act = \case
-        MLLeaf { _mlKey = (unsafeFromWithBounds -> k), _mlValue = v }
-            | good k -> act (k, v)
+        MLLeaf { _mlKey = k, _mlValue = v } | good k -> act (k, v)
         _other -> id
 
 -- | Left-to-right fold.

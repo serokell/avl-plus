@@ -24,14 +24,14 @@ prune ::
     => Set h
     -> Map h k v
     -> m (Proof h k v)
-prune hashes (fullRehash -> tree) =
+prune hashes tree =
     Proof <$> go tree
   where
     go :: Map h k v -> m (Map h k v)
     go bush = do
         layer <- load bush
-        if maybe False (`Set.notMember` hashes) (layer^.mlHash)
-        then return $ Free (layer <&> ref . unsafeRootHash)
+        if (layer^.mlHash) `Set.notMember` hashes
+        then return $ Free (layer <&> ref . rootHash)
         else case layer of
             MLBranch {_mlLeft = l, _mlRight = r} -> do
                 l' <- go l
@@ -39,4 +39,6 @@ prune hashes (fullRehash -> tree) =
                 return $ Free $ layer
                     & mlLeft  .~ l'
                     & mlRight .~ r'
-            _other -> return bush
+            
+            _other ->
+                return bush
