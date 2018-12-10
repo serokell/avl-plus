@@ -5,9 +5,9 @@ module Data.Tree.AVL.Iteration
     , fold
     ) where
 
-import Lens.Micro.Platform ((^.))
 import Control.Monad.Writer.Strict (WriterT (runWriterT), lift, tell)
 import qualified Data.Set as Set
+import Lens.Micro.Platform ((^.))
 
 import Data.Tree.AVL.Internal
 

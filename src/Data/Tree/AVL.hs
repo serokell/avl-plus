@@ -88,7 +88,6 @@ module Data.Tree.AVL
 
       -- * Some base constraints
     , Hash(hashOf)
-    , Params
     , Base
 
       -- * Exceptions
@@ -98,8 +97,6 @@ module Data.Tree.AVL
     , Map
     , MapLayer
     , MapLayerTemplate (..)
-    , Tilt
-    , WithBounds
 
       -- * Constructors/toList
     , empty
@@ -113,9 +110,8 @@ module Data.Tree.AVL
     , emptyHash
 
       -- * Operations over AVL+
-    , insert
-    , delete
-    , deleteWithNoProof
+    , insert, insertWithNoProof
+    , delete, deleteWithNoProof
     , lookup
     , fold
     , foldIf
@@ -133,8 +129,13 @@ module Data.Tree.AVL
     , prune
     , checkProof
 
-      -- * For debug
+      -- * Serialisation helpers
+    , beforeSerialise
+    , afterDeserialise
+
+      -- * Helpers
     , showMap
+    , mapTilt
     ) where
 
 import Prelude hiding (lookup)

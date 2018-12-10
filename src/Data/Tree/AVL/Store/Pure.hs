@@ -12,11 +12,11 @@ module Data.Tree.AVL.Store.Pure
     ) where
 
 import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
-import Lens.Micro.Platform (makeLenses, use, use, (%=), (.=), (<&>))
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT, ask, lift, runReaderT)
 import Control.Monad.State (StateT, put, runStateT)
+import Lens.Micro.Platform (makeLenses, use, (%=), (.=), (<&>))
 
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
