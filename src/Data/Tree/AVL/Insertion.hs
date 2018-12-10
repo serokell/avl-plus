@@ -13,9 +13,9 @@ module Data.Tree.AVL.Insertion
     , fromFoldable
     ) where
 
-import Lens.Micro.Platform (use, (.=))
 import Control.Monad (foldM, void)
 import Data.Set (Set)
+import Lens.Micro.Platform (use, (.=))
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof

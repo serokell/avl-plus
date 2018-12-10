@@ -9,10 +9,10 @@ module Data.Tree.AVL.Prune
       prune
     ) where
 
-import Lens.Micro.Platform ((&), (.~), (<&>), (^.))
 import Control.Monad.Free (Free (Free))
 import Data.Set (Set)
 import qualified Data.Set as Set (notMember)
+import Lens.Micro.Platform ((&), (.~), (<&>), (^.))
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
@@ -39,6 +39,6 @@ prune hashes tree =
                 return $ Free $ layer
                     & mlLeft  .~ l'
                     & mlRight .~ r'
-            
+
             _other ->
                 return bush

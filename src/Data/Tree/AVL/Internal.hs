@@ -84,15 +84,17 @@ module Data.Tree.AVL.Internal
       -- * Derivation helpers
     , ProvidesHash (..)
     , Combines (..)
-    , prepareToSerialise
+    , beforeSerialise
+    , afterDeserialise
+    , mapTilt
     )
   where
 
-import Control.Exception   (Exception)
-import Lens.Micro.Platform (makeLenses, to, (&), (.~), (^.), (^?))
+import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Free (Free (Free, Pure))
 import Control.Monad.IO.Class (MonadIO)
+import Lens.Micro.Platform (makeLenses, to, (&), (.~), (^.), (^?))
 
 import Data.Maybe (fromMaybe)
 import qualified Data.Tree as Tree
@@ -182,9 +184,9 @@ data MapLayerTemplate t h k v self
     , _mlRight     :: self -- ^ Left subtree or subtree hash.
     }
   | MLLeaf
-    { _mlHash    :: ~h
-    , _mlKey     :: k      -- ^ Key of the leaf node.
-    , _mlValue   :: v      -- ^ Value of the leaf node.
+    { _mlHash  :: ~h
+    , _mlKey   :: k      -- ^ Key of the leaf node.
+    , _mlValue :: v      -- ^ Value of the leaf node.
     }
   | MLEmpty
     { _mlHash     :: ~h
@@ -298,24 +300,30 @@ type Retrieves h k v m =
 -- * Methods
 -------------------------------------------------------------------------------
 
-prepareToSerialise :: Map h k v -> MapTemplate Int h k v
-prepareToSerialise = go
+mapTilt :: (t1 -> t2) -> MapTemplate t1 h k v -> MapTemplate t2 h k v
+mapTilt f = go
   where
     go = \case
-        Free (split@ MLBranch 
+        Free (split@ MLBranch
             { _mlTilt  = t
             , _mlLeft  = left
             , _mlRight = right
             })
           -> Free split
-            { _mlTilt  = fromEnum t
+            { _mlTilt  = f t
             , _mlLeft  = go left
             , _mlRight = go right
             }
-        
+
         Free (MLLeaf  h k v) -> Free (MLLeaf  h k v)
         Free (MLEmpty h)     -> Free (MLEmpty h)
         Pure  h              -> Pure  h
+
+beforeSerialise :: Map h k v -> MapTemplate Int h k v
+beforeSerialise = mapTilt fromEnum
+
+afterDeserialise :: MapTemplate Int h k v -> Map h k v
+afterDeserialise = mapTilt toEnum
 
 -- | Debug preview of the tree.
 showMap :: (Show h, Show k, Show v) => Map h k v -> String
@@ -501,12 +509,12 @@ pathLengths = go
     go tree = load tree >>= \case
         MLLeaf {} ->
             return [0]
-        
+
         MLBranch {_mlLeft, _mlRight} -> do
             lefts  <- go _mlLeft
             rights <- go _mlRight
             return $ map (+ 1) $ lefts ++ rights
-        
+
         MLEmpty {} ->
             return []
 
@@ -530,7 +538,7 @@ isBalancedToTheLeaves = go
         MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
             leftH  <- height _mlLeft
             rightH <- height _mlRight
-            
+
             let localBalance = case _mlTilt of
                     L2 -> False
                     L1 -> leftH - rightH == 1

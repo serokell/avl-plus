@@ -38,7 +38,7 @@ module Data.Tree.AVL.Zipper
   where
 
 import Control.Exception (Exception, SomeException)
-import Lens.Micro.Platform (SimpleGetter, Lens', makeLenses, use, (%=), (.=), (<&>))
+import Lens.Micro.Platform (Lens', SimpleGetter, makeLenses, use, (%=), (.=), (<&>))
 
 import Control.Monad (unless, when)
 import Control.Monad.Catch (catch, throwM)
@@ -478,7 +478,7 @@ whilePossible action = aux
             return True
           `catch` \(_ :: SomeException) -> do
             return False
-    
+
         when possible $ do
             aux
 
