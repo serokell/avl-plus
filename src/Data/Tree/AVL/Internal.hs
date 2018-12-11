@@ -93,7 +93,6 @@ module Data.Tree.AVL.Internal
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Free (Free (Free, Pure))
-import Control.Monad.IO.Class (MonadIO)
 import Lens.Micro.Platform (makeLenses, to, (&), (.~), (^.), (^?))
 
 import Data.Maybe (fromMaybe)
@@ -281,7 +280,6 @@ type Params h k v =
 type Base h k v m =
     ( Params h k v
     , MonadCatch m
-    , MonadIO m
     )
 
 -- | Ability to write into the storage.
