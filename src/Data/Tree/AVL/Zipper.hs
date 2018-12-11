@@ -187,17 +187,18 @@ instance Exception AlreadyOnTop
 -- | Move to the parent node; update & rebalance it if required.
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
 up = do
-    dirty <- use tzDirty
     TreeZipperCtx side tree range wasDirty <- pop context AlreadyOnTop
     keyRange .= range   -- restore parent 'keyRange'
-    load tree >>= \case
-      MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
-        if not dirty
-        then do
-            locus   .= tree
-            tzDirty .= (dirty || wasDirty)
 
-        else do
+    dirty <- use tzDirty
+    if not dirty
+    then do
+        locus   .= tree
+        tzDirty .= (dirty || wasDirty)
+
+    else do
+        load tree >>= \case
+          MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
             now    <- use locus
             became <- case side of
               L -> do
@@ -211,8 +212,8 @@ up = do
             replaceWith became
             rebalance
 
-      _other -> do
-        throwM AlreadyOnTop
+          _other -> do
+            throwM AlreadyOnTop
 
     return side
 
