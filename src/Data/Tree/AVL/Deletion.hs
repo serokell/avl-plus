@@ -60,8 +60,8 @@ deleteZ k = withLocus $ \case
 
                 -- we need to mark another child, so it ends in a proof
                 _ <- case side of
-                    L -> descentRight >> up
-                    R -> descentLeft  >> up
+                    L -> descent R >> up
+                    R -> descent L >> up
 
                 newTree <- withLocus $ \case
                     MLBranch { _mlLeft = left, _mlRight = right } ->

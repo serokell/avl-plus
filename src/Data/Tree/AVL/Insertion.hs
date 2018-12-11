@@ -85,14 +85,14 @@ insertZ k v = do
     splitInsertBefore leaf0 = do
         tree <- use locus
         replaceWith =<< branch M leaf0 tree
-        descentRight
+        descent R
         void up
 
     splitInsertAfter :: Map h k v -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
         tree <- use locus
         replaceWith =<< branch M tree leaf0
-        descentLeft
+        descent L
         void up
 
 -- | Monomorphised version of 'fromFoldable'.

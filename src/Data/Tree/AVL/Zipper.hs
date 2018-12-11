@@ -1,6 +1,6 @@
 -- | This module represents zipper layer.
 --   It allows us represent all operations using
---     'up', 'descentLeft', 'descentRight' and 'change'
+--     'up', 'descent L', 'descent R' and 'change'
 --   primitives.
 --   The 'up' also rebalances and recalculates a node, if you 'change'd it
 --   or its sibling.
@@ -19,8 +19,7 @@ module Data.Tree.AVL.Zipper
     , gotoPrevKey
     , gotoNextKey
     , up
-    , descentLeft
-    , descentRight
+    , descent
 
       -- * Actions over iterator
     , withLocus
@@ -66,7 +65,7 @@ import qualified Data.Set as Set (empty, fromList, insert)
 --
 --   Initially, the 'locus' is root node, and the context stack is empty.
 --
---   After 'descentLeft' the 'locus' points to left branch of the root, and
+--   After 'descent L' the 'locus' points to left branch of the root, and
 --   the context stack will contain one layer of 'TreeZipperCtx', containing
 --   data to return onto root node and update it if needed.
 --
@@ -192,7 +191,7 @@ up = do
     TreeZipperCtx side tree range wasDirty <- pop context AlreadyOnTop
     keyRange .= range   -- restore parent 'keyRange'
     load tree >>= \case
-      MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
+      MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
         if not dirty
         then do
             locus   .= tree
@@ -202,12 +201,12 @@ up = do
             now    <- use locus
             became <- case side of
               L -> do
-                tilt'  <- correctTilt left now tilt0 L
-                branch tilt' now right
+                tilt'  <- correctTilt _mlLeft now _mlTilt L
+                branch tilt' now _mlRight
 
               R -> do
-                tilt'  <- correctTilt right now tilt0 R
-                branch tilt' left now
+                tilt'  <- correctTilt _mlRight now _mlTilt R
+                branch tilt' _mlLeft now
 
             replaceWith became
             rebalance
@@ -251,44 +250,27 @@ data WentDownOnNonBranch h = WentDownOnNonBranch h deriving (Show, Typeable)
 
 instance (Show h, Typeable h) => Exception (WentDownOnNonBranch h)
 
+select :: Side -> a -> a -> a
+select L a _ = a
+select R _ b = b
+
 -- | Move into the left branch of the current node.
-descentLeft :: forall h k v m . Retrieves h k v m => Zipped h k v m ()
-descentLeft = do
+descent :: forall h k v m . Retrieves h k v m => Side -> Zipped h k v m ()
+descent side = do
     tree  <- use locus
     range <- use keyRange
 
-    mark "descentLeft"
+    mark $ "descent " ++ show side
 
     load tree >>= \case
-      MLBranch { _mlLeft = left, _mlCenterKey = center } -> do
-        locus    .= left
+      MLBranch { _mlLeft = left, _mlRight = right, _mlCenterKey = center } -> do
+        locus    .= select side left right
         dirty    <- use tzDirty
-        context  %= (TreeZipperCtx L tree range dirty :)
-        keyRange .= refine L range center
+        context  %= (TreeZipperCtx side tree range dirty :)
+        keyRange .= refine side range center
         tzDirty  .= False
 
-        mark "descentLeft/exit"
-
-      _layer -> do
-        throwM $ WentDownOnNonBranch (rootHash tree)
-
--- | Move into the right branch of the current node.
-descentRight :: Retrieves h k v m => Zipped h k v m ()
-descentRight = do
-    tree  <- use locus
-    range <- use keyRange
-
-    mark "descentRight"
-
-    load tree >>= \case
-      MLBranch { _mlRight = right, _mlCenterKey = center } -> do
-        locus    .= right
-        dirty    <- use tzDirty
-        context  %= (TreeZipperCtx R tree range dirty :)
-        keyRange .= refine R range center
-        tzDirty  .= False
-
-        mark "descentRight/exit"
+        mark "descent L/exit"
 
       _layer -> do
         throwM $ WentDownOnNonBranch (rootHash tree)
@@ -426,15 +408,15 @@ gotoPrevKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
 gotoPrevKey k = do
     goto (Plain k)
     raiseUntilFrom R `catch` \AlreadyOnTop -> return ()
-    descentLeft      `catch` \(WentDownOnNonBranch (_ :: h)) -> return ()
-    whilePossible descentRight
+    descent L        `catch` \(WentDownOnNonBranch (_ :: h)) -> return ()
+    whilePossible $ descent R
 
 gotoNextKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
 gotoNextKey k = do
     goto (Plain k)
     raiseUntilFrom L `catch` \AlreadyOnTop -> return ()
-    descentRight     `catch` \(WentDownOnNonBranch (_ :: h)) -> return ()
-    whilePossible descentLeft
+    descent R        `catch` \(WentDownOnNonBranch (_ :: h)) -> return ()
+    whilePossible $ descent L
 
 raiseUntilFrom :: Retrieves h k v m => Side -> Zipped h k v m ()
 raiseUntilFrom weSeek = aux
@@ -483,8 +465,8 @@ descentOnto key0 = continueDescent
         loc      <- use locus
         center   <- centerKey loc
         if key0 >= center
-            then descentRight
-            else descentLeft
+            then descent R
+            else descent L
         continueDescent
       `catch` \(WentDownOnNonBranch (_ :: h)) -> do
         return ()
