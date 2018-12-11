@@ -93,7 +93,6 @@ import Control.Exception   (Exception)
 import Lens.Micro.Platform (makeLenses, to, view, (&), (.~), (^.), (^?), (%~))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Free (Free (Free, Pure))
-import Control.Monad.IO.Class (MonadIO)
 
 import Data.Maybe (fromJust, fromMaybe, isNothing)
 import qualified Data.Tree as Tree
