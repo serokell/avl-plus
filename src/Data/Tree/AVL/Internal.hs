@@ -59,6 +59,7 @@ module Data.Tree.AVL.Internal
     , load
     , loadAnd
     , loadAndM
+    , materialize
 
       -- * Low-level access
     , pattern Node
@@ -323,6 +324,11 @@ loadAnd f tree = f <$> load tree
 -- | Unwrap the tree and apply a monadic action.
 loadAndM :: Retrieves h k v m => (MapLayer h k v (Map h k v) -> m a) -> Map h k v -> m a
 loadAndM f tree = f =<< load tree
+
+materialize :: forall h k v m . Retrieves h k v m => Map h k v -> m (Map h k v)
+materialize initAVL = flip loadAndM initAVL $ \case
+    MLBranch h m c t l r -> fmap Free $ MLBranch h m c t <$> materialize l <*> materialize r
+    rest -> pure $ Free rest
 
 -- | Wrap node layer into the tree.
 close :: MapLayer h k v (Map h k v) -> Map h k v

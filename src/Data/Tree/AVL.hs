@@ -132,6 +132,7 @@ module Data.Tree.AVL
     , fullRehash
     , prune
     , checkProof
+    , materialize
 
       -- * For debug
     , showMap
