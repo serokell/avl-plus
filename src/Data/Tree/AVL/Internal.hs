@@ -252,7 +252,6 @@ type Params h k v =
 type Base h k v m =
     ( Params h k v
     , MonadCatch m
-    , MonadIO m
     )
 
 -- | Ability to write into the storage.
