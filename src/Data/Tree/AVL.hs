@@ -109,6 +109,7 @@ module Data.Tree.AVL
 
       -- * Root hash signature
     , rootHash
+    , rootHash'
     , emptyHash
 
       -- * Operations over AVL+

@@ -31,6 +31,7 @@ module Data.Tree.AVL.Internal
 
       -- * High-level operations
     , rootHash
+    , rootHash'
     , fullRehash
     , save
     , size
@@ -295,6 +296,10 @@ rootHash :: Map h k v -> Maybe h
 rootHash = \case
     Pure h     -> Just h
     Free layer -> layer^.mlHash
+
+rootHash' :: Hash h k v => Map h k v -> h
+rootHash' = fromMaybe (error msg) . rootHash . fullRehash
+  where msg = "Internal error: freshly rehashed tree must contain hash"
 
 -- | Get the root hash in a unsafe manner.
 unsafeRootHash :: Map h k v -> h
