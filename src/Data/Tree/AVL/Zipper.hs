@@ -188,68 +188,43 @@ instance Exception AlreadyOnTop
 -- | Move to the parent node; update & rebalance it if required.
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
 up = do
-    ctx   <- use context
     dirty <- use tzDirty
-    side  <- case ctx of
-      TreeZipperCtx L tree range wasDirty : rest -> do
-        load tree >>= \case
-          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            if not dirty  -- if current node didn't change
-            then do
-                locus .= tree  -- set unchanged parent one
-                tzDirty .= (dirty || wasDirty)
+    TreeZipperCtx side tree range wasDirty <- pop context AlreadyOnTop
+    keyRange .= range   -- restore parent 'keyRange'
+    load tree >>= \case
+      MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
+        if not dirty
+        then do
+            locus   .= tree
+            tzDirty .= (dirty || wasDirty)
 
-            else do
-                -- install current node inside parent
-                -- prepare it to 'rebalance'
-                now    <- use locus
+        else do
+            now    <- use locus
+            became <- case side of
+              L -> do
                 tilt'  <- correctTilt left now tilt0 L
-                became <- branch tilt' now right
+                branch tilt' now right
 
-                replaceWith became  -- replace current node with possibly updated
-                                    -- parent
-                                    -- also, make parent dirty, so next 'up'
-                                    -- will check if it needs to update
-                rebalance
-                tzDirty .= True
-
-            context  .= rest    -- pop parent layer from context stack
-            keyRange .= range   -- restore parent 'keyRange'
-
-            return L            -- return the side we went from
-
-          _other -> do
-            throwM AlreadyOnTop
-
-      TreeZipperCtx R tree range wasDirty : rest -> do
-        load tree >>= \case
-          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            if not dirty
-            then do
-                locus .= tree
-                tzDirty .= (dirty || wasDirty)
-
-            else do
-                now    <- use locus
+              R -> do
                 tilt'  <- correctTilt right now tilt0 R
-                became <- branch tilt' left now
+                branch tilt' left now
 
-                replaceWith became
-                rebalance
-                tzDirty .= True
+            replaceWith became
+            rebalance
 
-            context  .= rest
-            keyRange .= range
-
-            return R
-
-          _other -> do
-            throwM AlreadyOnTop
-
-      [] -> do
-          throwM AlreadyOnTop
+      _other -> do
+        throwM AlreadyOnTop
 
     return side
+
+pop :: (Exception e, Retrieves h k v m) => Lens' (TreeZipper h k v) [a] -> e -> Zipped h k v m a
+pop lens e = do
+    list <- use lens
+    case list of
+        [] -> throwM e
+        x : xs -> do
+            lens .= xs
+            return x
 
 -- | Return to the root node.
 exit :: Retrieves h k v m => Zipped h k v m (Map h k v)
