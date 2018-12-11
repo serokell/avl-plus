@@ -202,11 +202,11 @@ up = do
             now    <- use locus
             became <- case side of
               L -> do
-                tilt'  <- correctTilt _mlLeft now _mlTilt L
+                tilt' <- correctTilt _mlLeft now _mlTilt L
                 branch tilt' now _mlRight
 
               R -> do
-                tilt'  <- correctTilt _mlRight now _mlTilt R
+                tilt' <- correctTilt _mlRight now _mlTilt R
                 branch tilt' _mlLeft now
 
             replaceWith became
