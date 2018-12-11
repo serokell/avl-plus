@@ -32,8 +32,8 @@ module Data.Tree.AVL.Zipper
     , locus
 
       -- * Debug
-    , say
-    , dump
+    -- , say
+    -- , dump
     )
   where
 
@@ -42,7 +42,7 @@ import Lens.Micro.Platform (Lens', SimpleGetter, makeLenses, use, (%=), (.=), (<
 
 import Control.Monad (unless, when)
 import Control.Monad.Catch (catch, throwM)
-import Control.Monad.State.Strict (StateT, evalStateT, lift, liftIO)
+import Control.Monad.State.Strict (StateT, evalStateT, lift)
 
 import Data.Monoid ((<>))
 import Data.Set (Set)
@@ -152,14 +152,14 @@ runZipped' action mode0 tree = do
     proof              <- prune trails tree
     return (a, tree1, proof)
 
-say :: Retrieves h k v m => String -> Zipped h k v m ()
-say = liftIO . putStrLn
+-- say :: Retrieves h k v m => String -> Zipped h k v m ()
+-- say = liftIO . putStrLn
 
-dump :: Retrieves h k v m => Zipped h k v m ()
-dump = do
-    say . showMap =<< use locus
-    ctx <- use context
-    say (show $ map (rootHash . _tzcFrom) ctx)
+-- dump :: Retrieves h k v m => Zipped h k v m ()
+-- dump = do
+--     say . showMap =<< use locus
+--     ctx <- use context
+--     say (show $ map (rootHash . _tzcFrom) ctx)
 
 -- | Materialise tree node at locus and give it to action for introspection.
 --
