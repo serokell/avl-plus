@@ -87,8 +87,10 @@ module Data.Tree.AVL
     , Mutates
 
       -- * Some base constraints
-    , Hash(hashOf)
+    , Hash
     , Base
+    , Params
+    , ProvidesHash (..)
 
       -- * Exceptions
     , NotFound (..)
