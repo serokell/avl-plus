@@ -94,6 +94,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Free (Free (Free, Pure))
 import Lens.Micro.Platform (makeLenses, to, (&), (.~), (^.), (^?))
 
+import Data.Function (on)
 import Data.Maybe (fromMaybe)
 import qualified Data.Tree as Tree
 import Data.Typeable (Typeable)
@@ -189,7 +190,7 @@ data MapLayerTemplate t h k v self
   | MLEmpty
     { _mlHash     :: ~h
     }
-    deriving (Eq, Show, Functor, Foldable, Traversable, Generic)
+    deriving (Show, Functor, Foldable, Traversable, Generic)
 
 type MapLayer = MapLayerTemplate Tilt
 
@@ -215,6 +216,16 @@ deriving instance Generic (Free t a)
 
 -- | Lenses.
 makeLenses ''MapLayerTemplate
+
+-------------------------------------------------------------------------------
+-- * Instances
+-------------------------------------------------------------------------------
+
+instance {-# OVERLAPPING #-} Eq h => Eq (Map h k v) where
+    (==) = (==) `on` rootHash
+
+instance Eq h => Eq (MapLayer h k v h) where
+    (==) = (==) `on` (^.mlHash)
 
 -------------------------------------------------------------------------------
 -- * Typeclasses
