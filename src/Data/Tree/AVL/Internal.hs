@@ -86,7 +86,6 @@ module Data.Tree.AVL.Internal
     , Combines (..)
     , beforeSerialise
     , afterDeserialise
-    , mapTilt
     )
   where
 
