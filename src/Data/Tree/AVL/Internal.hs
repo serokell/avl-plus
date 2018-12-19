@@ -23,9 +23,8 @@ module Data.Tree.AVL.Internal
     , NotFound (..)
 
       -- * AVL map type, its layer and variants
-    , Map
-    , MapLayer
-    , MapLayerTemplate (..)
+    , Map,      MapTemplate
+    , MapLayer, MapLayerTemplate (..)
     , Isolated
 
       -- * High-level operations
@@ -191,6 +190,7 @@ data MapLayerTemplate t h k v self
     }
     deriving (Show, Functor, Foldable, Traversable, Generic)
 
+-- | One layer of tree with 'Tilt'.
 type MapLayer = MapLayerTemplate Tilt
 
 deriveEq1 ''MapLayerTemplate
@@ -200,9 +200,10 @@ deriveShow1 ''MapLayerTemplate
 -- | AVL tree as whole.
 type Map h k v = Free (MapLayer h k v) h
 
+-- | The tree which tilt can be of any type.
 type MapTemplate t h k v = Free (MapLayerTemplate t h k v) h
 
--- | AVL node that was isolate (hashes were put where in places of subtrees).
+-- | AVL node that was isolated (hashes were put where in places of subtrees).
 type Isolated h k v = MapLayer h k v h
 
 #if !MIN_VERSION_free(5,0,2)
@@ -230,7 +231,11 @@ instance Eq h => Eq (MapLayer h k v h) where
 -- * Typeclasses
 -------------------------------------------------------------------------------
 
--- | Intended use: `instance SomeHash a => ProvidesHash a SomeHashResult where getHash = hash`
+-- | Intended use:
+--
+--  > instance SomeHash a => ProvidesHash a SomeHashResult where getHash = hash
+--
+--  Is used to plug in an implementation of hashing.
 class ProvidesHash a h | a -> h where
     getHash :: a -> h
 
@@ -243,6 +248,7 @@ type Hash h k v =
     , ProvidesHash [h] h
     )
 
+-- | Calculate hash of one layer.
 hashOf :: Hash h k v => MapLayer h k v h -> h
 hashOf = \case
     MLBranch _ m c t l r ->
@@ -252,7 +258,6 @@ hashOf = \case
         getHash [getHash k, getHash v]
 
     MLEmpty _ -> getHash ()
-    -- ^ Take hash of the 'MapLayer'
 
 -- | DB monad capable of retrieving 'isolate'd nodes.
 class KVRetrieve hash node m where
@@ -264,10 +269,8 @@ class KVStore hash node m where
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
-    deriving (Show, Typeable)
-
-
-instance (Show k, Typeable k) => Exception (NotFound k)
+    deriving stock (Show)
+    deriving anyclass (Exception)
 
 -- | Constraints on type parameters for AVL 'Map'.
 type Params h k v =
@@ -319,9 +322,11 @@ mapTilt f = go
         Free (MLEmpty h)     -> Free (MLEmpty h)
         Pure  h              -> Pure  h
 
+-- | Replaces `Tilt` with `Int` inside the tree to ease serialisation.
 beforeSerialise :: Map h k v -> MapTemplate Int h k v
 beforeSerialise = mapTilt fromEnum
 
+-- | Replaces `Int` with `Tilt` inside the tree to ease deserialisation.
 afterDeserialise :: MapTemplate Int h k v -> Map h k v
 afterDeserialise = mapTilt toEnum
 
@@ -334,13 +339,6 @@ showMap = Tree.drawTree . asTree
       Free (MLLeaf   h k v)       -> Tree.Node ("Leaf   " ++ show (h, k, v))    []
       Free (MLEmpty  h)           -> Tree.Node ("Empty  " ++ show (h))          []
       Pure  h                     -> Tree.Node ("Ref    " ++ show h)            []
-
--- | Calculate hash outside of 'rehash'.
--- hashOf' :: forall h k v. Hash h k v => MapLayer h k v h -> h
--- hashOf' = hashOf . protect
---   where
---     protect ml = ml
---         & mlHash .~ error "Data.Tree.AVL.Internal.hashOf': old hash is used to generate new one"
 
 -- | Get hash of the root node for the tree.
 rootHash :: Map h k v -> h
