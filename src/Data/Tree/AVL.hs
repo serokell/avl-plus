@@ -135,7 +135,6 @@ module Data.Tree.AVL
 
       -- * Helpers
     , showMap
-    , mapTilt
     ) where
 
 import Prelude hiding (lookup)
