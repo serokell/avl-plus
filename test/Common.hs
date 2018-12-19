@@ -25,7 +25,7 @@ import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, 
                              property, (===), (==>))
 import Test.QuickCheck.Instances as T ()
 
-import qualified Data.Tree.AVL.Internal as AVL
+import qualified Data.Tree.AVL as AVL
 import qualified Data.Tree.AVL.Store.Pure as Pure
 import qualified Data.Tree.AVL.Store.Void as Void
 
@@ -46,31 +46,10 @@ infixr 5 .=.
 
 type Layer = AVL.MapLayer IntHash StringName Int IntHash
 
-deriving instance Ord Layer
-
---instance Show InitialHash where
---    show = \case
---        InitialHash m -> "#(" ++ show (m & AVL.mlHash .~ Default) ++ ")"
---        Default       -> "#"
-
---instance Default InitialHash where
---  def = Default
-
---instance Eq InitialHash where
---    x == y = show x == show y
-
---instance AVL.Hash InitialHash StringName Int where
---    hashOf = InitialHash
-
 instance Hashable StringName
-instance Hashable (AVL.WithBounds StringName)
-instance Hashable AVL.Tilt
 
-instance AVL.Hash IntHash StringName Int where
-    hashOf tree = case tree of
-        AVL.MLBranch _ mk ck t l r' -> IntHash $ hash (hash mk + hash ck + hash t + hash l + hash r')
-        AVL.MLLeaf   _ k  v         -> IntHash $ hash (hash k + hash v)
-        AVL.MLEmpty  _              -> IntHash $ 0
+instance Hashable a => AVL.ProvidesHash a IntHash where
+    getHash = IntHash . hash
 
 newtype IntHash = IntHash { getIntHash :: Int }
     deriving (Eq, Ord,  Arbitrary, Generic)

@@ -15,8 +15,9 @@ module Data.Tree.AVL.Internal
     , Base
 
       -- * Interface to plug in hash
-    , Hash (..)
-    , hashOf'
+    , ProvidesHash (..)
+    , Hash
+    , hashOf
 
       -- * Exception to be thrown by DB operations
     , NotFound (..)
@@ -81,9 +82,7 @@ module Data.Tree.AVL.Internal
     , pathLengths
     , orElse
 
-      -- * Derivation helpers
-    , ProvidesHash (..)
-    , Combines (..)
+      -- * Serialisation helpers
     , beforeSerialise
     , afterDeserialise
     )
@@ -231,36 +230,29 @@ instance Eq h => Eq (MapLayer h k v h) where
 -- * Typeclasses
 -------------------------------------------------------------------------------
 
--- | Supposed use: `instance SomeHash a => ProvidesHash a SomeHashResult where getHash = hash`
+-- | Intended use: `instance SomeHash a => ProvidesHash a SomeHashResult where getHash = hash`
 class ProvidesHash a h | a -> h where
     getHash :: a -> h
 
-class Combines h where
-    combine :: [h] -> h
-
 -- | Interface for calculating hash of the 'Map' node.
-class Hash h k v where
-    hashOf :: MapLayer h k v h -> h
+type Hash h k v =
+    ( ProvidesHash k h
+    , ProvidesHash v h
+    , ProvidesHash () h
+    , ProvidesHash Int h
+    , ProvidesHash [h] h
+    )
+
+hashOf :: Hash h k v => MapLayer h k v h -> h
+hashOf = \case
+    MLBranch _ m c t l r ->
+        getHash [getHash m, getHash c, getHash (fromEnum t), l, r]
+
+    MLLeaf _ k v ->
+        getHash [getHash k, getHash v]
+
+    MLEmpty _ -> getHash ()
     -- ^ Take hash of the 'MapLayer'
-
--- instance
---     ( ProvidesHash k h
---     , ProvidesHash v h
---     , ProvidesHash () h
---     , ProvidesHash Int h
---     , Combines h
---     )
---   =>
---     Hash h k v
---   where
---     hashOf = \case
---         MLBranch _ m c t l r ->
---             combine [getHash m, getHash c, getHash (fromEnum t), l, r]
-
---         MLLeaf _ k v ->
---             combine [getHash k, getHash v]
-
---         MLEmpty _ -> getHash ()
 
 -- | DB monad capable of retrieving 'isolate'd nodes.
 class KVRetrieve hash node m where
@@ -344,11 +336,11 @@ showMap = Tree.drawTree . asTree
       Pure  h                     -> Tree.Node ("Ref    " ++ show h)            []
 
 -- | Calculate hash outside of 'rehash'.
-hashOf' :: forall h k v. Hash h k v => MapLayer h k v h -> h
-hashOf' = hashOf . protect
-  where
-    protect ml = ml
-        & mlHash .~ error "Data.Tree.AVL.Internal.hashOf': old hash is used to generate new one"
+-- hashOf' :: forall h k v. Hash h k v => MapLayer h k v h -> h
+-- hashOf' = hashOf . protect
+--   where
+--     protect ml = ml
+--         & mlHash .~ error "Data.Tree.AVL.Internal.hashOf': old hash is used to generate new one"
 
 -- | Get hash of the root node for the tree.
 rootHash :: Map h k v -> h
@@ -381,7 +373,7 @@ loadAndM f tree = f =<< load tree
 close :: Hash h k v => MapLayer h k v (Map h k v) -> Map h k v
 close = Free . rehashLayer
   where
-    rehashLayer layer = layer & mlHash .~ hashOf' (isolate layer)
+    rehashLayer layer = layer & mlHash .~ hashOf (isolate layer)
 
 -- | Turn hash into unmaterialized tree.
 ref :: h -> Map h k v

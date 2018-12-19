@@ -20,4 +20,4 @@ newtype Proof h k v = Proof
 
 -- | Check that rehashed proof's root hash is the same as given.
 checkProof :: (Eq h, Hash h k v) => h -> Proof h k v -> Bool
-checkProof ideal (Proof subtree) = iter hashOf' subtree == ideal
+checkProof ideal (Proof subtree) = iter hashOf subtree == ideal
