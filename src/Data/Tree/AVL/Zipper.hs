@@ -45,7 +45,6 @@ import Control.Monad.State.Strict (StateT, evalStateT, lift)
 
 import Data.Monoid ((<>))
 import Data.Set (Set)
-import Data.Typeable (Typeable)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
@@ -162,7 +161,10 @@ runZipped' action mode0 tree = do
 
 -- | Materialise tree node at locus and give it to action for introspection.
 --
---   Often used with lambda-case: @withLocus $ \case { ... }@
+--   Often used with lambda-case:
+--
+--   > withLocus $ \case { ... }
+--
 withLocus :: Retrieves h k v m => (MapLayer h k v (Map h k v) -> Zipped h k v m a) -> Zipped h k v m a
 withLocus action = do
     loc   <- use locus
@@ -180,9 +182,9 @@ markAll :: Retrieves h k v m => [h] -> Zipped h k v m ()
 markAll hashes = do
     trail %= (<> Set.fromList hashes)
 
-data AlreadyOnTop = AlreadyOnTop deriving (Show, Typeable)
-
-instance Exception AlreadyOnTop
+data AlreadyOnTop = AlreadyOnTop
+  deriving stock (Show)
+  deriving anyclass (Exception)
 
 -- | Move to the parent node; update & rebalance it if required.
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
@@ -247,15 +249,15 @@ enter mode0 tree = TreeZipper
     , _tzDirty    = False
     }
 
-data WentDownOnNonBranch h = WentDownOnNonBranch h deriving (Show, Typeable)
-
-instance (Show h, Typeable h) => Exception (WentDownOnNonBranch h)
+data WentDownOnNonBranch h = WentDownOnNonBranch h
+    deriving stock (Show)
+    deriving anyclass (Exception)
 
 select :: Side -> a -> a -> a
 select L a _ = a
 select R _ b = b
 
--- | Move into the left branch of the current node.
+-- | Move in given direction from the current node.
 descent :: forall h k v m . Retrieves h k v m => Side -> Zipped h k v m ()
 descent side = do
     tree  <- use locus
@@ -405,6 +407,7 @@ rebalance = do
 
     replaceWith newTree
 
+-- | Teleport to previous key.
 gotoPrevKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
 gotoPrevKey k = do
     goto (Plain k)
@@ -412,6 +415,7 @@ gotoPrevKey k = do
     descent L        `catch` \(WentDownOnNonBranch (_ :: h)) -> return ()
     whilePossible $ descent R
 
+-- | Teleport to next key.
 gotoNextKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
 gotoNextKey k = do
     goto (Plain k)

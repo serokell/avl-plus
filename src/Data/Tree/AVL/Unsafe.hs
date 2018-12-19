@@ -27,7 +27,6 @@ import Lens.Micro.Platform (to, (^?))
 import Data.Foldable (for_)
 import Data.Monoid ((<>))
 import qualified Data.Set as Set
-import Data.Typeable (Typeable)
 
 import Data.Tree.AVL.Insertion as AVL
 import Data.Tree.AVL.Internal
@@ -43,9 +42,8 @@ class (KVStore h node m, KVRetrieve h node m) => KVMutate h node m where
 -- | Exception to be thrown by storage, if 'getRoot' impl can't
 --   return current root.
 data NoRootExists = NoRootExists
-    deriving (Show, Typeable)
-
-instance Exception NoRootExists
+    deriving stock (Show)
+    deriving anyclass (Exception)
 
 -- | Returns current root from storage.
 currentRoot :: forall h k v m . Mutates h k v m => m (Map h k v)

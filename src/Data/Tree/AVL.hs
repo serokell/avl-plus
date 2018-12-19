@@ -40,7 +40,7 @@
         >     (     nodeset1,  tree) <- AVL.insert "foo" 1 start
         >     ((mv, nodeset2), tree) <- AVL.lookup "bar"   tree
         >     (     nodeset3,  tree) <- AVL.delete "qux"   tree
-        >     proof                  <- AVL.prune (nodeset1 <> nodeset2 <> nodeset3) tree
+        >     proof                  <- AVL.prune (nodeset1 <> nodeset2 <> nodeset3) start
         >     ()                     <- AVL.overwrite tree
         >     return (mv, proof)
 

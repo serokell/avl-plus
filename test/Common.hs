@@ -39,11 +39,6 @@ f .=. g = \a ->
 
 infixr 5 .=.
 
---data InitialHash
---    = InitialHash { getInitialHash :: Layer }
---    | Default
---    deriving (Ord, Generic)
-
 type Layer = AVL.MapLayer IntHash StringName Int IntHash
 
 instance Hashable StringName
@@ -52,7 +47,7 @@ instance Hashable a => AVL.ProvidesHash a IntHash where
     getHash = IntHash . hash
 
 newtype IntHash = IntHash { getIntHash :: Int }
-    deriving (Eq, Ord,  Arbitrary, Generic)
+    deriving (Eq, Ord, Generic)
 
 instance Hashable IntHash
 
