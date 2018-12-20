@@ -99,6 +99,7 @@ module Data.Tree.AVL
     , Map
     , MapLayer
     , MapLayerTemplate (..)
+    , Tilt (..)
 
       -- * Constructors/toList
     , empty
