@@ -15,7 +15,7 @@ import Data.Tree.AVL.Internal
 
 -- | Wrapper. Cancels any capabilities of @m@ to store stuff.
 newtype StoreT m a = StoreT { runStoreT :: m a }
-    deriving newtype (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask)
+    deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask)
 
 instance MonadTrans StoreT where
     lift = StoreT

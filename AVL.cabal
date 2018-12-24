@@ -43,8 +43,6 @@ library
                ConstraintKinds
                CPP
                DefaultSignatures
-               DerivingStrategies
-               DeriveAnyClass
                DeriveFoldable
                DeriveFunctor
                DeriveGeneric

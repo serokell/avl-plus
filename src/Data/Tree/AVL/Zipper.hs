@@ -45,6 +45,7 @@ import Control.Monad.State.Strict (StateT, evalStateT, lift)
 
 import Data.Monoid ((<>))
 import Data.Set (Set)
+import Data.Typeable (Typeable)
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
@@ -183,8 +184,9 @@ markAll hashes = do
     trail %= (<> Set.fromList hashes)
 
 data AlreadyOnTop = AlreadyOnTop
-  deriving stock (Show)
-  deriving anyclass (Exception)
+    deriving (Show)
+
+instance Exception AlreadyOnTop
 
 -- | Move to the parent node; update & rebalance it if required.
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
@@ -250,8 +252,9 @@ enter mode0 tree = TreeZipper
     }
 
 data WentDownOnNonBranch h = WentDownOnNonBranch h
-    deriving stock (Show)
-    deriving anyclass (Exception)
+    deriving (Show)
+
+instance (Show h, Typeable h) => Exception (WentDownOnNonBranch h)
 
 select :: Side -> a -> a -> a
 select L a _ = a

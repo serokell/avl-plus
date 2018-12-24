@@ -42,8 +42,9 @@ class (KVStore h node m, KVRetrieve h node m) => KVMutate h node m where
 -- | Exception to be thrown by storage, if 'getRoot' impl can't
 --   return current root.
 data NoRootExists = NoRootExists
-    deriving stock (Show)
-    deriving anyclass (Exception)
+    deriving (Show)
+
+instance Exception NoRootExists
 
 -- | Returns current root from storage.
 currentRoot :: forall h k v m . Mutates h k v m => m (Map h k v)

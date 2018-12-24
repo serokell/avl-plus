@@ -269,8 +269,9 @@ class KVStore hash node m where
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
-    deriving stock (Show)
-    deriving anyclass (Exception)
+    deriving (Show)
+
+instance (Show k, Typeable k) => Exception (NotFound k)
 
 -- | Constraints on type parameters for AVL 'Map'.
 type Params h k v =
