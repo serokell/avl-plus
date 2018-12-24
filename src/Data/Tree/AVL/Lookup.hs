@@ -15,7 +15,7 @@ import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 -- | Retrieves value for given key. Also collects raw proof.
-lookup :: Retrieves h k v m => k -> Map h k v -> m ((Maybe v, Set Revision), Map h k v)
+lookup :: Retrieves h k v m => k -> Map h k v -> m ((Maybe v, Set h), Map h k v)
 lookup k tree0 = do
     (mv, tree, trails) <- runZipped (lookupZ k) UpdateMode tree0
     return ((mv, trails), tree)

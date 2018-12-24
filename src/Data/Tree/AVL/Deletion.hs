@@ -17,7 +17,7 @@ import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
 -- | Remove given key from the 'Map', generates raw proof.
-delete :: Retrieves h k v m => k -> Map h k v -> m (Set Revision, Map h k v)
+delete :: Retrieves h k v m => k -> Map h k v -> m (Set h, Map h k v)
 delete k tree = do
     (_yes, res, trails) <- runZipped (deleteZ k) DeleteMode tree
     return (trails, res)

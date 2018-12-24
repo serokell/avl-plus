@@ -36,6 +36,7 @@ tests = describe "Delete" $ do
 
     describe "Proofs" $ do
         it' "Delete proof is verifiable" $ \(k, v, list) -> do
+
             tree        <- AVL.fromList ((k, v) : list) :: StorageMonad M
             (proof,  _) <- AVL.delete' k tree
             (proof1, _) <- AVL.delete' k (AVL.unProof proof)
@@ -44,12 +45,24 @@ tests = describe "Delete" $ do
 
             return $ AVL.checkProof hash1 proof1
 
-        it' "Delete proof is replayable" $ \(k, v, list) -> do
+        it' "dpr Delete proof is replayable" $ \() -> do
+
+            let (k, v, list) = (StringName "C", 0, [(StringName "R", 0)])
+
             tree        <- AVL.fromList ((k, v) : list) :: StorageMonad M
-            (proof1, _) <- AVL.delete' k tree
-            (proof2, _) <- AVL.delete' k (AVL.unProof proof1)
+            (proof1, _) <- AVL.delete k tree
+            (proof2, _) <- AVL.delete k . AVL.unProof =<< AVL.prune proof1 tree
+
+            unless (proof1 == proof2) $ do
+                put "=="
+                put $ AVL.showMap tree
+                put "--"
+                put $ show proof1
+                put "--"
+                put $ show proof2
 
             return (proof1 == proof2)
+                :: StorageMonad Bool
 
         it' "Delete proof is verifiable (even if there's nothing to delete)" $ \list -> do
             case uniqued list of

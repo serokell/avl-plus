@@ -1,7 +1,7 @@
 
 import qualified Algorithm
-import qualified Insertion
 import qualified Deletion
+import qualified Insertion
 import qualified Lookup
 import qualified Unsafe
 
