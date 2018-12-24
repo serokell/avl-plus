@@ -83,7 +83,9 @@ module Data.Tree.AVL.Internal
 
       -- * Serialisation helpers
     , beforeSerialise
+    , beforeSerialiseLayer
     , afterDeserialise
+    , afterDeserialiseLayer
     )
   where
 
@@ -308,20 +310,23 @@ mapTilt :: (t1 -> t2) -> MapTemplate t1 h k v -> MapTemplate t2 h k v
 mapTilt f = go
   where
     go = \case
-        Free (split@ MLBranch
-            { _mlTilt  = t
-            , _mlLeft  = left
-            , _mlRight = right
-            })
-          -> Free split
-            { _mlTilt  = f t
-            , _mlLeft  = go left
-            , _mlRight = go right
-            }
+        Free layer -> Free (withTilt f go layer)
+        Pure h     -> Pure  h
 
-        Free (MLLeaf  h k v) -> Free (MLLeaf  h k v)
-        Free (MLEmpty h)     -> Free (MLEmpty h)
-        Pure  h              -> Pure  h
+withTilt :: (t1 -> t2) -> (s1 -> s2) -> MapLayerTemplate t1 h k v s1 -> MapLayerTemplate t2 h k v s2
+withTilt f go
+    split@ MLBranch
+        { _mlTilt  = t
+        , _mlLeft  = left
+        , _mlRight = right
+        }
+  = split
+        { _mlTilt  = f t
+        , _mlLeft  = go left
+        , _mlRight = go right
+        }
+withTilt _ _ (MLLeaf  h k v) = MLLeaf h k v
+withTilt _ _ (MLEmpty h)     = MLEmpty h
 
 -- | Replaces `Tilt` with `Int` inside the tree to ease serialisation.
 beforeSerialise :: Map h k v -> MapTemplate Int h k v
@@ -330,6 +335,14 @@ beforeSerialise = mapTilt fromEnum
 -- | Replaces `Int` with `Tilt` inside the tree to ease deserialisation.
 afterDeserialise :: MapTemplate Int h k v -> Map h k v
 afterDeserialise = mapTilt toEnum
+
+-- | Replaces `Tilt` with `Int` inside the tree to ease serialisation.
+beforeSerialiseLayer :: MapLayer h k v h -> MapLayerTemplate Int h k v h
+beforeSerialiseLayer = withTilt fromEnum id
+
+-- | Replaces `Int` with `Tilt` inside the tree to ease deserialisation.
+afterDeserialiseLayer :: MapLayerTemplate Int h k v h -> MapLayer h k v h
+afterDeserialiseLayer = withTilt toEnum id
 
 -- | Debug preview of the tree.
 showMap :: (Show h, Show k, Show v) => Map h k v -> String

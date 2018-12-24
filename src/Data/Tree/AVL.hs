@@ -133,7 +133,9 @@ module Data.Tree.AVL
 
       -- * Serialisation helpers
     , beforeSerialise
+    , beforeSerialiseLayer
     , afterDeserialise
+    , afterDeserialiseLayer
 
       -- * Helpers
     , showMap
