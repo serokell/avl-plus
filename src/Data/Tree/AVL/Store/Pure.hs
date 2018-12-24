@@ -26,7 +26,7 @@ import Data.Tree.AVL.Unsafe
 
 -- | Pure state containing avl changes as a regular 'Map'.
 data State h k v = State
-    { _psStorage :: Map.Map h (Isolated h k v)
+    { _psStorage :: Map.Map h (IsolatedTemplate Int h k v)
     , _psRoot    :: Maybe h
     }
 
@@ -44,14 +44,14 @@ asState action = do
     liftIO $ atomically $ writeTVar var st'
     return b
 
-instance (Base h k v m, MonadIO m) => KVRetrieve h (Isolated h k v) (StoreT h k v m) where
+instance (Base h k v m, MonadIO m) => KVRetrieve h (IsolatedTemplate Int h k v) (StoreT h k v m) where
     retrieve k = asState $
         use psStorage <&> Map.lookup k >>= maybe (throwM $ NotFound k) pure
 
-instance (Base h k v m, MonadIO m) => KVStore h (Isolated h k v) (StoreT h k v m) where
+instance (Base h k v m, MonadIO m) => KVStore h (IsolatedTemplate Int h k v) (StoreT h k v m) where
     massStore pairs = asState $ psStorage %= (<> Map.fromList pairs)
 
-instance (Base h k v m, MonadIO m) => KVMutate h (Isolated h k v) (StoreT h k v m) where
+instance (Base h k v m, MonadIO m) => KVMutate h (IsolatedTemplate Int h k v) (StoreT h k v m) where
     getRoot      = asState $ maybe (throwM NoRootExists) pure =<< use psRoot
     setRoot new  = asState $ psRoot    .= Just new
     erase   hash = asState $ psStorage %= Map.delete hash

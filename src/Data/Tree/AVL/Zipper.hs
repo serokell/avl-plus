@@ -126,10 +126,10 @@ type Zipped h k v m = StateT (TreeZipper h k v) m
 
 instance
     ( Monad m
-    , KVRetrieve h (Isolated h k v) m
+    , KVRetrieve h (IsolatedTemplate Int h k v) m
     )
   =>
-    KVRetrieve h (Isolated h k v) (Zipped h k v m)
+    KVRetrieve h (IsolatedTemplate Int h k v) (Zipped h k v m)
   where
     retrieve = lift . retrieve
 

@@ -25,7 +25,7 @@ module Data.Tree.AVL.Internal
       -- * AVL map type, its layer and variants
     , Map,      MapTemplate
     , MapLayer, MapLayerTemplate (..)
-    , Isolated
+    , Isolated, IsolatedTemplate
 
       -- * High-level operations
     , rootHash
@@ -83,12 +83,13 @@ module Data.Tree.AVL.Internal
 
       -- * Serialisation helpers
     , beforeSerialise
-    , beforeSerialiseLayer
+--  , beforeSerialiseLayer
     , afterDeserialise
-    , afterDeserialiseLayer
+--  , afterDeserialiseLayer
     )
   where
 
+import Control.Arrow (second)
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Free (Free (Free, Pure))
@@ -208,6 +209,9 @@ type MapTemplate t h k v = Free (MapLayerTemplate t h k v) h
 -- | AVL node that was isolated (hashes were put where in places of subtrees).
 type Isolated h k v = MapLayer h k v h
 
+-- | AVL node that was isolated (hashes were put where in places of subtrees).
+type IsolatedTemplate t h k v = MapLayerTemplate t h k v h
+
 #if !MIN_VERSION_free(5,0,2)
 deriving instance Generic (Free t a)
 #endif
@@ -293,13 +297,13 @@ type Base h k v m =
 -- | Ability to write into the storage.
 type Stores h k v m =
     ( Base h k v m
-    , KVStore h (Isolated h k v) m
+    , KVStore h (IsolatedTemplate Int h k v) m
     )
 
 -- | Ability to read from the storage.
 type Retrieves h k v m =
     ( Base h k v m
-    , KVRetrieve h (Isolated h k v) m
+    , KVRetrieve h (IsolatedTemplate Int h k v) m
     )
 
 -------------------------------------------------------------------------------
@@ -369,7 +373,7 @@ load :: Retrieves h k v m => Map h k v -> m (MapLayer h k v (Map h k v))
 load = \case
     Pure key -> do
         actual <- retrieve key
-        return (Pure <$> actual)
+        return (Pure <$> afterDeserialiseLayer actual)
     Free layer ->
         return layer
 
@@ -405,7 +409,7 @@ onTopNode f tree = do
 -- | Recursively store all the materialized nodes in the database.
 save :: forall h k v m . Stores h k v m => Map h k v -> m (Map h k v)
 save tree = do
-    massStore (collect tree)
+    massStore $ map (second beforeSerialiseLayer) $ collect tree
     return (ref (rootHash tree))
 
 -- | Turns a 'Map' into relation of (hash, isolated-node),
