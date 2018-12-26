@@ -390,19 +390,19 @@ save :: forall h k v m . Stores h k v m => Map h k v -> m (Map h k v)
 save tree = do
     massStore $ collect tree
     return (ref (rootHash tree))
+  where
+    -- | Turns a 'Map' into relation of (hash, isolated-node),
+    --   to use in 'save'.
+    collect :: Map h k v -> [(h, Isolated h k v)]
+    collect it = case it of
+        Pure _     -> []
+        Free layer -> do
+            let hash  = rootHash it
+            let node  = isolate (layer :: MapLayer h k v (Map h k v))
+            let left  = layer^?mlLeft .to collect `orElse` []
+            let right = layer^?mlRight.to collect `orElse` []
 
--- | Turns a 'Map' into relation of (hash, isolated-node),
---   to use in 'save'.
-collect :: forall h k v . Hash h k v => Map h k v -> [(h, Isolated h k v)]
-collect it = case it of
-    Pure _     -> []
-    Free layer -> do
-        let hash  = rootHash it
-        let node  = isolate (layer :: MapLayer h k v (Map h k v))
-        let left  = layer^?mlLeft .to collect `orElse` []
-        let right = layer^?mlRight.to collect `orElse` []
-
-        ((hash, node) : (left ++ right))
+            [(hash, node)] ++ left ++ right
 
 -- | Returns minimal key contained in a tree (or a 'minbound' if empty).
 minKey :: Retrieves h k v m => Map h k v -> m (WithBounds k)
