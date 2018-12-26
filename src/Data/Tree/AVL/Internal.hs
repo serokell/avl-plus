@@ -408,14 +408,14 @@ save tree = do
 minKey :: Retrieves h k v m => Map h k v -> m (WithBounds k)
 minKey = loadAnd $ \layer ->
     layer^?mlMinKey.to Plain `orElse`
-    layer^?mlKey.to Plain `orElse`
+    layer^?mlKey   .to Plain `orElse`
     Bottom
 
 -- | Returns minimal right key contained in a tree (or a 'minbound' if empty).
 centerKey :: Retrieves h k v m => Map h k v -> m (WithBounds k)
 centerKey = loadAnd $ \layer ->
     layer^?mlCenterKey.to Plain `orElse`
-    layer^?mlKey.to Plain `orElse`
+    layer^?mlKey      .to Plain `orElse`
     Top
 
 -- | Returns balance parameter of the tree.
@@ -428,7 +428,7 @@ setLeft :: Retrieves h k v m => Map h k v -> Map h k v -> m (Map h k v)
 setLeft left = onTopNode (mlLeft.~ left)
 
 -- | Sets right subtree in a branch.
-setRight :: Retrieves h k v m => Map h k v-> Map h k v -> m (Map h k v)
+setRight :: Retrieves h k v m => Map h k v -> Map h k v -> m (Map h k v)
 setRight right = onTopNode (mlRight .~ right)
 
 -- | Sets next key in a leaf.
