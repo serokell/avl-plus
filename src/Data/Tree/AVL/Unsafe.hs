@@ -48,17 +48,17 @@ instance Exception NoRootExists
 
 -- | Returns current root from storage.
 currentRoot :: forall h k v m . Mutates h k v m => m (Map h k v)
-currentRoot = ref <$> getRoot @_ @(IsolatedTemplate Int h k v)
+currentRoot = ref <$> getRoot @_ @(Isolated h k v)
 
 assignRoot :: forall h k v m . Mutates h k v m => Map h k v -> m ()
-assignRoot new = setRoot @_ @(IsolatedTemplate Int h k v) (rootHash new)
+assignRoot new = setRoot @_ @(Isolated h k v) (rootHash new)
 
 eraseTopNode :: forall h k v m . Mutates h k v m => Map h k v -> m ()
-eraseTopNode = erase @_ @(IsolatedTemplate Int h k v) . rootHash
+eraseTopNode = erase @_ @(Isolated h k v) . rootHash
 
 -- | Enriches 'massStore'/'retrive' capabilities with 'erase' and a
 --   notion of single root.
-type Mutates h k v m = (Base h k v m, KVMutate h (IsolatedTemplate Int h k v) m)
+type Mutates h k v m = (Base h k v m, KVMutate h (Isolated h k v) m)
 
 -- | Retrieve hashes of nearest subtrees that weren't materialised.
 --

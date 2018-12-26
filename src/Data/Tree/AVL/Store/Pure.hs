@@ -26,7 +26,7 @@ import Data.Tree.AVL.Unsafe
 
 -- | Pure state containing avl changes as a regular 'Map'.
 data State h k v = State
-    { _psStorage :: Map.Map h (IsolatedTemplate Int h k v)
+    { _psStorage :: Map.Map h (Isolated h k v)
     , _psRoot    :: Maybe h
     }
 
@@ -38,20 +38,40 @@ type StoreT h k v = ReaderT (TVar (State h k v))
 -- | Nicer way to assign things via lenses.
 asState :: MonadIO m => StateT (State h k v) m a -> StoreT h k v m a
 asState action = do
-    var <- ask
-    st  <- liftIO $ atomically $ readTVar var
-    (b, st') <- lift $ runStateT action st
-    liftIO $ atomically $ writeTVar var st'
+    var      <- ask
+    st       <- liftIO $ atomically $ readTVar  var
+    (b, st') <- lift   $ runStateT action st
+    _        <- liftIO $ atomically $ writeTVar var st'
     return b
 
-instance (Base h k v m, MonadIO m) => KVRetrieve h (IsolatedTemplate Int h k v) (StoreT h k v m) where
+instance
+    ( Base h k v m
+    , MonadIO m
+    )
+  =>
+    KVRetrieve h (Isolated h k v) (StoreT h k v m)
+  where
     retrieve k = asState $
-        use psStorage <&> Map.lookup k >>= maybe (throwM $ NotFound k) pure
+        use psStorage <&> Map.lookup k
+            >>= maybe (throwM $ NotFound k) pure
 
-instance (Base h k v m, MonadIO m) => KVStore h (IsolatedTemplate Int h k v) (StoreT h k v m) where
-    massStore pairs = asState $ psStorage %= (<> Map.fromList pairs)
+instance
+    ( Base h k v m
+    , MonadIO m
+    )
+  =>
+    KVStore h (Isolated h k v) (StoreT h k v m)
+  where
+    massStore pairs = asState $
+        psStorage %= (<> Map.fromList pairs)
 
-instance (Base h k v m, MonadIO m) => KVMutate h (IsolatedTemplate Int h k v) (StoreT h k v m) where
+instance
+    ( Base h k v m
+    , MonadIO m
+    )
+  =>
+    KVMutate h (Isolated h k v) (StoreT h k v m)
+  where
     getRoot      = asState $ maybe (throwM NoRootExists) pure =<< use psRoot
     setRoot new  = asState $ psRoot    .= Just new
     erase   hash = asState $ psStorage %= Map.delete hash

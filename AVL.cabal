@@ -56,7 +56,6 @@ library
                MultiParamTypeClasses
                MultiWayIf
                NamedFieldPuns
---             OverloadedStrings
                PatternSynonyms
                RankNTypes
                RecordWildCards
@@ -95,7 +94,6 @@ test-suite avl-tree-sanity
                      , hashable
                      , microlens-platform
                      , hspec
-                    --  , universum
                      , unordered-containers
                      , QuickCheck
                      , quickcheck-instances

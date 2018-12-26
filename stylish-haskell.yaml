@@ -224,7 +224,6 @@ language_extensions:
   - CPP
   - DataKinds
   - DefaultSignatures
-  - DerivingStrategies
   - DeriveDataTypeable
   - DeriveGeneric
   - FlexibleContexts

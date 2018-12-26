@@ -31,8 +31,8 @@ module Data.Tree.AVL.Zipper
     , locus
 
       -- * Debug
-    -- , say
-    -- , dump
+    , say
+    , dump
     )
   where
 
@@ -41,7 +41,7 @@ import Lens.Micro.Platform (Lens', SimpleGetter, makeLenses, use, (%=), (.=), (<
 
 import Control.Monad (unless, when)
 import Control.Monad.Catch (catch, throwM)
-import Control.Monad.State.Strict (StateT, evalStateT, lift)
+import Control.Monad.State.Strict (StateT, evalStateT, lift, MonadIO (liftIO))
 
 import Data.Monoid ((<>))
 import Data.Set (Set)
@@ -91,8 +91,6 @@ data TreeZipperCtx h k v = TreeZipperCtx
     }
     deriving Show
 
---deriving instance Retrieves h k v => Show (TreeZipperCxt h k v)
-
 -- | Modes of operation.
 --
 --   The reason for this type to exist is that rebalancer will confuse
@@ -126,10 +124,10 @@ type Zipped h k v m = StateT (TreeZipper h k v) m
 
 instance
     ( Monad m
-    , KVRetrieve h (IsolatedTemplate Int h k v) m
+    , KVRetrieve h (Isolated h k v) m
     )
   =>
-    KVRetrieve h (IsolatedTemplate Int h k v) (Zipped h k v m)
+    KVRetrieve h (Isolated h k v) (Zipped h k v m)
   where
     retrieve = lift . retrieve
 
@@ -151,14 +149,14 @@ runZipped' action mode0 tree = do
     proof              <- prune trails tree
     return (a, tree1, proof)
 
--- say :: Retrieves h k v m => String -> Zipped h k v m ()
--- say = liftIO . putStrLn
+say :: (Retrieves h k v m, MonadIO m) => String -> Zipped h k v m ()
+say = liftIO . putStrLn
 
--- dump :: Retrieves h k v m => Zipped h k v m ()
--- dump = do
---     say . showMap =<< use locus
---     ctx <- use context
---     say (show $ map (rootHash . _tzcFrom) ctx)
+dump :: (Retrieves h k v m, MonadIO m) => Zipped h k v m ()
+dump = do
+    say . showMap =<< use locus
+    ctx <- use context
+    say (show $ map (rootHash . _tzcFrom) ctx)
 
 -- | Materialise tree node at locus and give it to action for introspection.
 --
@@ -343,8 +341,8 @@ shortened was became = do
 roll :: Tilt -> Side -> Tilt
 roll tilt0 side =
     case side of
-      L -> pred tilt0
-      R -> succ tilt0
+      L -> tiltLeft  tilt0
+      R -> tiltRight tilt0
 
 -- | Perform a zipper action upon current node, then update set its revision
 --   to be a new one.

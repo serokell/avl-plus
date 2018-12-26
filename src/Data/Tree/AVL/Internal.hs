@@ -23,9 +23,9 @@ module Data.Tree.AVL.Internal
     , NotFound (..)
 
       -- * AVL map type, its layer and variants
-    , Map,      MapTemplate
-    , MapLayer, MapLayerTemplate (..)
-    , Isolated, IsolatedTemplate
+    , Map
+    , MapLayer (..)
+    , Isolated
 
       -- * High-level operations
     , rootHash
@@ -69,7 +69,14 @@ module Data.Tree.AVL.Internal
     , unsafeFromWithBounds
 
       -- * Amount of disbalance
-    , Tilt (..)
+    , Tilt
+    , pattern L2
+    , pattern L1
+    , pattern M
+    , pattern R1
+    , pattern R2
+    , tiltLeft
+    , tiltRight
 
       -- * Navigation helper
     , Side (..)
@@ -80,16 +87,9 @@ module Data.Tree.AVL.Internal
     , showMap
     , pathLengths
     , orElse
-
-      -- * Serialisation helpers
-    , beforeSerialise
---  , beforeSerialiseLayer
-    , afterDeserialise
---  , afterDeserialiseLayer
     )
   where
 
-import Control.Arrow (second)
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Free (Free (Free, Pure))
@@ -99,6 +99,7 @@ import Data.Function (on)
 import Data.Maybe (fromMaybe)
 import qualified Data.Tree as Tree
 import Data.Typeable (Typeable)
+import Data.Word (Word8)
 
 import GHC.Generics (Generic)
 
@@ -117,23 +118,47 @@ data Side
     deriving (Eq, Show, Generic)
 
 -- | Difference in branches heights.
-data Tilt
-    = L2  -- ^ UnbalancedLeft
-          --
-          -- prop> h(L) = h(R) + 2
-    | L1  -- ^ BalancedLeft
-          --
-          -- prop> h(L) = h(R) + 1
-    | M   -- ^ Balanced
-          --
-          -- prop> h(L) = h(R)
-    | R1  -- ^ BalancedRight
-          --
-          -- prop> h(R) = h(L) + 1
-    | R2  -- ^ UnbalancedRight
-          --
-          -- prop> h(R) = h(L) + 2
-    deriving (Eq, Ord, Show, Enum, Generic)
+type Tilt = Word8
+
+pattern L2 :: Tilt
+pattern L2 = 0
+-- ^ UnbalancedLeft
+--
+-- prop> h(L) = h(R) + 2
+
+pattern L1 :: Tilt
+pattern L1 = 1
+-- ^ BalancedLeft
+--
+-- prop> h(L) = h(R) + 1
+
+pattern M :: Tilt
+pattern M = 2
+-- ^ Balanced
+--
+-- prop> h(L) = h(R)
+
+pattern R1 :: Tilt
+pattern R1 = 3
+-- ^ BalancedRight
+--
+-- prop> h(R) = h(L) + 1
+
+pattern R2 :: Tilt
+pattern R2 = 4
+-- ^ UnbalancedRight
+--
+-- prop> h(R) = h(L) + 2
+
+tiltLeft :: Tilt -> Tilt
+tiltLeft t
+    | t < 1    = error "tiltLeft: from L2"
+    | otherwise = t - 1
+
+tiltRight :: Tilt -> Tilt
+tiltRight t
+    | t > 3     = error "tiltRight: from R2"
+    | otherwise = t + 1
 
 -- | Makes 'Bounded' from everything by explicitly adding top/bottom.
 data WithBounds b
@@ -170,16 +195,16 @@ unsafeFromWithBounds = fromMaybe err . fromWithBounds
     err = error "unsafeFromWithBounds: 'Top' or 'Bottom' values cannot be converted"
 
 -- | Representation of AVL+ tree with data in leaves.
-
--- | One layer of AVL Tree structure.
+--
+--   One layer of AVL Tree structure.
 --   It is build that way to guarantee that 'hashOf' implementation can only touch
 --   current level and be syncronised with any changes in tree.
-data MapLayerTemplate t h k v self
+data MapLayer h k v self
   = MLBranch
     { _mlHash      :: ~h   -- ^ Hash of the subtree.
     , _mlMinKey    :: k    -- ^ Minimal key used in tree.
     , _mlCenterKey :: k    -- ^ Minimal key of the right subtree.
-    , _mlTilt      :: t    -- ^ Amount of disbalance.
+    , _mlTilt      :: Tilt -- ^ Amount of disbalance.
     , _mlLeft      :: self -- ^ Right subtree or subtree hash.
     , _mlRight     :: self -- ^ Left subtree or subtree hash.
     }
@@ -193,24 +218,15 @@ data MapLayerTemplate t h k v self
     }
     deriving (Show, Functor, Foldable, Traversable, Generic)
 
--- | One layer of tree with 'Tilt'.
-type MapLayer = MapLayerTemplate Tilt
-
-deriveEq1 ''MapLayerTemplate
-deriveOrd1 ''MapLayerTemplate
-deriveShow1 ''MapLayerTemplate
+deriveEq1 ''MapLayer
+deriveOrd1 ''MapLayer
+deriveShow1 ''MapLayer
 
 -- | AVL tree as whole.
 type Map h k v = Free (MapLayer h k v) h
 
--- | The tree which tilt can be of any type.
-type MapTemplate t h k v = Free (MapLayerTemplate t h k v) h
-
 -- | AVL node that was isolated (hashes were put where in places of subtrees).
 type Isolated h k v = MapLayer h k v h
-
--- | AVL node that was isolated (hashes were put where in places of subtrees).
-type IsolatedTemplate t h k v = MapLayerTemplate t h k v h
 
 #if !MIN_VERSION_free(5,0,2)
 deriving instance Generic (Free t a)
@@ -221,7 +237,7 @@ deriving instance Generic (Free t a)
 -------------------------------------------------------------------------------
 
 -- | Lenses.
-makeLenses ''MapLayerTemplate
+makeLenses ''MapLayer
 
 -------------------------------------------------------------------------------
 -- * Instances
@@ -297,56 +313,18 @@ type Base h k v m =
 -- | Ability to write into the storage.
 type Stores h k v m =
     ( Base h k v m
-    , KVStore h (IsolatedTemplate Int h k v) m
+    , KVStore h (Isolated h k v) m
     )
 
 -- | Ability to read from the storage.
 type Retrieves h k v m =
     ( Base h k v m
-    , KVRetrieve h (IsolatedTemplate Int h k v) m
+    , KVRetrieve h (Isolated h k v) m
     )
 
 -------------------------------------------------------------------------------
 -- * Methods
 -------------------------------------------------------------------------------
-
-mapTilt :: (t1 -> t2) -> MapTemplate t1 h k v -> MapTemplate t2 h k v
-mapTilt f = go
-  where
-    go = \case
-        Free layer -> Free (withTilt f go layer)
-        Pure h     -> Pure  h
-
-withTilt :: (t1 -> t2) -> (s1 -> s2) -> MapLayerTemplate t1 h k v s1 -> MapLayerTemplate t2 h k v s2
-withTilt f go
-    split@ MLBranch
-        { _mlTilt  = t
-        , _mlLeft  = left
-        , _mlRight = right
-        }
-  = split
-        { _mlTilt  = f t
-        , _mlLeft  = go left
-        , _mlRight = go right
-        }
-withTilt _ _ (MLLeaf  h k v) = MLLeaf h k v
-withTilt _ _ (MLEmpty h)     = MLEmpty h
-
--- | Replaces `Tilt` with `Int` inside the tree to ease serialisation.
-beforeSerialise :: Map h k v -> MapTemplate Int h k v
-beforeSerialise = mapTilt fromEnum
-
--- | Replaces `Int` with `Tilt` inside the tree to ease deserialisation.
-afterDeserialise :: MapTemplate Int h k v -> Map h k v
-afterDeserialise = mapTilt toEnum
-
--- | Replaces `Tilt` with `Int` inside the tree to ease serialisation.
-beforeSerialiseLayer :: MapLayer h k v h -> MapLayerTemplate Int h k v h
-beforeSerialiseLayer = withTilt fromEnum id
-
--- | Replaces `Int` with `Tilt` inside the tree to ease deserialisation.
-afterDeserialiseLayer :: MapLayerTemplate Int h k v h -> MapLayer h k v h
-afterDeserialiseLayer = withTilt toEnum id
 
 -- | Debug preview of the tree.
 showMap :: (Show h, Show k, Show v) => Map h k v -> String
@@ -373,7 +351,7 @@ load :: Retrieves h k v m => Map h k v -> m (MapLayer h k v (Map h k v))
 load = \case
     Pure key -> do
         actual <- retrieve key
-        return (Pure <$> afterDeserialiseLayer actual)
+        return (Pure <$> actual)
     Free layer ->
         return layer
 
@@ -396,7 +374,8 @@ ref :: h -> Map h k v
 ref = Pure
 
 -- | The analog to `fmap` :: (layer -> layer) -> tree -> m tree.
--- | The tree is rehashed after mapping.
+--
+--   The tree is rehashed after mapping.
 onTopNode ::
        Retrieves h k v m
     => (MapLayer h k v (Map h k v) -> MapLayer h k v (Map h k v))
@@ -409,7 +388,7 @@ onTopNode f tree = do
 -- | Recursively store all the materialized nodes in the database.
 save :: forall h k v m . Stores h k v m => Map h k v -> m (Map h k v)
 save tree = do
-    massStore $ map (second beforeSerialiseLayer) $ collect tree
+    massStore $ collect tree
     return (ref (rootHash tree))
 
 -- | Turns a 'Map' into relation of (hash, isolated-node),
@@ -561,6 +540,7 @@ isBalancedToTheLeaves = go
                     M  -> leftH - rightH == 0
                     R1 -> leftH - rightH == -1
                     R2 -> False
+                    _  -> error "isBalancedToTheLeaves: tilt has break loose"
 
             leftGood  <- go _mlLeft
             rightGood <- go _mlRight

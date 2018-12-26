@@ -97,8 +97,7 @@ module Data.Tree.AVL
 
       -- * Main type ('Map') and all other types
     , Map
-    , MapLayer
-    , MapLayerTemplate (..)
+    , MapLayer (..)
 
       -- * Constructors/toList
     , empty
@@ -130,10 +129,6 @@ module Data.Tree.AVL
     , Proof (..)
     , prune
     , checkProof
-
-      -- * Serialisation helpers
-    , beforeSerialise
-    , afterDeserialise
 
       -- * Helpers
     , showMap
