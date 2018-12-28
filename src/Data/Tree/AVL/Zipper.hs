@@ -372,7 +372,7 @@ rebalance = do
 
     let hashes |- nodeGen = nodeGen <* markAll hashes
 
-    let combine' fork left right = do
+    let combine fork left right = do
             l <- left
             r <- right
             fork l r
@@ -380,26 +380,26 @@ rebalance = do
     newTree <- load tree >>= \case
       Node r1 L2 left d -> do
         load left >>= \case
-          Node r2 L1 a b     -> [r1, r2]     |- combine' (branch M)  (pure a)        (branch M  b d)
-          Node r2 M  a b     -> [r1, r2]     |- combine' (branch R1) (pure a)        (branch L1 b d)
+          Node r2 L1 a b     -> [r1, r2]     |- combine (branch M)  (pure a)        (branch M  b d)
+          Node r2 M  a b     -> [r1, r2]     |- combine (branch R1) (pure a)        (branch L1 b d)
           Node r2 R1 a right -> do
             load right >>= \case
-              Node r3 R1 b c -> [r1, r2, r3] |- combine' (branch M)  (branch L1 a b) (branch M  c d)
-              Node r3 L1 b c -> [r1, r2, r3] |- combine' (branch M)  (branch M  a b) (branch R1 c d)
-              Node r3 M  b c -> [r1, r2, r3] |- combine' (branch M)  (branch M  a b) (branch M  c d)
+              Node r3 R1 b c -> [r1, r2, r3] |- combine (branch M)  (branch L1 a b) (branch M  c d)
+              Node r3 L1 b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch R1 c d)
+              Node r3 M  b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch M  c d)
               _              -> return tree
 
           _ -> return tree
 
       Node r1 R2 a right -> do
         load right >>= \case
-          Node r2 R1 b c     -> [r1, r2]     |- combine' (branch M)  (branch M  a b) (pure c)
-          Node r2 M  b c     -> [r1, r2]     |- combine' (branch L1) (branch R1 a b) (pure c)
+          Node r2 R1 b c     -> [r1, r2]     |- combine (branch M)  (branch M  a b) (pure c)
+          Node r2 M  b c     -> [r1, r2]     |- combine (branch L1) (branch R1 a b) (pure c)
           Node r2 L1 left d  -> do
             load left >>= \case
-              Node r3 R1 b c -> [r1, r2, r3] |- combine' (branch M)  (branch L1 a b) (branch M  c d)
-              Node r3 L1 b c -> [r1, r2, r3] |- combine' (branch M)  (branch M  a b) (branch R1 c d)
-              Node r3 M  b c -> [r1, r2, r3] |- combine' (branch M)  (branch M  a b) (branch M  c d)
+              Node r3 R1 b c -> [r1, r2, r3] |- combine (branch M)  (branch L1 a b) (branch M  c d)
+              Node r3 L1 b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch R1 c d)
+              Node r3 M  b c -> [r1, r2, r3] |- combine (branch M)  (branch M  a b) (branch M  c d)
               _              -> return tree
 
           _ -> return tree

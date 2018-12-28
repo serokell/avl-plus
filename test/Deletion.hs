@@ -22,7 +22,7 @@ tests = describe "Delete" $ do
 
         return yes
 
-    it' "dds Deletion deletes" $ \(k, v, list) -> do
+    it' "Deletion deletes" $ \(k, v, list) -> do
         tree  <- AVL.fromList ((k, v) : list) :: StorageMonad M
         tree1 <- AVL.deleteWithNoProof k tree
         list' <- AVL.toList tree1

@@ -78,8 +78,7 @@ insertZ k v = do
                 splitInsertAfter =<< leaf k v
                 gotoNextKey k
 
-      _ ->
-        error $ "insert: `goto k` ended in non-terminal node"
+      _ -> error $ "insert: `goto k` ended in non-terminal node"
   where
     splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
