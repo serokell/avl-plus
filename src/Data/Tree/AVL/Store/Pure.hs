@@ -12,11 +12,11 @@ module Data.Tree.AVL.Store.Pure
     ) where
 
 import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
-import Control.Lens (makeLenses, use, uses, (%=), (.=))
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT, ask, lift, runReaderT)
 import Control.Monad.State (StateT, put, runStateT)
+import Lens.Micro.Platform (makeLenses, use, (%=), (.=), (<&>))
 
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
@@ -38,20 +38,40 @@ type StoreT h k v = ReaderT (TVar (State h k v))
 -- | Nicer way to assign things via lenses.
 asState :: MonadIO m => StateT (State h k v) m a -> StoreT h k v m a
 asState action = do
-    var <- ask
-    st  <- liftIO $ atomically $ readTVar var
-    (b, st') <- lift $ runStateT action st
-    liftIO $ atomically $ writeTVar var st'
+    var      <- ask
+    st       <- liftIO $ atomically $ readTVar  var
+    (b, st') <- lift   $ runStateT action st
+    _        <- liftIO $ atomically $ writeTVar var st'
     return b
 
-instance (Base h k v m, MonadIO m) => KVRetrieve h (Isolated h k v) (StoreT h k v m) where
+instance
+    ( Base h k v m
+    , MonadIO m
+    )
+  =>
+    KVRetrieve h (Isolated h k v) (StoreT h k v m)
+  where
     retrieve k = asState $
-        uses psStorage (Map.lookup k) >>= maybe (throwM $ NotFound k) pure
+        use psStorage <&> Map.lookup k
+            >>= maybe (throwM $ NotFound k) pure
 
-instance (Base h k v m, MonadIO m) => KVStore h (Isolated h k v) (StoreT h k v m) where
-    massStore pairs = asState $ psStorage %= (<> Map.fromList pairs)
+instance
+    ( Base h k v m
+    , MonadIO m
+    )
+  =>
+    KVStore h (Isolated h k v) (StoreT h k v m)
+  where
+    massStore pairs = asState $
+        psStorage %= (<> Map.fromList pairs)
 
-instance (Base h k v m, MonadIO m) => KVMutate h (Isolated h k v) (StoreT h k v m) where
+instance
+    ( Base h k v m
+    , MonadIO m
+    )
+  =>
+    KVMutate h (Isolated h k v) (StoreT h k v m)
+  where
     getRoot      = asState $ maybe (throwM NoRootExists) pure =<< use psRoot
     setRoot new  = asState $ psRoot    .= Just new
     erase   hash = asState $ psStorage %= Map.delete hash
@@ -86,5 +106,5 @@ dump msg = asState $ do
         putStrLn ""
 
 -- | Resets current state to empty.
-clean :: forall h k v m . Base h k v m => StoreT h k v m ()
+clean :: forall h k v m . (MonadIO m, Base h k v m) => StoreT h k v m ()
 clean = asState $ put emptyState

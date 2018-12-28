@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                AVL
-version:             1.0.0.0
+version:             1.5.0.0
 synopsis:            An implementation of AVL+ trees for blockchains.
 -- description:
 license:             BSD3
@@ -34,17 +34,15 @@ library
                      , deriving-compat
                      , exceptions
                      , free
-                     , lens
+                     , microlens-platform
                      , mtl
                      , stm
-                     , transformers
                      , unordered-containers
   default-extensions:
                AllowAmbiguousTypes
                ConstraintKinds
                CPP
                DefaultSignatures
-               DeriveDataTypeable
                DeriveFoldable
                DeriveFunctor
                DeriveGeneric
@@ -58,7 +56,6 @@ library
                MultiParamTypeClasses
                MultiWayIf
                NamedFieldPuns
---             OverloadedStrings
                PatternSynonyms
                RankNTypes
                RecordWildCards
@@ -95,10 +92,8 @@ test-suite avl-tree-sanity
                      , data-default
                      , exceptions
                      , hashable
-                     , lens
+                     , microlens-platform
                      , hspec
-                     , transformers
-                     , universum
                      , unordered-containers
                      , QuickCheck
                      , quickcheck-instances
@@ -107,7 +102,6 @@ test-suite avl-tree-sanity
                ConstraintKinds
                CPP
                DefaultSignatures
-               DeriveDataTypeable
                DeriveFoldable
                DeriveFunctor
                DeriveGeneric

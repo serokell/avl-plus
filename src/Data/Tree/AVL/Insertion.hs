@@ -13,9 +13,9 @@ module Data.Tree.AVL.Insertion
     , fromFoldable
     ) where
 
-import Control.Lens (use, (.=))
-import Control.Monad (foldM, unless, void)
+import Control.Monad (foldM, void)
 import Data.Set (Set)
+import Lens.Micro.Platform (use, (.=))
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
@@ -59,69 +59,40 @@ insertZ k v = do
     goto (Plain k)             -- teleport to a key (or near it if absent)
     withLocus $ \case
       MLEmpty {} -> do
-        replaceWith =<< leaf k v minBound maxBound
-        return ()
+        replaceWith =<< leaf k v
 
-      MLLeaf {_mlKey, _mlPrevKey, _mlNextKey} -> do
-        let key0 = _mlKey
-            prev = _mlPrevKey
-            next = _mlNextKey
-        if Plain k == key0  -- update case, replace with new value
-        then
+      MLLeaf { _mlKey = key0 } -> do
+        if k == key0  -- update case, replace with new value
+        then do
             change $ do
                 here  <- use locus
                 here' <- setValue v here
                 locus .= here'
         else do
-            if Plain k `isInside` (prev, key0)
+            if k < key0
             then do
-                leaf0 <- leaf k v prev key0
-
-                splitInsertBefore leaf0
-
-                unless (prev == minBound) $ do
-                    goto prev
-                    change $ do
-                        here  <- use locus
-                        here' <- setNextKey (Plain k) here
-                        locus .= here'
+                splitInsertBefore =<< leaf k v
+                gotoPrevKey k
 
             else do
-                leaf0 <- leaf k v key0 next
+                splitInsertAfter =<< leaf k v
+                gotoNextKey k
 
-                splitInsertAfter leaf0
-
-                unless (next == maxBound) $ do
-                    goto next
-                    change $ do
-                        here  <- use locus
-                        here' <- setPrevKey (Plain k) here
-                        locus .= here'
       _ -> error $ "insert: `goto k` ended in non-terminal node"
   where
     splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
         tree <- use locus
         replaceWith =<< branch M leaf0 tree
-        descentRight
-        change $ do
-            here  <- use locus
-            here' <- setPrevKey (Plain k) here
-            locus .= here'
+        descent R
         void up
 
     splitInsertAfter :: Map h k v -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
         tree <- use locus
         replaceWith =<< branch M tree leaf0
-        descentLeft
-        change $ do
-            here  <- use locus
-            here' <- setNextKey (Plain k) here
-            locus .= here'
+        descent L
         void up
-
-    isInside k0 (l, h) = k0 >= l && k0 <= h
 
 -- | Monomorphised version of 'fromFoldable'.
 fromList :: Retrieves h k v m => [(k, v)] -> m (Map h k v)
@@ -132,7 +103,7 @@ fromFoldable ::
     => f (k, v)
     -> m (Map h k v)
 -- | Construct a tree from any Foldable (and calculate all hashes).
-fromFoldable list = fullRehash <$> foldM push empty list
+fromFoldable = foldM push empty
   where
     push :: Map h k v -> (k, v) -> m (Map h k v)
     push tree (k, v) = insertWithNoProof k v tree

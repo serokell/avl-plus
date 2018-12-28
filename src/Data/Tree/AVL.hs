@@ -40,7 +40,7 @@
         >     (     nodeset1,  tree) <- AVL.insert "foo" 1 start
         >     ((mv, nodeset2), tree) <- AVL.lookup "bar"   tree
         >     (     nodeset3,  tree) <- AVL.delete "qux"   tree
-        >     proof                  <- AVL.prune (nodeset1 <> nodeset2 <> nodeset3) tree
+        >     proof                  <- AVL.prune (nodeset1 <> nodeset2 <> nodeset3) start
         >     ()                     <- AVL.overwrite tree
         >     return (mv, proof)
 
@@ -87,9 +87,10 @@ module Data.Tree.AVL
     , Mutates
 
       -- * Some base constraints
-    , Hash(hashOf)
-    , Params
+    , Hash
     , Base
+    , Params
+    , ProvidesHash (..)
 
       -- * Exceptions
     , NotFound (..)
@@ -97,8 +98,6 @@ module Data.Tree.AVL
       -- * Main type ('Map') and all other types
     , Map
     , MapLayer (..)
-    , Tilt
-    , WithBounds
 
       -- * Constructors/toList
     , empty
@@ -112,9 +111,8 @@ module Data.Tree.AVL
     , emptyHash
 
       -- * Operations over AVL+
-    , insert
-    , delete
-    , deleteWithNoProof
+    , insert, insertWithNoProof
+    , delete, deleteWithNoProof
     , lookup
     , fold
     , foldIf
@@ -129,11 +127,10 @@ module Data.Tree.AVL
 
       -- * Proof type, ways to construct and eliminate
     , Proof (..)
-    , fullRehash
     , prune
     , checkProof
 
-      -- * For debug
+      -- * Helpers
     , showMap
     ) where
 

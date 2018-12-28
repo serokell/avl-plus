@@ -1,14 +1,13 @@
 module Common
     ( module Common
-    , module Control.Lens
+    , module Lenses
     , module T
     ) where
 
-import Control.Lens hiding (Empty, elements, locus)
 import Control.Monad as T (unless, when)
 import Control.Monad.Catch as T (catch)
 import Control.Monad.IO.Class as T (MonadIO, liftIO)
-import Control.Monad.Trans.Class as T (lift)
+import Lens.Micro.Platform as Lenses
 
 import Data.Default as T (Default (def))
 import Data.Foldable ()
@@ -26,7 +25,7 @@ import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, 
                              property, (===), (==>))
 import Test.QuickCheck.Instances as T ()
 
-import qualified Data.Tree.AVL.Internal as AVL
+import qualified Data.Tree.AVL as AVL
 import qualified Data.Tree.AVL.Store.Pure as Pure
 import qualified Data.Tree.AVL.Store.Void as Void
 
@@ -40,41 +39,15 @@ f .=. g = \a ->
 
 infixr 5 .=.
 
---data InitialHash
---    = InitialHash { getInitialHash :: Layer }
---    | Default
---    deriving (Ord, Generic)
-
 type Layer = AVL.MapLayer IntHash StringName Int IntHash
 
-deriving instance Ord Layer
-
---instance Show InitialHash where
---    show = \case
---        InitialHash m -> "#(" ++ show (m & AVL.mlHash .~ Default) ++ ")"
---        Default       -> "#"
-
---instance Default InitialHash where
---  def = Default
-
---instance Eq InitialHash where
---    x == y = show x == show y
-
---instance AVL.Hash InitialHash StringName Int where
---    hashOf = InitialHash
-
 instance Hashable StringName
-instance Hashable (AVL.WithBounds StringName)
-instance Hashable AVL.Tilt
 
-instance AVL.Hash IntHash StringName Int where
-    hashOf tree = case tree of
-        AVL.MLBranch _ mk ck t l r' -> IntHash $ hash (hash mk + hash ck + hash t + hash l + hash r')
-        AVL.MLLeaf   _ k  v  n p    -> IntHash $ hash (hash k + hash v + hash n + hash p)
-        AVL.MLEmpty  _              -> IntHash $ 0
+instance Hashable a => AVL.ProvidesHash a IntHash where
+    getHash = IntHash . hash
 
 newtype IntHash = IntHash { getIntHash :: Int }
-    deriving (Eq, Ord,  Arbitrary, Generic)
+    deriving (Eq, Ord, Generic)
 
 instance Hashable IntHash
 

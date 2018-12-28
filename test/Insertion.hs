@@ -24,9 +24,7 @@ tests = describe "Insert" $ do
             (proof,  _) <- AVL.insert' k v tree
             (proof1, _) <- AVL.insert' k v (AVL.unProof proof)
 
-            let Just hash1 = AVL.rootHash (AVL.fullRehash tree)
-
-            return $ AVL.checkProof hash1 proof1
+            return $ AVL.checkProof (AVL.rootHash tree) proof1
 
         it' "Insert proof is replayable" $ \(k, v, list) -> do
             tree        <- AVL.fromList list :: StorageMonad M
@@ -35,10 +33,8 @@ tests = describe "Insert" $ do
 
             return (proof1 == proof2)
 
-        -- -- It is not, unless we give `Eq v` constraint to the `insertZ`.
-        --
-        -- it' "Insert is idempotent" $ \(k, v, list) -> do
-        --     tree <- AVL.fromList list :: StorageMonad M
-        --     (_, tree1) <- AVL.insert' k v tree
-        --     (_, tree2) <- AVL.insert' k v tree1
-        --     return (tree1 == tree2)
+        it' "Insert is idempotent" $ \(k, v, list) -> do
+            tree <- AVL.fromList list :: StorageMonad M
+            (_, tree1) <- AVL.insert' k v tree
+            (_, tree2) <- AVL.insert' k v tree1
+            return (tree1 == tree2)

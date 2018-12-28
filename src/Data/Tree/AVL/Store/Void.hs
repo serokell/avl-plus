@@ -9,8 +9,7 @@ module Data.Tree.AVL.Store.Void
 
 import Control.Monad.Catch
 import Control.Monad.State
-
-import Data.Typeable
+import Data.Typeable (Typeable)
 
 import Data.Tree.AVL.Internal
 
@@ -26,7 +25,7 @@ instance MonadTrans StoreT where
 --   (all you have is a tree from proof).
 --
 --   So, if operations to be proven require you to read from storage,
---   its an error (namely, 'Notfound').
+--   its an error (namely, 'NotFound').
 instance (Show k, Typeable k, MonadCatch m, MonadIO m) => KVRetrieve k n (StoreT m) where
     retrieve k = throwM (NotFound k)
 

@@ -8,8 +8,6 @@ module Data.Tree.AVL.Deletion
     , delete'
     ) where
 
-import Control.Lens (use, (.=))
-import Control.Monad (unless)
 import Data.Set (Set)
 
 import Data.Tree.AVL.Internal
@@ -44,25 +42,26 @@ deleteWithNoProof k tree = do
 deleteZ :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m Bool
 deleteZ k = withLocus $ \case
     MLLeaf { _mlKey } ->
-        if _mlKey == Plain k
+        if _mlKey == k
         then True  <$ replaceWith (empty :: Map h k v)
         else False <$ mark "deleteZ/node exists"
 
-    MLEmpty {} -> False <$ mark "deleteZ/empty"
+    MLEmpty {} ->
+        False <$ mark "deleteZ/empty"
 
     MLBranch {} -> do
         goto (Plain k)
         withLocus $ \case
-          MLLeaf { _mlKey = key0, _mlPrevKey = prev, _mlNextKey = next } -> do
-            if key0 /= Plain k
+          MLLeaf { _mlKey = key0 } -> do
+            if key0 /= k
             then return False
             else do
                 side <- up  -- return to a parent of node to be deleted
 
                 -- we need to mark another child, so it ends in a proof
                 _ <- case side of
-                    L -> descentRight >> up
-                    R -> descentLeft  >> up
+                    L -> descent R >> up
+                    R -> descent L >> up
 
                 newTree <- withLocus $ \case
                     MLBranch { _mlLeft = left, _mlRight = right } ->
@@ -73,19 +72,9 @@ deleteZ k = withLocus $ \case
 
                 replaceWith newTree  -- replace with another child
 
-                unless (prev == minBound) $ do
-                    goto prev
-                    change $ do
-                        loc   <- use locus
-                        loc'  <- setNextKey next loc
-                        locus .= loc'
-
-                unless (next == maxBound) $ do
-                    goto next
-                    change $ do
-                        loc   <- use locus
-                        loc'  <- setPrevKey prev loc
-                        locus .= loc'
+                case side of
+                    L -> gotoPrevKey k
+                    R -> gotoNextKey k
 
                 return True
 

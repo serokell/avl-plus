@@ -19,15 +19,14 @@ module Data.Tree.AVL.Unsafe
     ) where
 
 import Control.Exception (Exception)
-import Control.Lens (to, (^.), (^?))
 import Control.Monad (void, when)
 import Control.Monad.Catch (catch)
 import Control.Monad.Free (Free (..))
+import Lens.Micro.Platform (to, (^?))
 
 import Data.Foldable (for_)
 import Data.Monoid ((<>))
 import qualified Data.Set as Set
-import Data.Typeable (Typeable)
 
 import Data.Tree.AVL.Insertion as AVL
 import Data.Tree.AVL.Internal
@@ -43,7 +42,7 @@ class (KVStore h node m, KVRetrieve h node m) => KVMutate h node m where
 -- | Exception to be thrown by storage, if 'getRoot' impl can't
 --   return current root.
 data NoRootExists = NoRootExists
-    deriving (Show, Typeable)
+    deriving (Show)
 
 instance Exception NoRootExists
 
@@ -52,10 +51,10 @@ currentRoot :: forall h k v m . Mutates h k v m => m (Map h k v)
 currentRoot = ref <$> getRoot @_ @(Isolated h k v)
 
 assignRoot :: forall h k v m . Mutates h k v m => Map h k v -> m ()
-assignRoot new = setRoot @_ @(Isolated h k v) (unsafeRootHash new)
+assignRoot new = setRoot @_ @(Isolated h k v) (rootHash new)
 
 eraseTopNode :: forall h k v m . Mutates h k v m => Map h k v -> m ()
-eraseTopNode = erase @_ @(Isolated h k v) . unsafeRootHash
+eraseTopNode = erase @_ @(Isolated h k v) . rootHash
 
 -- | Enriches 'massStore'/'retrive' capabilities with 'erase' and a
 --   notion of single root.
@@ -71,9 +70,7 @@ contour = Set.fromList . go
     go :: Map h k v -> [h]
     go = \case
       Pure hash -> pure hash
-      Free node
-        | Just hash <- node^.mlHash -> pure hash
-        | otherwise                 -> children node >>= go
+      Free node -> children node >>= go
 
 children :: MapLayer h k v c -> [c]
 children node = do
@@ -101,7 +98,7 @@ overwrite tree' = do
         go :: Map h k v -> m ()
         go tree = do
             layer <- load tree
-            when (unsafeRootHash tree `Set.notMember` border) $ do
+            when (rootHash tree `Set.notMember` border) $ do
                 eraseTopNode @h @k @v tree
                 for_ (children layer) go
 

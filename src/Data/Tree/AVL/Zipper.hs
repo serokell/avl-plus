@@ -1,6 +1,6 @@
 -- | This module represents zipper layer.
 --   It allows us represent all operations using
---     'up', 'descentLeft', 'descentRight' and 'change'
+--     'up', 'descent L', 'descent R' and 'change'
 --   primitives.
 --   The 'up' also rebalances and recalculates a node, if you 'change'd it
 --   or its sibling.
@@ -16,9 +16,10 @@ module Data.Tree.AVL.Zipper
 
       -- * Navigation
     , goto
+    , gotoPrevKey
+    , gotoNextKey
     , up
-    , descentLeft
-    , descentRight
+    , descent
 
       -- * Actions over iterator
     , withLocus
@@ -29,17 +30,19 @@ module Data.Tree.AVL.Zipper
       -- * Current point iterator is standing on
     , locus
 
+      -- * Debug
+    , say
+    , dump
     )
   where
 
-import Control.Exception (Exception)
-import Control.Lens (Getter, Lens', makeLenses, use, uses, (%=), (.=))
+import Control.Exception (Exception, SomeException)
+import Lens.Micro.Platform (Lens', SimpleGetter, makeLenses, use, (%=), (.=), (<&>))
 
 import Control.Monad (unless, when)
 import Control.Monad.Catch (catch, throwM)
-import Control.Monad.State.Strict (StateT, evalStateT, lift)
+import Control.Monad.State.Strict (StateT, evalStateT, lift, MonadIO (liftIO))
 
-import Data.Maybe (isJust)
 import Data.Monoid ((<>))
 import Data.Set (Set)
 import Data.Typeable (Typeable)
@@ -62,32 +65,31 @@ import qualified Data.Set as Set (empty, fromList, insert)
 --
 --   Initially, the 'locus' is root node, and the context stack is empty.
 --
---   After 'descentLeft' the 'locus' points to left branch of the root, and
+--   After 'descent L' the 'locus' points to left branch of the root, and
 --   the context stack will contain one layer of 'TreeZipperCtx', containing
 --   data to return onto root node and update it if needed.
 --
 --   Zipper is also a functional iterator.
 --
 data TreeZipper h k v = TreeZipper
-    { _tzContext  :: [TreeZipperCxt h k v]  -- ^ Layers above us
+    { _tzContext  :: [TreeZipperCtx h k v]  -- ^ Layers above us
     , _tzHere     ::  Map h k v             -- ^ Current point
     , _tzKeyRange :: (Range k)              -- ^ Range of keys covered by locus
     , _tzMode     ::  Mode                  -- ^ Update or delete
     , _tzTouched  ::  Set h                 -- ^ Set of nodes we touched
+    , _tzDirty    ::  Bool
     }
 
 type Range k = (WithBounds k, WithBounds k)
 
 -- | Tree layers.
-data TreeZipperCxt h k v
-    = WentRightFrom
-        (Map h k v)  -- the node we came from (parent)
-        (Range k)    -- the key diapasone of parent
-    | WentLeftFrom
-        (Map h k v)
-        (Range k)
-
---deriving instance Retrieves h k v => Show (TreeZipperCxt h k v)
+data TreeZipperCtx h k v = TreeZipperCtx
+    { _tzcSize  :: Side       -- ^ the direction we came from
+    , _tzcFrom  :: Map h k v  -- ^ the node we came from (parent)
+    , _tzcRange :: Range k    -- ^ the key range we were at
+    , _tzcDirty :: Bool
+    }
+    deriving Show
 
 -- | Modes of operation.
 --
@@ -106,10 +108,10 @@ makeLenses ''TreeZipper
 
 -- | Current subtree.
 locus    :: Lens'  (TreeZipper h k v) (Map h k v)
-context  :: Lens'  (TreeZipper h k v) [TreeZipperCxt h k v]
+context  :: Lens'  (TreeZipper h k v) [TreeZipperCtx h k v]
 keyRange :: Lens'  (TreeZipper h k v) (Range k)
-mode     :: Getter (TreeZipper h k v)  Mode
 trail    :: Lens'  (TreeZipper h k v) (Set h)
+mode     :: SimpleGetter (TreeZipper h k v)  Mode
 
 mode     = tzMode
 keyRange = tzKeyRange
@@ -144,12 +146,24 @@ runZipped action mode0 tree = do
 runZipped' :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Proof h k v)
 runZipped' action mode0 tree = do
     (a, tree1, trails) <- runZipped action mode0 tree
-    proof              <- prune trails (fullRehash tree)
+    proof              <- prune trails tree
     return (a, tree1, proof)
+
+say :: (Retrieves h k v m, MonadIO m) => String -> Zipped h k v m ()
+say = liftIO . putStrLn
+
+dump :: (Retrieves h k v m, MonadIO m) => Zipped h k v m ()
+dump = do
+    say . showMap =<< use locus
+    ctx <- use context
+    say (show $ map (rootHash . _tzcFrom) ctx)
 
 -- | Materialise tree node at locus and give it to action for introspection.
 --
---   Often used with lambda-case: @withLocus $ \case { ... }@
+--   Often used with lambda-case:
+--
+--   > withLocus $ \case { ... }
+--
 withLocus :: Retrieves h k v m => (MapLayer h k v (Map h k v) -> Zipped h k v m a) -> Zipped h k v m a
 withLocus action = do
     loc   <- use locus
@@ -159,83 +173,60 @@ withLocus action = do
 -- | Add current node identity to the set of nodes touched.
 mark :: Retrieves h k v m => String -> Zipped h k v m ()
 mark _msg = do
-    uses locus rootHash >>= \case
-      Just hash -> do
-        trail %= Set.insert hash
-
-      Nothing -> do
-        return ()
+    hash <- use locus <&> rootHash
+    trail %= Set.insert hash
 
 -- | Add given node identities to the set of nodes touched.
-markAll :: Retrieves h k v m => [Maybe h] -> Zipped h k v m ()
+markAll :: Retrieves h k v m => [h] -> Zipped h k v m ()
 markAll hashes = do
-    trail %= (<> Set.fromList [hash | Just hash <- hashes])
+    trail %= (<> Set.fromList hashes)
 
-data AlreadyOnTop = AlreadyOnTop deriving (Show, Typeable)
+data AlreadyOnTop = AlreadyOnTop
+    deriving (Show)
 
 instance Exception AlreadyOnTop
 
 -- | Move to the parent node; update & rebalance it if required.
 up :: forall h k m v . Retrieves h k v m => Zipped h k v m Side
 up = do
-    ctx   <- use context
-    hash1 <- uses locus rootHash
-    side  <- case ctx of
-      WentLeftFrom tree range : rest -> do
+    TreeZipperCtx side tree range wasDirty <- pop context AlreadyOnTop
+    keyRange .= range   -- restore parent 'keyRange'
+
+    dirty <- use tzDirty
+    if not dirty
+    then do
+        locus   .= tree
+        tzDirty .= (dirty || wasDirty)
+
+    else do
         load tree >>= \case
-          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            if isJust hash1  -- if current node didn't change
-            then do
-                locus .= tree  -- set unchanged parent one
+          MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
+            now    <- use locus
+            became <- case side of
+              L -> do
+                tilt' <- correctTilt _mlLeft now _mlTilt L
+                branch tilt' now _mlRight
 
-            else do
-                -- install current node inside parent
-                -- prepare it to 'rebalance'
-                now    <- use locus
-                tilt'  <- correctTilt left now tilt0 L
-                became <- branch tilt' now right
+              R -> do
+                tilt' <- correctTilt _mlRight now _mlTilt R
+                branch tilt' _mlLeft now
 
-                replaceWith became  -- replace current node with possibly updated
-                                    -- parent
-                                    -- also, make parent dirty, so next 'up'
-                                    -- will check if it needs to update
-                rebalance
-
-            context  .= rest    -- pop parent layer from context stack
-            keyRange .= range   -- restore parent 'keyRange'
-
-            return L            -- return the side we went from
+            replaceWith became
+            rebalance
 
           _other -> do
             throwM AlreadyOnTop
-
-      WentRightFrom tree range : rest -> do
-        load tree >>= \case
-          MLBranch {_mlLeft = left, _mlRight = right, _mlTilt = tilt0} -> do
-            if isJust hash1
-            then do
-                locus .= tree
-
-            else do
-                now    <- use locus
-                tilt'  <- correctTilt right now tilt0 R
-                became <- branch tilt' left now
-
-                replaceWith became
-                rebalance
-
-            context  .= rest
-            keyRange .= range
-
-            return R
-
-          _other -> do
-            throwM AlreadyOnTop
-
-      [] -> do
-          throwM AlreadyOnTop
 
     return side
+
+pop :: (Exception e, Retrieves h k v m) => Lens' (TreeZipper h k v) [a] -> e -> Zipped h k v m a
+pop lens e = do
+    list <- use lens
+    case list of
+        [] -> throwM e
+        x : xs -> do
+            lens .= xs
+            return x
 
 -- | Return to the root node.
 exit :: Retrieves h k v m => Zipped h k v m (Map h k v)
@@ -255,46 +246,35 @@ enter mode0 tree = TreeZipper
     , _tzKeyRange = (minBound, maxBound)
     , _tzMode     = mode0
     , _tzTouched  = Set.empty
+    , _tzDirty    = False
     }
 
-data WentDownOnNonBranch h = WentDownOnNonBranch h deriving (Show, Typeable)
+data WentDownOnNonBranch h = WentDownOnNonBranch h
+    deriving (Show)
 
 instance (Show h, Typeable h) => Exception (WentDownOnNonBranch h)
 
--- | Move into the left branch of the current node.
-descentLeft :: forall h k v m . Retrieves h k v m => Zipped h k v m ()
-descentLeft = do
+select :: Side -> a -> a -> a
+select L a _ = a
+select R _ b = b
+
+-- | Move in given direction from the current node.
+descent :: forall h k v m . Retrieves h k v m => Side -> Zipped h k v m ()
+descent side = do
     tree  <- use locus
     range <- use keyRange
 
-    mark "descentLeft"
+    mark $ "descent " ++ show side
 
     load tree >>= \case
-      MLBranch { _mlLeft = left, _mlCenterKey = center } -> do
-        locus    .= left
-        context  %= (WentLeftFrom tree range :)
-        keyRange .= refine L range center
+      MLBranch { _mlLeft = left, _mlRight = right, _mlCenterKey = center } -> do
+        locus    .= select side left right
+        dirty    <- use tzDirty
+        context  %= (TreeZipperCtx side tree range dirty :)
+        keyRange .= refine side range center
+        tzDirty  .= False
 
-        mark "descentLeft/exit"
-
-      _layer -> do
-        throwM $ WentDownOnNonBranch (rootHash tree)
-
--- | Move into the right branch of the current node.
-descentRight :: Retrieves h k v m => Zipped h k v m ()
-descentRight = do
-    tree  <- use locus
-    range <- use keyRange
-
-    mark "descentRight"
-
-    load tree >>= \case
-      MLBranch { _mlRight = right, _mlCenterKey = center } -> do
-        locus    .= right
-        context  %= (WentRightFrom tree range :)
-        keyRange .= refine R range center
-
-        mark "descentRight/exit"
+        mark "descent L/exit"
 
       _layer -> do
         throwM $ WentDownOnNonBranch (rootHash tree)
@@ -304,10 +284,10 @@ refine
     :: Ord key
     => Side
     -> (WithBounds key, WithBounds key)
-    ->  WithBounds key
+    ->  key
     -> (WithBounds key, WithBounds key)
-refine L (l, h) m = (l, min m h)
-refine R (l, h) m = (max m l, h)
+refine L (l, h) (Plain -> m) = (l, min m h)
+refine R (l, h) (Plain -> m) = (max m l, h)
 
 -- | Correct tilt.
 correctTilt :: Retrieves h k v m => Map h k v -> Map h k v -> Tilt -> Side -> Zipped h k v m Tilt
@@ -361,8 +341,8 @@ shortened was became = do
 roll :: Tilt -> Side -> Tilt
 roll tilt0 side =
     case side of
-      L -> pred tilt0
-      R -> succ tilt0
+      L -> tiltLeft  tilt0
+      R -> tiltRight tilt0
 
 -- | Perform a zipper action upon current node, then update set its revision
 --   to be a new one.
@@ -376,13 +356,9 @@ change action = do
         error "change: calling this in ReadonlyMode is prohibited"
 
     mark "change" -- automatically add node the list of touched
-    a <- action
-
-    loc    <- use locus
-    newLoc <- lift $ clearHash loc
-    locus  .= newLoc
-
-    return a
+    res <- action
+    tzDirty .= True
+    return res
 
 -- | Place new tree into the locus, update its revision.
 replaceWith :: Retrieves h k v m => Map h k v -> Zipped h k v m ()
@@ -432,23 +408,60 @@ rebalance = do
 
     replaceWith newTree
 
+-- | Teleport to previous key.
+gotoPrevKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
+gotoPrevKey k = do
+    goto (Plain k)
+    raiseUntilFrom R `catch` \AlreadyOnTop -> return ()
+    descent L        `catch` \(WentDownOnNonBranch (_ :: h)) -> return ()
+    whilePossible $ descent R
+
+-- | Teleport to next key.
+gotoNextKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
+gotoNextKey k = do
+    goto (Plain k)
+    raiseUntilFrom L `catch` \AlreadyOnTop -> return ()
+    descent R        `catch` \(WentDownOnNonBranch (_ :: h)) -> return ()
+    whilePossible $ descent L
+
+raiseUntilFrom :: Retrieves h k v m => Side -> Zipped h k v m ()
+raiseUntilFrom weSeek = aux
+  where
+    aux = do
+        side <- up
+        unless (side == weSeek) $ do
+            aux
+
+whilePossible :: Retrieves h k v m => Zipped h k v m a -> Zipped h k v m ()
+whilePossible action = aux
+  where
+    aux = do
+        possible <- do
+            _ <- action
+            return True
+          `catch` \(_ :: SomeException) -> do
+            return False
+
+        when possible $ do
+            aux
+
 -- | Teleport to a 'Leaf' with given key from anywhere.
 goto :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()
-goto key0 = do
-    raiseUntilHaveInRange key0
-    descentOnto key0
+goto k = do
+    raiseUntilHaveInRange k
+    descentOnto k
 
 -- | Raise, until given key is in range.
 raiseUntilHaveInRange :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()
-raiseUntilHaveInRange key0 = goUp
+raiseUntilHaveInRange k = goUp
   where
     goUp = do
         range <- use keyRange
-        unless (key0 `isInside` range) $ do
+        unless (k `isInside` range) $ do
             _ <- up
             goUp
 
-    k `isInside` (l, h) = k >= l && k <= h
+    k' `isInside` (l, h) = k' >= l && k' <= h
 
 -- | Teleport to a 'Leaf' with given key from above.
 descentOnto :: forall h k v m . Retrieves h k v m => WithBounds k -> Zipped h k v m ()
@@ -458,8 +471,8 @@ descentOnto key0 = continueDescent
         loc      <- use locus
         center   <- centerKey loc
         if key0 >= center
-            then descentRight
-            else descentLeft
+            then descent R
+            else descent L
         continueDescent
-      `catch` \(WentDownOnNonBranch (_ :: Maybe h)) -> do
+      `catch` \(WentDownOnNonBranch (_ :: h)) -> do
         return ()
