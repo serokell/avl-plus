@@ -4,9 +4,5 @@ packages:
 - '.'
 
 extra-deps:
-- universum-1.1.0
 - git: git@github.com:Heimdell/zipp.git
   commit: 7bf77875305c4b1930b024e21aa6691387c156fc
-
-nix:
-    packages: [rocksdb]
