@@ -44,36 +44,43 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
 
-import Lens.Micro.Platform (makeLenses, use, to, (%=), (.~))
+import Lens.Micro.Platform (makeLenses, use, to, (%=), (.~), (^?))
 
 import Control.Zipp as Zipp
 
+-- | Representation of zipper.
 type Zipped h k v m = Zipp.Action Side (Locus h k v) (WithTracking k h m)
 
 type Range k = (WithBounds k, WithBounds k)
 
+-- | The layer below zipper.
 type WithTracking k h m = StateT (Context k h) m
 
+-- | Carries 'Set' of touched nodes and current mode of operation.
 data Context k h = Context
     { _cTouched  :: Set h
     , _cMode     :: Mode
     }
 
+-- | Locus of editation.
 data Locus h k v = Locus
-    { _lHere  :: Map h k v
-    , _lRange :: Range k
+    { _lHere  :: Map h k v  -- ^ Current point in a tree
+    , _lRange :: Range k    -- ^ Current key range
     }
 
+-- | Classifies the operation, so the `up` procedure won't mess things up.
 data Mode
-    = UpdateMode
-    | DeleteMode
+    = UpdateMode  -- ^ Tree can only grow
+    | DeleteMode  -- ^ Tree can only shrink
 
 makeLenses ''Context
 makeLenses ''Locus
 
+-- | Get current point in a tree.
 locus :: Retrieves h k v m => Zipped h k v m (Map h k v)
 locus = peek lHere
 
+-- | Assign a subtree to current point in a tree.
 setLocus :: Retrieves h k v m => Map h k v -> Zipped h k v m ()
 setLocus tree = void $ change (lHere .~ tree)
 
@@ -96,43 +103,62 @@ runZipped' action mode0 tree = do
     proof              <- prune trails tree
     return (a, tree1, proof)
 
+-- | Perform an operation over current point-in-tree.
+--
+--   Is often used with 'LambdaCase': @withLocus $ \\case ...@
+--
 withLocus :: Retrieves h k v m => (MapLayer h k v (Map h k v) -> Zipped h k v m a) -> Zipped h k v m a
 withLocus action = do
     loc   <- peek lHere
     layer <- lift $ lift $ load loc
     action layer
 
+-- | Mark current point as visited.
 markHere :: (Monad m, Ord h) => Zipped h k v m ()
 markHere = do
     h <- peek (lHere.to rootHash)
     lift $ cTouched %= Set.insert h
 
+-- | Mark given point as visited.
 mark :: (Monad m, Ord h) => h -> WithTracking k h m ()
 mark h = cTouched %= Set.insert h
 
+-- | Mark given points as visited.
 markAll :: (Monad m, Ord h) => [h] -> WithTracking k h m ()
 markAll hs = cTouched %= (<> Set.fromList hs)
 
+-- | Descent into the given direction.
 descent :: forall h k v m . Retrieves h k v m => Side -> Zipped h k v m ()
 descent = \case
     L -> go leftDir
     R -> go rightDir
   where
+    -- Go left in tree.
     leftDir :: Direction Side (Locus h k v) (WithTracking k h m)
     leftDir = Direction
-        { designation = L
+        { -- Raw direction.
+          designation = L
+        
+          -- Get left subtree.
         , tearOut = \(Locus tree (low, _)) -> do
-            mark (rootHash tree)
-            result <- lift $ load tree >>= \case
-                MLBranch { _mlLeft } ->
-                    return _mlLeft
-                _ ->
-                    throwM CantGoThere
             
+            -- Mark the point we're going from.
+            -- That way, we'll never leave out root.
+            mark (rootHash tree)
+            
+            result <- lift $ load tree >>= \layer ->
+                maybe (throwM CantGoThere)
+                    return (layer^? mlLeft)                    
+            
+            -- Mark the point we're going to.
+            -- That way, we'll never leave out leaves.
             mark (rootHash result)
+            
+            -- Replace upper border with center key of node we're going from.
             center <- lift $ centerKey result
             return (Locus result (low, center))
 
+          -- Put the changed subtree back.
         , jamIn = \(Locus parentTree range) (Locus leftSubTree _) -> do
             lift (load parentTree) >>= \case
                 MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
@@ -149,6 +175,7 @@ descent = \case
     rightDir :: Direction Side (Locus h k v) (WithTracking k h m)
     rightDir = Direction
         { designation = R
+        
         , tearOut = \(Locus tree (_, hi)) -> do
             mark (rootHash tree)
             result <- lift $ load tree >>= \case
@@ -174,6 +201,7 @@ descent = \case
                     throwM CantGoUp
         }
 
+-- | Given mode of operation ans change in a subtree at given side, correct the tilt.
 correctTilt :: Retrieves h k v m => Mode -> Map h k v -> Map h k v -> Tilt -> Side -> m Tilt
 correctTilt mode was became tilt0 side = do
     deeper  <- deepened

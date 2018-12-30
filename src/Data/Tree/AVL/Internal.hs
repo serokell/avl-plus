@@ -53,7 +53,6 @@ module Data.Tree.AVL.Internal
     , load
     , loadAnd
     , loadAndM
-    , close
 
       -- * Low-level access
     , pattern Node
