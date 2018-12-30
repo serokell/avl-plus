@@ -30,14 +30,8 @@ module Data.Tree.AVL.Zipper
       -- * Current point iterator is standing on
     , locus
     , setLocus
-
-      -- * Debug
-    -- , say
-    -- , dump
     )
   where
-
-import Lens.Micro.Platform (makeLenses, use, to, (%=), (.~))
 
 import Control.Monad (unless, void)
 import Control.Monad.Catch (catch, throwM)
@@ -45,14 +39,18 @@ import Control.Monad.State.Strict (StateT (runStateT), lift)
 
 import Data.Monoid ((<>))
 import Data.Set (Set)
-
+import qualified Data.Set as Set (empty, fromList, insert)
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
 
-import qualified Data.Set as Set (empty, fromList, insert)
+import Lens.Micro.Platform (makeLenses, use, to, (%=), (.~))
 
 import Control.Zipp as Zipp
+
+type Zipped h k v m = Zipp.Action Side (Locus h k v) (WithTracking k h m)
+
+type Range k = (WithBounds k, WithBounds k)
 
 type WithTracking k h m = StateT (Context k h) m
 
@@ -61,16 +59,14 @@ data Context k h = Context
     , _cMode     :: Mode
     }
 
-data Mode = UpdateMode | DeleteMode
-
-type Range k = (WithBounds k, WithBounds k)
-
-type Zipped h k v m = Zipp.Action Side (Locus h k v) (WithTracking k h m)
-
 data Locus h k v = Locus
     { _lHere  :: Map h k v
     , _lRange :: Range k
     }
+
+data Mode
+    = UpdateMode
+    | DeleteMode
 
 makeLenses ''Context
 makeLenses ''Locus
@@ -100,68 +96,11 @@ runZipped' action mode0 tree = do
     proof              <- prune trails tree
     return (a, tree1, proof)
 
--- | Place new tree into the locus, UpdateMode its revision.
-replaceWith :: Retrieves h k v m => Map h k v -> Zipped h k v m ()
-replaceWith newTree = do
-    void $ change (lHere .~ newTree)
-
 withLocus :: Retrieves h k v m => (MapLayer h k v (Map h k v) -> Zipped h k v m a) -> Zipped h k v m a
 withLocus action = do
     loc   <- peek lHere
     layer <- lift $ lift $ load loc
     action layer
-
--- | Teleport to previous key.
-gotoPrevKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
-gotoPrevKey k = do
-    goto (Plain k)
-    raiseUntilFrom R `catch` \CantGoUp    -> return ()
-    descent L        `catch` \CantGoThere -> return ()
-    whilePossible $ descent R
-
--- | Teleport to next key.
-gotoNextKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
-gotoNextKey k = do
-    goto (Plain k)
-    raiseUntilFrom L `catch` \CantGoUp    -> return ()
-    descent R        `catch` \CantGoThere -> return ()
-    whilePossible $ descent L
-
--- | Teleport to a 'Leaf' with given key from anywhere.
-goto :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()
-goto k = do
-    raiseUntilHaveInRange k
-    descentOnto k
-
--- | Raise, until given key is in range.
-raiseUntilHaveInRange :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()
-raiseUntilHaveInRange k = goUp
-  where
-    goUp = do
-        range <- peek lRange
-        unless (k `isInside` range) $ do
-            _ <- up
-            goUp
-
-    k' `isInside` (l, h) = k' >= l && k' <= h
-
--- | Teleport to a 'Leaf' with given key from above.
-descentOnto :: forall h k v m . Retrieves h k v m => WithBounds k -> Zipped h k v m ()
-descentOnto key0 = continueDescent
-  where
-    continueDescent = do
-        loc      <- peek lHere
-        center   <- lift $ lift $ centerKey loc
-        if key0 >= center
-            then descent R
-            else descent L
-        continueDescent
-      `catch` \CantGoThere -> do
-        return ()
-
-descent :: forall h k v m . Retrieves h k v m => Side -> Zipped h k v m ()
-descent L = go leftDir
-descent R = go rightDir
 
 markHere :: (Monad m, Ord h) => Zipped h k v m ()
 markHere = do
@@ -174,61 +113,66 @@ mark h = cTouched %= Set.insert h
 markAll :: (Monad m, Ord h) => [h] -> WithTracking k h m ()
 markAll hs = cTouched %= (<> Set.fromList hs)
 
-leftDir :: forall h k v m . Retrieves h k v m => Direction Side (Locus h k v) (WithTracking k h m)
-leftDir = Direction
-    { designation = L
-    , tearOut = \(Locus tree (low, _)) -> do
-        mark (rootHash tree)
-        result <- lift $ load tree >>= \case
-            MLBranch { _mlLeft } ->
-                return _mlLeft
-            _ ->
-                throwM CantGoThere
-        
-        mark (rootHash result)
-        center <- lift $ centerKey result
-        return (Locus result (low, center))
+descent :: forall h k v m . Retrieves h k v m => Side -> Zipped h k v m ()
+descent = \case
+    L -> go leftDir
+    R -> go rightDir
+  where
+    leftDir :: Direction Side (Locus h k v) (WithTracking k h m)
+    leftDir = Direction
+        { designation = L
+        , tearOut = \(Locus tree (low, _)) -> do
+            mark (rootHash tree)
+            result <- lift $ load tree >>= \case
+                MLBranch { _mlLeft } ->
+                    return _mlLeft
+                _ ->
+                    throwM CantGoThere
+            
+            mark (rootHash result)
+            center <- lift $ centerKey result
+            return (Locus result (low, center))
 
-    , jamIn = \(Locus parentTree range) (Locus leftSubTree _) -> do
-        lift (load parentTree) >>= \case
-            MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
-                mode     <- use cMode
-                tilt'    <- lift $ correctTilt mode _mlLeft leftSubTree _mlTilt L
-                result   <- lift $ branch tilt' leftSubTree _mlRight
-                balanced <- rebalance result
-                return (Locus balanced range)
+        , jamIn = \(Locus parentTree range) (Locus leftSubTree _) -> do
+            lift (load parentTree) >>= \case
+                MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
+                    mode     <- use cMode
+                    tilt'    <- lift $ correctTilt mode _mlLeft leftSubTree _mlTilt L
+                    result   <- lift $ branch tilt' leftSubTree _mlRight
+                    balanced <- rebalance result
+                    return (Locus balanced range)
 
-            _ -> do
-                throwM CantGoUp
-    }
+                _ -> do
+                    throwM CantGoUp
+        }
 
-rightDir :: forall h k v m . Retrieves h k v m => Direction Side (Locus h k v) (WithTracking k h m)
-rightDir = Direction
-    { designation = R
-    , tearOut = \(Locus tree (_, hi)) -> do
-        mark (rootHash tree)
-        result <- lift $ load tree >>= \case
-            MLBranch { _mlRight } ->
-                return _mlRight
-            _ ->
-                throwM CantGoThere
-        
-        mark (rootHash result)
-        center <- lift $ centerKey result
-        return (Locus result (center, hi))
+    rightDir :: Direction Side (Locus h k v) (WithTracking k h m)
+    rightDir = Direction
+        { designation = R
+        , tearOut = \(Locus tree (_, hi)) -> do
+            mark (rootHash tree)
+            result <- lift $ load tree >>= \case
+                MLBranch { _mlRight } ->
+                    return _mlRight
+                _ ->
+                    throwM CantGoThere
+            
+            mark (rootHash result)
+            center <- lift $ centerKey result
+            return (Locus result (center, hi))
 
-    , jamIn = \(Locus parentTree range) (Locus rightSubTree _) -> do
-        lift (load parentTree) >>= \case
-            MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
-                mode     <- use cMode
-                tilt'    <- lift $ correctTilt mode _mlRight rightSubTree _mlTilt R
-                result   <- lift $ branch tilt' _mlLeft rightSubTree
-                balanced <- rebalance result
-                return (Locus balanced range)
+        , jamIn = \(Locus parentTree range) (Locus rightSubTree _) -> do
+            lift (load parentTree) >>= \case
+                MLBranch {_mlLeft, _mlRight, _mlTilt} -> do
+                    mode     <- use cMode
+                    tilt'    <- lift $ correctTilt mode _mlRight rightSubTree _mlTilt R
+                    result   <- lift $ branch tilt' _mlLeft rightSubTree
+                    balanced <- rebalance result
+                    return (Locus balanced range)
 
-            _ -> do
-                throwM CantGoUp
-    }
+                _ -> do
+                    throwM CantGoUp
+        }
 
 correctTilt :: Retrieves h k v m => Mode -> Map h k v -> Map h k v -> Tilt -> Side -> m Tilt
 correctTilt mode was became tilt0 side = do
@@ -277,6 +221,11 @@ correctTilt mode was became tilt0 side = do
           L -> tiltLeft  tilt0
           R -> tiltRight tilt0
 
+-- | Place new tree into the locus, UpdateMode its revision.
+replaceWith :: Retrieves h k v m => Map h k v -> Zipped h k v m ()
+replaceWith newTree = do
+    void $ change (lHere .~ newTree)
+
 -- | Fix imbalances around current locus of editation.
 rebalance :: forall h k v m . Retrieves h k v m => Map h k v -> WithTracking k h m (Map h k v)
 rebalance tree = do
@@ -315,3 +264,51 @@ rebalance tree = do
           _ -> return tree
 
       _ -> return tree
+
+-- | Teleport to previous key.
+gotoPrevKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
+gotoPrevKey k = do
+    goto (Plain k)
+    raiseUntilFrom R `catch` \CantGoUp    -> return ()
+    descent L        `catch` \CantGoThere -> return ()
+    whilePossible $ descent R
+
+-- | Teleport to next key.
+gotoNextKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
+gotoNextKey k = do
+    goto (Plain k)
+    raiseUntilFrom L `catch` \CantGoUp    -> return ()
+    descent R        `catch` \CantGoThere -> return ()
+    whilePossible $ descent L
+
+-- | Teleport to a 'Leaf' with given key from anywhere.
+goto :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()
+goto k = do
+    raiseUntilHaveInRange k
+    descentOnto k
+
+-- | Raise, until given key is in range.
+raiseUntilHaveInRange :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()
+raiseUntilHaveInRange k = goUp
+  where
+    goUp = do
+        range <- peek lRange
+        unless (k `isInside` range) $ do
+            _ <- up
+            goUp
+
+    k' `isInside` (l, h) = k' >= l && k' <= h
+
+-- | Teleport to a 'Leaf' with given key from above.
+descentOnto :: forall h k v m . Retrieves h k v m => WithBounds k -> Zipped h k v m ()
+descentOnto key0 = continueDescent
+  where
+    continueDescent = do
+        loc      <- peek lHere
+        center   <- lift $ lift $ centerKey loc
+        if key0 >= center
+            then descent R
+            else descent L
+        continueDescent
+      `catch` \CantGoThere -> do
+        return ()
