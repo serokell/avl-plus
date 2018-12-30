@@ -44,10 +44,10 @@ deleteZ k = withLocus $ \case
     MLLeaf { _mlKey } ->
         if _mlKey == k
         then True  <$ replaceWith (empty :: Map h k v)
-        else False <$ mark "deleteZ/node exists"
+        else False <$ markHere
 
     MLEmpty {} ->
-        False <$ mark "deleteZ/empty"
+        False <$ markHere
 
     MLBranch {} -> do
         goto (Plain k)

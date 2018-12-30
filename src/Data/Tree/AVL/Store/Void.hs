@@ -17,16 +17,17 @@ import Data.Tree.AVL.Internal
 newtype StoreT m a = StoreT { runStoreT :: m a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask)
 
-instance MonadTrans StoreT where
-    lift = StoreT
-
 -- | This "storage" always throws when you try to read from it.
 --   It does this, because on light client you haven't any storage,
 --   (all you have is a tree from proof).
 --
 --   So, if operations to be proven require you to read from storage,
 --   its an error (namely, 'NotFound').
-instance (Show k, Typeable k, MonadCatch m, MonadIO m) => KVRetrieve k n (StoreT m) where
+instance {-# OVERLAPPING #-}
+    (Show k, Typeable k, MonadCatch m, MonadIO m)
+  =>
+    KVRetrieve k n (StoreT m)
+  where
     retrieve k = throwM (NotFound k)
 
 -- | Storage monad that fails on any access attempt.

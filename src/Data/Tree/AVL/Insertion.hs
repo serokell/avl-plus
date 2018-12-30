@@ -14,8 +14,8 @@ module Data.Tree.AVL.Insertion
     ) where
 
 import Control.Monad (foldM, void)
+import Control.Monad.Reader (lift)
 import Data.Set (Set)
-import Lens.Micro.Platform (use, (.=))
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
@@ -59,38 +59,37 @@ insertZ k v = do
     goto (Plain k)             -- teleport to a key (or near it if absent)
     withLocus $ \case
       MLEmpty {} -> do
-        replaceWith =<< leaf k v
+        replaceWith =<< lift (lift $ leaf k v)
 
       MLLeaf { _mlKey = key0 } -> do
         if k == key0  -- update case, replace with new value
         then do
-            change $ do
-                here  <- use locus
-                here' <- setValue v here
-                locus .= here'
+            here  <- locus
+            here' <- lift $ lift $ setValue v here
+            setLocus here'
         else do
             if k < key0
             then do
-                splitInsertBefore =<< leaf k v
+                splitInsertBefore =<< lift (lift $ leaf k v)
                 gotoPrevKey k
 
             else do
-                splitInsertAfter =<< leaf k v
+                splitInsertAfter =<< lift (lift $ leaf k v)
                 gotoNextKey k
 
       _ -> error $ "insert: `goto k` ended in non-terminal node"
   where
     splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
-        tree <- use locus
-        replaceWith =<< branch M leaf0 tree
+        tree <- locus
+        replaceWith =<< lift (lift $ branch M leaf0 tree)
         descent R
         void up
 
     splitInsertAfter :: Map h k v -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
-        tree <- use locus
-        replaceWith =<< branch M tree leaf0
+        tree <- locus
+        replaceWith =<< lift (lift $ branch M tree leaf0)
         descent L
         void up
 
