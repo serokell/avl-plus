@@ -3,7 +3,6 @@ module Lookup (tests) where
 import Common
 
 import qualified Data.Tree.AVL as AVL
-import qualified Data.Tree.AVL.Lookup as AVL
 
 tests :: Spec
 tests = describe "Lookup" $ do
@@ -20,19 +19,15 @@ tests = describe "Lookup" $ do
 
     describe "Proofs" $ do
         it' "Generated proofs are verified" $ \(k, list) -> do
-            tree            <- AVL.fromList list :: StorageMonad M
-            ((_, proof), _) <- AVL.lookup' k tree
+            tree           <- AVL.fromList list :: StorageMonad M
+            ((_, set0), _) <- AVL.lookup k tree
 
-            return $ AVL.checkProof (AVL.rootHash tree) proof
+            AVL.checkProof (AVL.rootHash tree) <$> AVL.prune set0 tree
 
         it' "Generated proofs are replayable" $ \(k, list) -> do
             tree              <- AVL.fromList list :: StorageMonad M
-            ((res, proof), _) <- AVL.lookup' k tree
+            ((res,  set0), _) <- AVL.lookup k tree
+            ((res1, set1), _) <- AVL.lookup k . AVL.unProof =<< AVL.prune set0 tree
 
-            let AVL.Proof subtree = proof
-
-            ((res1, proof1), _) <- AVL.lookup' k subtree
-
-            return $ AVL.checkProof (AVL.rootHash tree) proof
-                  && res   == res1
-                  && proof == proof1
+            return $ res   == res1
+                  && set0  == set1
