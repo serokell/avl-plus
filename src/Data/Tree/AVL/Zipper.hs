@@ -10,6 +10,8 @@ module Data.Tree.AVL.Zipper
       Zipped
     , runZipped
     , runZipped'
+    , execZipped
+    , execZipped'
 
       -- * Mode of operation
     , Mode (..)
@@ -85,8 +87,8 @@ setLocus :: Retrieves h k v m => Map h k v -> Zipped h k v m ()
 setLocus tree = void $ change (lHere .~ tree)
 
 -- | Run zipper operation, collect prefabricated proofs.
-runZipped :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Set h)
-runZipped action mode tree = do
+runZipped :: Retrieves h k v m => Mode -> Map h k v -> Zipped h k v m a -> m (a, Map h k v, Set h)
+runZipped mode tree action = do
     ((a, (Locus tree1 _)), Context {_cTouched = set})
         <- with (Locus tree (Bottom, Top)) action
             `runStateT` Context
@@ -97,11 +99,23 @@ runZipped action mode tree = do
     return (a, tree1, set)
 
 -- | Run zipper operation, build proof.
-runZipped' :: Retrieves h k v m => Zipped h k v m a -> Mode -> Map h k v -> m (a, Map h k v, Proof h k v)
-runZipped' action mode0 tree = do
-    (a, tree1, trails) <- runZipped action mode0 tree
+runZipped' :: Retrieves h k v m => Mode -> Map h k v -> Zipped h k v m a -> m (a, Map h k v, Proof h k v)
+runZipped' mode0 tree action = do
+    (a, tree1, trails) <- runZipped mode0 tree action
     proof              <- prune trails tree
     return (a, tree1, proof)
+
+-- | Run zipper operation, build proof.
+execZipped :: Retrieves h k v m => Mode -> Map h k v -> Zipped h k v m a -> m (Set h, Map h k v)
+execZipped mode0 tree action = do
+    (_, tree1, trails) <- runZipped mode0 tree action
+    return (trails, tree1)
+
+-- | Run zipper operation, build proof.
+execZipped' :: Retrieves h k v m => Mode -> Map h k v -> Zipped h k v m a -> m (Proof h k v, Map h k v)
+execZipped' mode0 tree action = do
+    (_, tree1, proof) <- runZipped' mode0 tree action
+    return (proof, tree1)
 
 -- | Perform an operation over current point-in-tree.
 --

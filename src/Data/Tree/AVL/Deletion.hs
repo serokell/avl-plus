@@ -16,17 +16,13 @@ import Data.Tree.AVL.Zipper
 
 -- | Remove given key from the 'Map', generates raw proof.
 delete :: Retrieves h k v m => k -> Map h k v -> m (Set h, Map h k v)
-delete k tree = do
-    (_yes, res, trails) <- runZipped (deleteZ k) DeleteMode tree
-    return (trails, res)
+delete k tree = execZipped DeleteMode tree $ deleteZ k
 
 -- | Remove given key from the 'Map', generates baked proof.
 --
 --   It is idempotent.
 delete' :: Retrieves h k v m => k -> Map h k v -> m (Proof h k v, Map h k v)
-delete' k tree = do
-    (_yes, res, proof) <- runZipped' (deleteZ k) DeleteMode tree
-    return (proof, res)
+delete' k tree = execZipped' DeleteMode tree $ deleteZ k
 
 -- | Remove given key from the 'Map', with no proof.
 deleteWithNoProof
@@ -35,7 +31,7 @@ deleteWithNoProof
     -> Map h k v
     -> m (Map h k v)
 deleteWithNoProof k tree = do
-    (_yes, res, _proof) <- runZipped (deleteZ k) DeleteMode tree
+    (_, res) <- execZipped DeleteMode tree $ deleteZ k
     return res
 
 -- | Deletion algorithm.

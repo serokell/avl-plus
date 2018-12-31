@@ -32,8 +32,9 @@ walkDFS (start, add, finish) root = runWriterT $ finish <$> go start root
                 MLBranch { _mlLeft = l, _mlRight = r } -> do
                   acc' <- go (add point' acc) l
                   go acc' r
-                MLLeaf  {} -> return $ add point' acc
-                MLEmpty {} -> return acc
+                
+                _ -> do
+                  return $ add point' acc
 
 -- | Left-to-right fold.
 foldIf

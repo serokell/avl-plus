@@ -28,17 +28,13 @@ import Data.Tree.AVL.Zipper
 --   It is idempotent in terms of 'Map' content, however, without 'Eq' @k@
 --   constraint 'Map's will be different.
 insert :: Retrieves h k v m => k -> v -> Map h k v -> m (Set h, Map h k v)
-insert k v tree = do
-    ((), res, trails) <- runZipped (insertZ k v) UpdateMode tree
-    return (trails, res)
+insert k v tree = execZipped UpdateMode tree $ insertZ k v
 
 -- | Inserts given value for given key into the 'Map', generates baked proof.
 --
 --   See 'insert''.
 insert' :: Retrieves h k v m => k -> v -> Map h k v -> m (Proof h k v, Map h k v)
-insert' k v tree = do
-    ((), res, proof) <- runZipped' (insertZ k v) UpdateMode tree
-    return (proof, res)
+insert' k v tree = execZipped' UpdateMode tree $ insertZ k v
 
 -- | Just inserts given value for given key into the 'Map', with no proof.
 --
@@ -50,7 +46,7 @@ insertWithNoProof
     -> Map h k v
     -> m (Map h k v)
 insertWithNoProof k v tree = do
-    ((), res, _) <- runZipped (insertZ k v) UpdateMode tree
+    (_, res) <- execZipped UpdateMode tree $ insertZ k v
     return res
 
 -- | Insertion algorithm.
