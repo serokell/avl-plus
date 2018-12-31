@@ -90,6 +90,7 @@ test-suite avl-tree-sanity
                      , AVL
                      , binary
                      , bytestring
+                     , containers
                      , data-default
                      , exceptions
                      , hashable
