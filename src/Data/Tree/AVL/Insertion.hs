@@ -5,7 +5,6 @@
 module Data.Tree.AVL.Insertion
     ( -- Different variants of insert
       insert
-    , insert'
     , insertWithNoProof
 
       -- 'Map' constructors
@@ -18,23 +17,8 @@ import Control.Monad.Reader (lift)
 import Data.Set (Set)
 
 import Data.Tree.AVL.Internal
-import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
-
--- | Inserts given value for given key into the 'Map', generates
---   raw proof.
---
---   It is idempotent in terms of 'Map' content, however, without 'Eq' @k@
---   constraint 'Map's will be different.
-insert :: Retrieves h k v m => k -> v -> Map h k v -> m (Set h, Map h k v)
-insert k v tree = execZipped UpdateMode tree $ insertZ k v
-
--- | Inserts given value for given key into the 'Map', generates baked proof.
---
---   See 'insert''.
-insert' :: Retrieves h k v m => k -> v -> Map h k v -> m (Proof h k v, Map h k v)
-insert' k v tree = execZipped' UpdateMode tree $ insertZ k v
 
 -- | Just inserts given value for given key into the 'Map', with no proof.
 --
@@ -46,13 +30,17 @@ insertWithNoProof
     -> Map h k v
     -> m (Map h k v)
 insertWithNoProof k v tree = do
-    (_, res) <- execZipped UpdateMode tree $ insertZ k v
+    (_, res) <- insert k v tree
     return res
 
--- | Insertion algorithm.
-insertZ :: forall h k v m . Retrieves h k v m => k -> v -> Zipped h k v m ()
-insertZ k v = do
-    goto (Plain k)             -- teleport to a key (or near it if absent)
+-- | Inserts given value for given key into the 'Map', generates
+--   raw proof.
+--
+--   It is idempotent in terms of 'Map' content, however, without 'Eq' @k@
+--   constraint 'Map's will be different.
+insert :: forall h k v m. Retrieves h k v m => k -> v -> Map h k v -> m (Set h, Map h k v)
+insert k v tree = execZipped UpdateMode tree $ do
+    goto (Plain k)  -- teleport to a key (or near it if absent)
     withLocus $ \case
       MLEmpty {} -> do
         replaceWith =<< lift (lift $ leaf k v)
@@ -77,15 +65,15 @@ insertZ k v = do
   where
     splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
-        tree <- locus
-        replaceWith =<< lift (lift $ branch M leaf0 tree)
+        here <- locus
+        replaceWith =<< lift (lift $ branch M leaf0 here)
         descent R
         void up
 
     splitInsertAfter :: Map h k v -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
-        tree <- locus
-        replaceWith =<< lift (lift $ branch M tree leaf0)
+        here <- locus
+        replaceWith =<< lift (lift $ branch M here leaf0)
         descent L
         void up
 
