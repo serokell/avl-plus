@@ -32,24 +32,18 @@ tests = describe "Delete" $ do
             || diff == []  && k `notElem` map fst list
 
     describe "Proofs" $ do
-        it' "Delete proof is verifiable" $ \(k, v, list) -> do
-            tree        <- AVL.fromList ((k, v) : list) :: StorageMonad M
-            (proof,  _) <- AVL.delete' k tree
-            (proof1, _) <- AVL.delete' k (AVL.unProof proof)
-            return $ AVL.checkProof (AVL.rootHash tree) proof1
+        it' "Delete proof is verifiable" $ \(k, list) -> do
+            tree      <- AVL.fromList list :: StorageMonad M
+            (set,  _) <- AVL.delete k tree
+            (set1, _) <- AVL.delete k . AVL.unProof =<< AVL.prune set tree
+            AVL.checkProof (AVL.rootHash tree) <$> AVL.prune set1 tree
 
-        it' "Delete proof is replayable" $ \(k, v, list) -> do
-            tree        <- AVL.fromList ((k, v) : list) :: StorageMonad M
+        it' "Delete proof is replayable" $ \(k, list) -> do
+            tree        <- AVL.fromList list :: StorageMonad M
             (proof1, _) <- AVL.delete k tree
             (proof2, _) <- AVL.delete k . AVL.unProof =<< AVL.prune proof1 tree
             return (proof1 == proof2)
                 :: StorageMonad Bool
-
-        it' "Delete proof is verifiable (even if there's nothing to delete)" $ \(k, list) -> do
-            tree        <- AVL.fromList list :: StorageMonad M
-            (proof,  _) <- AVL.delete' k tree
-            (proof1, _) <- AVL.delete' k (AVL.unProof proof)
-            return $ AVL.checkProof (AVL.rootHash tree) proof1
 
         it' "Delete is idempotent" $ \(k, list) -> do
             tree       <- AVL.fromList list :: StorageMonad M
