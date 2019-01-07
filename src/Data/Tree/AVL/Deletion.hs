@@ -5,42 +5,21 @@
 module Data.Tree.AVL.Deletion
     ( delete
     , deleteWithNoProof
-    , delete'
     ) where
 
 import Data.Set (Set)
 
 import Data.Tree.AVL.Internal
-import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Zipper
 
--- | Remove given key from the 'Map', generates raw proof.
-delete :: Retrieves h k v m => k -> Map h k v -> m (Set h, Map h k v)
-delete k tree = do
-    (_yes, res, trails) <- runZipped (deleteZ k) DeleteMode tree
-    return (trails, res)
+deleteWithNoProof :: Retrieves h k v m => k -> Map h k v -> m (Map h k v)
+deleteWithNoProof k tree = snd <$> delete k tree
 
--- | Remove given key from the 'Map', generates baked proof.
+-- | Remove given key from the 'Map', generates raw proof.
 --
 --   It is idempotent.
-delete' :: Retrieves h k v m => k -> Map h k v -> m (Proof h k v, Map h k v)
-delete' k tree = do
-    (_yes, res, proof) <- runZipped' (deleteZ k) DeleteMode tree
-    return (proof, res)
-
--- | Remove given key from the 'Map', with no proof.
-deleteWithNoProof
-    :: Retrieves h k v m
-    => k
-    -> Map h k v
-    -> m (Map h k v)
-deleteWithNoProof k tree = do
-    (_yes, res, _proof) <- runZipped (deleteZ k) DeleteMode tree
-    return res
-
--- | Deletion algorithm.
-deleteZ :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m Bool
-deleteZ k = withLocus $ \case
+delete :: forall h k v m . Retrieves h k v m => k -> Map h k v -> m (Set h, Map h k v)
+delete k tree = execZipped DeleteMode tree $ withLocus $ \case
     MLLeaf { _mlKey } ->
         if _mlKey == k
         then True  <$ replaceWith (empty :: Map h k v)

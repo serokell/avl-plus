@@ -113,7 +113,7 @@ module Data.Tree.AVL
       -- * Operations over AVL+
     , insert, insertWithNoProof
     , delete, deleteWithNoProof
-    , lookup
+    , lookup, lookupMany
     , fold
     , foldIf
 
