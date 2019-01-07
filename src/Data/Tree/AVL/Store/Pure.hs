@@ -13,8 +13,8 @@ module Data.Tree.AVL.Store.Pure
 
 import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
 import Control.Monad.Catch (throwM)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader (ReaderT, ask, lift, runReaderT)
+import Control.Monad.IO.Class (MonadIO (liftIO))
+import Control.Monad.Reader (ReaderT, ask, lift, runReaderT, MonadTrans (lift))
 import Control.Monad.State (StateT, put, runStateT)
 import Lens.Micro.Platform (makeLenses, use, (%=), (.=), (<&>))
 
@@ -44,7 +44,7 @@ asState action = do
     _        <- liftIO $ atomically $ writeTVar var st'
     return b
 
-instance
+instance {-# OVERLAPPING #-}
     ( Base h k v m
     , MonadIO m
     )
@@ -55,7 +55,7 @@ instance
         use psStorage <&> Map.lookup k
             >>= maybe (throwM $ NotFound k) pure
 
-instance
+instance {-# OVERLAPPING #-}
     ( Base h k v m
     , MonadIO m
     )
@@ -81,7 +81,7 @@ runStoreT :: forall h k v m a. (Params h k v, Monad m)
     => TVar (State h k v)
     -> StoreT h k v m a
     -> m a
-runStoreT = flip runReaderT
+runStoreT var = (`runReaderT` var)
 
 -- | Creates new empty state.
 newState ::
