@@ -17,6 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules: Data.Tree.AVL
+                 , Data.Tree.AVL.Adapter
                  , Data.Tree.AVL.Deletion
                  , Data.Tree.AVL.Insertion
                  , Data.Tree.AVL.Iteration
