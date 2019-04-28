@@ -1,8 +1,8 @@
-Authenticated data structures
+AVL+ Tree
 ===
 
-A repository containting implementations of subj.
+A repository containting implementation of subj.
 
-Currently contains implementations of:
+Currently contains heavely file-processed implementations of:
 
 - AVL+ tree (https://eprint.iacr.org/2016/994.pdf)
