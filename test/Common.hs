@@ -78,6 +78,7 @@ instance Show (a -> b) where
     show _ = "<function>"
 
 type StorageMonad = Void.Store
+type StorageMonad' h k v = Pure.StoreT h k v Void.Store
 
 type M = AVL.Map IntHash StringName Int
 

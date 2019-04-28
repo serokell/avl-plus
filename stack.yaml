@@ -1,8 +1,8 @@
-resolver: lts-11.17
+resolver: lts-13.18
 
 packages:
 - '.'
 
 extra-deps:
 - git: git@github.com:serokell/zipp.git
-  commit: 7bf77875305c4b1930b024e21aa6691387c156fc
+  commit: 3c55c887845a01d12874264bf0af1cb21f9e6d5f

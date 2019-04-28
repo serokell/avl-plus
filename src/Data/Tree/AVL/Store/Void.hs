@@ -18,7 +18,7 @@ newtype StoreT m a = StoreT { runStoreT :: m a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask)
 
 -- | This "storage" always throws when you try to read from it.
---   It does this, because on light client you haven't any storage,
+--   It does this, because on light client you don't have any storage,
 --   (all you have is a tree from proof).
 --
 --   So, if operations to be proven require you to read from storage,

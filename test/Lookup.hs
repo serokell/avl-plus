@@ -15,8 +15,8 @@ tests = describe "Lookup" $ do
             return True
 
           (k, v) : rest -> do
-            tree              <- AVL.fromList ((k, v) : rest) :: StorageMonad M
-            ((Just v1, _), _) <- AVL.lookup k tree
+            tree               <- AVL.fromList ((k, v) : rest) :: StorageMonad M
+            ~((Just v1, _), _) <- AVL.lookup k tree
 
             return (v == v1)
 

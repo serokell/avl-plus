@@ -464,7 +464,7 @@ empty = close $ MLEmpty { _mlHash = undefined }
 -- | Construct a branch from 2 subtrees. Hash is not set.
 branch :: Retrieves h k v m => Tilt -> Map h k v -> Map h k v -> m (Map h k v)
 branch tilt0 left right = do
-    [minL, minR] <- traverse minKey [left, right]
+    ~[minL, minR] <- traverse minKey [left, right]
     return $ close $ MLBranch
         { _mlHash      = undefined
         , _mlMinKey    = unsafeFromWithBounds $ min minL minR

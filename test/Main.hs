@@ -4,6 +4,7 @@ import qualified Deletion
 import qualified Insertion
 import qualified Lookup
 import qualified Unsafe
+import qualified Adapter
 
 import Common
 
@@ -15,3 +16,4 @@ main = hspec $ do
         Deletion.tests
         Lookup.tests
         Unsafe.tests
+        Adapter.tests
