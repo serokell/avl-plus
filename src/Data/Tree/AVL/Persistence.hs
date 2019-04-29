@@ -41,18 +41,14 @@ class
     , KVRetrieve h k v m
     )
   =>
-    KVAppend h k v m | m -> h k v
+    KVAppend h k v m
+      | m -> h k v
   where
     getRoot :: m h        -- ^ Get current root of the tree
     setRoot :: h -> m ()  -- ^ Set current root of the tree
 
-class
-    ( KVAppend h k v m
-    )
-  =>
-    KVOverwrite h k v m | m -> h k v
-  where
-    erase   :: h -> m ()  -- ^ Remove node with given hash
+class KVAppend h k v m => KVOverwrite h k v m | m -> h k v where
+    erase :: h -> m ()  -- ^ Remove node with given hash
 -- | Exception to be thrown by storage, if 'getRoot' impl can't
 --   return current root.
 data NoRootExists = NoRootExists
