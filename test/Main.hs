@@ -3,7 +3,7 @@ import qualified Algorithm
 import qualified Deletion
 import qualified Insertion
 import qualified Lookup
-import qualified Unsafe
+import qualified Persistence
 import qualified Adapter
 
 import Common
@@ -15,5 +15,5 @@ main = hspec $ do
         Insertion.tests
         Deletion.tests
         Lookup.tests
-        Unsafe.tests
+        Persistence.tests
         Adapter.tests

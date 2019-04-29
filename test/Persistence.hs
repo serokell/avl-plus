@@ -1,4 +1,4 @@
-module Unsafe (tests) where
+module Persistence (tests) where
 
 import Data.List (sort)
 
@@ -7,7 +7,7 @@ import Common
 import qualified Data.Tree.AVL as AVL
 
 tests :: Spec
-tests = describe "Unsafe" $ do
+tests = describe "Persistence" $ do
     describe "Sanity check" $ do
         it'' "can rematerialise in Pure mutated storage after insert" $
             \(k, v, list) -> do
