@@ -2,14 +2,11 @@
 module Adapter (tests) where
 
 import Control.Monad.Catch
-import Control.Monad.Reader
 
 import Common
 
 import qualified Data.Tree.AVL.Adapter as AVL
 import qualified Data.Tree.AVL         as Base
-
-import Debug.Trace
 
 tests :: Spec
 tests = describe "Adapter" do
@@ -17,31 +14,27 @@ tests = describe "Adapter" do
         it'' "rolls back" \(list, k, v) -> do
             Base.initialiseStorageIfNotAlready list
 
-            AVL.proven () \() -> do
-                AVL.insert k v
-
+            _ <- AVL.proven () \() -> AVL.insert k v
             _ <- AVL.transact @SomeException do
-                AVL.proven () \() -> do
+                _ <- AVL.proven () \() -> do
                     AVL.insert k (v + 1)
                     throwM $ Base.NotFound ("b" :: StringName)
+                return ()
 
-            (res, _) <- AVL.proven () \() -> do
-                AVL.lookup k
+            (res, _) <- AVL.proven () \() -> AVL.lookup k
 
             return $ res == Just v
 
         it'' "doesn't roll back when nothing is failed" \(list, k, v) -> do
             Base.initialiseStorageIfNotAlready list
 
-            AVL.proven () \() -> do
-                AVL.insert k v
-
+            _ <- AVL.proven () \() -> AVL.insert k v
             _ <- AVL.transact @SomeException do
-                AVL.proven () \() -> do
+                _ <- AVL.proven () \() -> do
                     AVL.insert k (v + 1)
+                return ()
 
-            (res, _) <- AVL.proven () \() -> do
-                AVL.lookup k
+            (res, _) <- AVL.proven () \() -> AVL.lookup k
 
             return $ res == Just (v + 1)
 
@@ -49,25 +42,20 @@ tests = describe "Adapter" do
         it'' "is able to prove" \(list, k, v) -> do
             Base.initialiseStorageIfNotAlready list
 
-            save <- Base.currentRoot
-
-            ((), tx) <- AVL.proven () \() -> do
-                AVL.insert k v
+            save     <- Base.currentRoot
+            ((), tx) <- AVL.proven () \() -> AVL.insert k v
 
             Base.append save
 
-            AVL.prove tx AVL.unpackServer \() -> do
-                AVL.insert k v
+            AVL.prove tx AVL.unpackServer \() -> AVL.insert k v
 
             return True
 
         it'' "isn't able to prove when incorrect" \(k, v, list) -> do
             Base.initialiseStorageIfNotAlready list
 
-            save <- Base.currentRoot
-
-            ((), tx) <- AVL.proven () \() -> do
-                AVL.insert k v
+            save     <- Base.currentRoot
+            ((), tx) <- AVL.proven () \() -> AVL.insert k v
 
             Base.append save
 
@@ -82,15 +70,10 @@ tests = describe "Adapter" do
         it'' "rolls transaction back" \(k, v, list) -> do
             Base.initialiseStorageIfNotAlready list
 
-            old <- Base.currentRoot
+            old      <- Base.currentRoot
+            ((), tx) <- AVL.proven () \() -> AVL.insert k v
 
-            ((), tx) <- AVL.proven () \() -> do
-                AVL.insert k v
-
-            new <- Base.currentRoot
-
-            AVL.rollback tx AVL.unpackClient \() -> do
-                AVL.insert k v
+            AVL.rollback tx AVL.unpackClient \() -> AVL.insert k v
 
             back <- Base.currentRoot
 
@@ -99,12 +82,8 @@ tests = describe "Adapter" do
         it'' "keeps state if failed" \(k, v, list) -> do
             Base.initialiseStorageIfNotAlready list
 
-            old <- Base.currentRoot
-
-            ((), tx) <- AVL.proven () \() -> do
-                AVL.insert k v
-
-            new <- Base.currentRoot
+            ((), tx)  <- AVL.proven () \() -> AVL.insert k v
+            new       <- Base.currentRoot
 
             ~(Left _) <- AVL.transact @(Base.NotFound StringName) do
                 AVL.rollback tx AVL.unpackClient \() -> do
