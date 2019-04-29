@@ -22,7 +22,7 @@ import qualified Data.Map as Map
 import Data.Monoid ((<>))
 
 import Data.Tree.AVL.Internal as AVL
-import Data.Tree.AVL.Unsafe
+import Data.Tree.AVL.Persistence
 
 -- | Pure state containing avl changes as a regular 'Map'.
 data State h k v = State
@@ -49,7 +49,7 @@ instance {-# OVERLAPPING #-}
     , MonadIO m
     )
   =>
-    KVRetrieve h (Isolated h k v) (StoreT h k v m)
+    KVRetrieve h k v (StoreT h k v m)
   where
     retrieve k = asState $
         use psStorage <&> Map.lookup k
@@ -60,7 +60,7 @@ instance {-# OVERLAPPING #-}
     , MonadIO m
     )
   =>
-    KVStore h (Isolated h k v) (StoreT h k v m)
+    KVStore h k v (StoreT h k v m)
   where
     massStore pairs = asState $
         psStorage %= (<> Map.fromList pairs)
@@ -70,11 +70,19 @@ instance
     , MonadIO m
     )
   =>
-    KVMutate h (Isolated h k v) (StoreT h k v m)
+    KVAppend h k v (StoreT h k v m)
   where
     getRoot      = asState $ maybe (throwM NoRootExists) pure =<< use psRoot
     setRoot new  = asState $ psRoot    .= Just new
-    erase   hash = asState $ psStorage %= Map.delete hash
+
+instance
+    ( Base h k v m
+    , MonadIO m
+    )
+  =>
+    KVOverwrite h k v (StoreT h k v m)
+  where
+    erase hash = asState $ psStorage %= Map.delete hash
 
 -- | Unlifts 'StoreT' monad into 'Base' one.
 runStoreT :: forall h k v m a. (Params h k v, Monad m)

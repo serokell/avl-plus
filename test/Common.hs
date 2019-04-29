@@ -77,8 +77,8 @@ instance (Eq k, Hashable k) => Default (HashMap k v) where
 instance Show (a -> b) where
     show _ = "<function>"
 
-type StorageMonad = Void.Store
-type StorageMonad' h k v = Pure.StoreT h k v Void.Store
+type StorageMonad = Void.Store IntHash StringName Int
+type StorageMonad' = Pure.StoreT IntHash StringName Int StorageMonad
 
 type M = AVL.Map IntHash StringName Int
 
@@ -109,11 +109,10 @@ it' msg func =
 it''
     ::  ( Testable   prop
         , Arbitrary  src
-        , AVL.Params h k v
         , Show       src
         )
     =>  String
-    ->  (src -> Pure.StoreT h k v StorageMonad prop)
+    ->  (src -> StorageMonad' prop)
     ->  SpecWith ()
 it'' msg func =
     it msg $ property $ \src ->

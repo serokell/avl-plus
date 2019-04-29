@@ -27,7 +27,7 @@ library
                  , Data.Tree.AVL.Prune
                  , Data.Tree.AVL.Store.Pure
                  , Data.Tree.AVL.Store.Void
-                 , Data.Tree.AVL.Unsafe
+                 , Data.Tree.AVL.Persistence
                  , Data.Tree.AVL.Zipper
   other-modules:
   build-depends:       base >=4.9 && <5

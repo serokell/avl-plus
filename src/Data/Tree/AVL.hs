@@ -79,12 +79,14 @@ module Data.Tree.AVL
     ( -- * Required interfaces
       KVRetrieve (..)
     , KVStore (..)
-    , KVMutate (..)
+    , KVAppend (..)
+    , KVOverwrite (..)
 
       -- * Constraints for most AVL+-related actions
     , Retrieves
     , Stores
-    , Mutates
+    , Appends
+    , Overwrites
 
       -- * Some base constraints
     , Hash
@@ -143,4 +145,4 @@ import Data.Tree.AVL.Iteration
 import Data.Tree.AVL.Lookup
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
-import Data.Tree.AVL.Unsafe
+import Data.Tree.AVL.Persistence

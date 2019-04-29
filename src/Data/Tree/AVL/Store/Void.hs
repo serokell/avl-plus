@@ -14,7 +14,7 @@ import Data.Typeable (Typeable)
 import Data.Tree.AVL.Internal
 
 -- | Wrapper. Cancels any capabilities of @m@ to store stuff.
-newtype StoreT m a = StoreT { runStoreT :: m a }
+newtype StoreT h k v m a = StoreT { runStoreT :: m a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask)
 
 -- | This "storage" always throws when you try to read from it.
@@ -24,11 +24,11 @@ newtype StoreT m a = StoreT { runStoreT :: m a }
 --   So, if operations to be proven require you to read from storage,
 --   its an error (namely, 'NotFound').
 instance {-# OVERLAPPING #-}
-    (Show k, Typeable k, MonadCatch m, MonadIO m)
+    (Show h, Typeable h, MonadCatch m, MonadIO m)
   =>
-    KVRetrieve k n (StoreT m)
+    KVRetrieve h k v (StoreT h k v m)
   where
     retrieve k = throwM (NotFound k)
 
 -- | Storage monad that fails on any access attempt.
-type Store = StoreT IO
+type Store h k v = StoreT h k v IO

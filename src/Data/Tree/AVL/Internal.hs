@@ -282,12 +282,12 @@ hashOf = \case
     MLEmpty _ -> getHash ()
 
 -- | DB monad capable of retrieving 'isolate'd nodes.
-class KVRetrieve hash node m where
-    retrieve :: hash -> m node
+class KVRetrieve h k v m | m -> h k v where
+    retrieve :: h -> m (Isolated h k v)
 
 -- | DB monad capable of storing 'isolate'd nodes altogether.
-class KVStore hash node m where
-    massStore :: [(hash, node)] -> m ()
+class KVStore h k v m | m -> h k v where
+    massStore :: [(h, Isolated h k v)] -> m ()
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
@@ -312,14 +312,14 @@ type Base h k v m =
 
 -- | Ability to write into the storage.
 type Stores h k v m =
-    ( Base h k v m
-    , KVStore h (Isolated h k v) m
+    ( Base    h k v m
+    , KVStore h k v m
     )
 
 -- | Ability to read from the storage.
 type Retrieves h k v m =
-    ( Base h k v m
-    , KVRetrieve h (Isolated h k v) m
+    ( Base       h k v m
+    , KVRetrieve h k v m
     )
 
 -------------------------------------------------------------------------------

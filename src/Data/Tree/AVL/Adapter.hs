@@ -64,7 +64,7 @@ require k = do
 --   equip the transaction with the proof and a hash of end state.
 proven
     :: forall tx h k v m a
-    .  AVL.Mutates h k v m
+    .  AVL.Appends h k v m
     => tx
     -> (tx -> SandboxT h k v m a)
     -> m (a, (tx, AVL.Proof h k v, h))
@@ -97,14 +97,14 @@ unpackClient :: Monad m => AVL.Proof h k v -> m (AVL.Map h k v)
 unpackClient (AVL.Proof p) = return p
 
 -- | The server proof unwrapping: uses current tree instead.
-unpackServer :: AVL.Mutates h k v m => AVL.Proof h k v -> m (AVL.Map h k v)
+unpackServer :: AVL.Appends h k v m => AVL.Proof h k v -> m (AVL.Map h k v)
 unpackServer _ = AVL.currentRoot
 
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
 prove
     :: forall tx h k v m a
-    .  (AVL.Mutates h k v m)
+    .  (AVL.Appends h k v m)
     => (tx, AVL.Proof h k v, h)
     -> (AVL.Proof h k v -> m (AVL.Map h k v))
     -> (tx -> SandboxT h k v m a)
@@ -130,7 +130,7 @@ prove (tx, proof, endHash) unpack interp = do
 --   run the transaction.
 rollback
     :: forall tx h k v m a
-    .  (AVL.Mutates h k v m)
+    .  (AVL.Appends h k v m)
     => (tx, AVL.Proof h k v, h)
     -> (AVL.Proof h k v -> m (AVL.Map h k v))
     -> (tx -> SandboxT h k v m a)
@@ -154,7 +154,7 @@ rollback (tx, proof, endHash) unpack interp = do
 -- | If something fails, restore to pristine state.
 transact
     :: forall e h k v m a
-    .  (Exception e, AVL.Mutates h k v m)
+    .  (Exception e, AVL.Appends h k v m)
     => m a
     -> m (Either e a)
 transact action = do
@@ -166,7 +166,7 @@ transact action = do
 -- | If something fails, restore to pristine state and rethrow.
 transactAndRethrow
     :: forall e h k v m a
-    .  (Exception e, AVL.Mutates h k v m)
+    .  (Exception e, AVL.Appends h k v m)
     => m a
     -> m a
 transactAndRethrow action = do

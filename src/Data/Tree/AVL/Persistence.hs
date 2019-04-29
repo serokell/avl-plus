@@ -1,11 +1,13 @@
 -- | Operation wrapper on AVL tree that mutates the storage
 --   so it only keeps the last version.
-module Data.Tree.AVL.Unsafe
+module Data.Tree.AVL.Persistence
     ( -- * Constraint to use
-      Mutates
+      Overwrites
+    , Appends
 
       -- * Constraint to implement
-    , KVMutate (..)
+    , KVOverwrite (..)
+    , KVAppend    (..)
 
       -- * Wrappers
     , overwrite
@@ -13,7 +15,7 @@ module Data.Tree.AVL.Unsafe
 
       -- * Methods
     , currentRoot
-    , NoRootExists(..)
+    , NoRootExists (..)
 
     , initialiseStorageIfNotAlready
     ) where
@@ -34,11 +36,23 @@ import Data.Tree.AVL.Internal
 
 -- | Provides possibility to use impure storage that is rewritten on
 -- the each write.
-class (KVStore h node m, KVRetrieve h node m) => KVMutate h node m where
+class
+    ( KVStore    h k v m
+    , KVRetrieve h k v m
+    )
+  =>
+    KVAppend h k v m | m -> h k v
+  where
     getRoot :: m h        -- ^ Get current root of the tree
     setRoot :: h -> m ()  -- ^ Set current root of the tree
-    erase   :: h -> m ()  -- ^ Remove node with given hash
 
+class
+    ( KVAppend h k v m
+    )
+  =>
+    KVOverwrite h k v m | m -> h k v
+  where
+    erase   :: h -> m ()  -- ^ Remove node with given hash
 -- | Exception to be thrown by storage, if 'getRoot' impl can't
 --   return current root.
 data NoRootExists = NoRootExists
@@ -47,18 +61,26 @@ data NoRootExists = NoRootExists
 instance Exception NoRootExists
 
 -- | Returns current root from storage.
-currentRoot :: forall h k v m . Mutates h k v m => m (Map h k v)
-currentRoot = ref <$> getRoot @_ @(Isolated h k v)
+currentRoot :: forall h k v m . Appends h k v m => m (Map h k v)
+currentRoot = ref <$> getRoot
 
-assignRoot :: forall h k v m . Mutates h k v m => Map h k v -> m ()
-assignRoot new = setRoot @_ @(Isolated h k v) (rootHash new)
+assignRoot :: forall h k v m . Appends h k v m => Map h k v -> m ()
+assignRoot = setRoot . rootHash
 
-eraseTopNode :: forall h k v m . Mutates h k v m => Map h k v -> m ()
-eraseTopNode = erase @_ @(Isolated h k v) . rootHash
+eraseTopNode :: forall h k v m . Overwrites h k v m => Map h k v -> m ()
+eraseTopNode = erase . rootHash
 
 -- | Enriches 'massStore'/'retrive' capabilities with 'erase' and a
 --   notion of single root.
-type Mutates h k v m = (Base h k v m, KVMutate h (Isolated h k v) m)
+type Overwrites h k v m =
+    ( Base        h k v m
+    , KVOverwrite h k v m
+    )
+
+type Appends h k v m =
+    ( Base     h k v m
+    , KVAppend h k v m
+    )
 
 -- | Retrieve hashes of nearest subtrees that weren't materialised.
 --
@@ -84,9 +106,9 @@ children node = do
 --
 --   Then, it does 'setRoot' on the new root.
 overwrite
-    :: forall h k v m
-    .  Mutates h k v m
-    => Map h k v
+    :: forall     h k v m
+    .  Overwrites h k v m
+    => Map        h k v
     -> m ()
 overwrite tree' = do
     removeTo (contour tree') =<< currentRoot
@@ -106,20 +128,20 @@ overwrite tree' = do
 -- | Stores tree in the storage alongside whatever is there and
 --   sets the root pointer to its root.
 append
-    :: forall h k v m
-    .  Mutates h k v m
-    => Map h k v
+    :: forall  h k v m
+    .  Appends h k v m
+    => Map     h k v
     -> m ()
 append tree = assignRoot =<< save tree
 
 -- | Initialises storage with a given set of kv-pairs,
 --   if root is not present there.
 initialiseStorageIfNotAlready
-    :: forall h k v m
-    .  Mutates h k v m
+    :: forall  h k v m
+    .  Appends h k v m
     => [(k, v)]
     -> m ()
 initialiseStorageIfNotAlready kvs = do
     void (currentRoot @h @k @v) `catch` \NoRootExists -> do
         append (empty @h @k @v)
-        overwrite  =<< AVL.fromList @h @k @v kvs
+        append =<< AVL.fromList @h @k @v kvs
