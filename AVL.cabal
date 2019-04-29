@@ -17,6 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules: Data.Tree.AVL
+                 , Data.Tree.AVL.Adapter
                  , Data.Tree.AVL.Deletion
                  , Data.Tree.AVL.Insertion
                  , Data.Tree.AVL.Iteration
@@ -26,7 +27,7 @@ library
                  , Data.Tree.AVL.Prune
                  , Data.Tree.AVL.Store.Pure
                  , Data.Tree.AVL.Store.Void
-                 , Data.Tree.AVL.Unsafe
+                 , Data.Tree.AVL.Persistence
                  , Data.Tree.AVL.Zipper
   other-modules:
   build-depends:       base >=4.9 && <5
@@ -41,6 +42,7 @@ library
                      , zipp
   default-extensions:
                AllowAmbiguousTypes
+               BlockArguments
                ConstraintKinds
                CPP
                DefaultSignatures
@@ -84,7 +86,8 @@ test-suite avl-tree-sanity
                        Common
                        Lookup
                        Algorithm
-                       Unsafe
+                       Adapter
+                       Persistence
 
   build-depends:       base >= 0.4 && < 5
                      , AVL
@@ -95,12 +98,14 @@ test-suite avl-tree-sanity
                      , exceptions
                      , hashable
                      , microlens-platform
+                     , mtl
                      , hspec
                      , unordered-containers
                      , QuickCheck
                      , quickcheck-instances
   default-extensions:
                AllowAmbiguousTypes
+               BlockArguments
                ConstraintKinds
                CPP
                DefaultSignatures

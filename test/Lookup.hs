@@ -15,13 +15,13 @@ tests = describe "Lookup" $ do
             return True
 
           (k, v) : rest -> do
-            tree              <- AVL.fromList ((k, v) : rest) :: StorageMonad M
-            ((Just v1, _), _) <- AVL.lookup k tree
+            tree               <- AVL.fromList $ (k, v) : rest
+            ~((Just v1, _), _) <- AVL.lookup k tree
 
             return (v == v1)
 
     it' "LookupMany actually works" $ \(ks, list) -> do
-        tree                <- AVL.fromList list :: StorageMonad M
+        tree                <- AVL.fromList list
         ((selection, _), _) <- AVL.lookupMany ks tree
 
         let lookupMany =  Map.fromList . filter ((`Set.member` ks) . fst)
@@ -30,13 +30,13 @@ tests = describe "Lookup" $ do
 
     describe "Proofs" $ do
         it' "Generated proofs are verified" $ \(k, list) -> do
-            tree           <- AVL.fromList list :: StorageMonad M
+            tree           <- AVL.fromList list
             ((_, set0), _) <- AVL.lookup k tree
 
             AVL.checkProof (AVL.rootHash tree) <$> AVL.prune set0 tree
 
         it' "Generated proofs are replayable" $ \(k, list) -> do
-            tree              <- AVL.fromList list :: StorageMonad M
+            tree              <- AVL.fromList list
             ((res,  set0), _) <- AVL.lookup k tree
             ((res1, set1), _) <- AVL.lookup k . AVL.unProof =<< AVL.prune set0 tree
 

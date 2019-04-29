@@ -1,38 +1,37 @@
-module Unsafe (tests) where
+module Persistence (tests) where
 
 import Data.List (sort)
 
 import Common
 
 import qualified Data.Tree.AVL as AVL
-import qualified Data.Tree.AVL.Store.Pure as Pure
 
 tests :: Spec
-tests = describe "Unsafe" $ do
+tests = describe "Persistence" $ do
     describe "Sanity check" $ do
         it'' "can rematerialise in Pure mutated storage after insert" $
-            \(k :: StringName, v :: Int, list) -> do
-                AVL.initialiseStorageIfNotAlready @IntHash @StringName @Int []
-                tree       <- AVL.fromList list :: Pure.StoreT IntHash StringName Int StorageMonad M
+            \(k, v, list) -> do
+                AVL.initialiseStorageIfNotAlready []
+                tree       <- AVL.fromList         list
                 ()         <- AVL.overwrite        tree
                 (_, tree') <- AVL.insert       k v tree
                 ()         <- AVL.overwrite        tree'
                 full       <- AVL.currentRoot
-                back       <- AVL.toList @IntHash  full
+                back       <- AVL.toList           full
 
                 let uniq = uniqued (list ++ [(k, v)])
 
                 return (back == uniq)
 
         it'' "can rematerialise in Pure mutated storage after delete" $
-            \(k :: StringName, list) -> do
-                AVL.initialiseStorageIfNotAlready @IntHash @StringName @Int []
-                tree       <- AVL.fromList list :: Pure.StoreT IntHash StringName Int StorageMonad M
+            \(k, list) -> do
+                AVL.initialiseStorageIfNotAlready[]
+                tree       <- AVL.fromList        list
                 ()         <- AVL.overwrite       tree
                 (_, tree') <- AVL.delete        k tree
                 ()         <- AVL.overwrite       tree'
                 full       <- AVL.currentRoot
-                back       <- AVL.toList @IntHash full
+                back       <- AVL.toList          full
 
                 let uniq = uniqued (filter ((k /=) . fst) list)
 
@@ -40,9 +39,9 @@ tests = describe "Unsafe" $ do
 
         it'' "toList . initialiseStorageIfNotAlready ~ id" $
             \(kvs) -> do
-                AVL.initialiseStorageIfNotAlready @IntHash @StringName @Int []
-                tree <- AVL.fromList kvs :: Pure.StoreT IntHash StringName Int StorageMonad M
-                ()   <- AVL.overwrite tree
-                root <- AVL.currentRoot :: Pure.StoreT IntHash StringName Int StorageMonad M
-                lst  <- AVL.toList root
+                AVL.initialiseStorageIfNotAlready []
+                tree <- AVL.fromList    kvs
+                ()   <- AVL.overwrite   tree
+                root <- AVL.currentRoot
+                lst  <- AVL.toList      root
                 return (lst == sort (uniqued kvs))
