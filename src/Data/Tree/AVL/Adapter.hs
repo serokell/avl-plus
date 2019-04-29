@@ -14,11 +14,10 @@ import qualified Data.Tree.AVL as AVL
 
 -- | Insert key/value into the global tree.
 insert
-    ::  forall h k v m
-    .   AVL.Retrieves h k v m
-    =>  k
-    ->  v
-    ->  SandboxT h k v m ()
+    :: AVL.Retrieves h k v m
+    => k
+    -> v
+    -> SandboxT h k v m ()
 insert k v = do
     tree <- get
     (set, tree') <- lift $ lift $ AVL.insert k v tree
@@ -27,10 +26,9 @@ insert k v = do
 
 -- | Delete key from the global tree.
 delete
-    ::  forall h k v m
-    .   AVL.Retrieves h k v m
-    =>  k
-    ->  SandboxT h k v m ()
+    :: AVL.Retrieves h k v m
+    => k
+    -> SandboxT h k v m ()
 delete k = do
     tree <- get
     (set, tree') <- lift $ lift $ AVL.delete k tree
@@ -39,10 +37,9 @@ delete k = do
 
 -- | Lookup key in the global tree.
 lookup
-    ::  forall h k v m
-    .   AVL.Retrieves h k v m
-    =>  k
-    ->  SandboxT h k v m (Maybe v)
+    :: AVL.Retrieves h k v m
+    => k
+    -> SandboxT h k v m (Maybe v)
 lookup k = do
     tree <- get
     ((res, set), tree') <- lift $ lift $ AVL.lookup k tree
@@ -52,10 +49,9 @@ lookup k = do
 
 -- | Lookup key in the global tree.
 require
-    ::  forall h k v m
-    .   AVL.Retrieves h k v m
-    =>  k
-    ->  SandboxT h k v m v
+    :: AVL.Retrieves h k v m
+    => k
+    -> SandboxT h k v m v
 require k = do
     lookup k
         >>= maybe (throwM $ AVL.NotFound k) return
@@ -63,8 +59,7 @@ require k = do
 -- | Given a transaction and interpreter, perform it, write end tree into the storage and
 --   equip the transaction with the proof and a hash of end state.
 proven
-    :: forall tx h k v m a
-    .  AVL.Appends h k v m
+    :: AVL.Appends h k v m
     => tx
     -> (tx -> SandboxT h k v m a)
     -> m (a, (tx, AVL.Proof h k v, h))
@@ -103,20 +98,18 @@ unpackServer _ = AVL.currentRoot
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
 prove
-    :: forall tx h k v m a
-    .  (AVL.Appends h k v m)
+    :: AVL.Appends h k v m
     => (tx, AVL.Proof h k v, h)
     -> (AVL.Proof h k v -> m (AVL.Map h k v))
     -> (tx -> SandboxT h k v m a)
     -> m a
 prove (tx, proof, endHash) unpack interp = do
-    tree <- AVL.currentRoot @h @k @v
+    tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
         throw BeginHashMismatch
 
-    tree' <- unpack proof
-
+    tree'              <- unpack proof
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
 
     unless (AVL.rootHash tree'' == endHash) $ do
@@ -129,14 +122,13 @@ prove (tx, proof, endHash) unpack interp = do
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
 rollback
-    :: forall tx h k v m a
-    .  (AVL.Appends h k v m)
+    :: AVL.Appends h k v m
     => (tx, AVL.Proof h k v, h)
     -> (AVL.Proof h k v -> m (AVL.Map h k v))
     -> (tx -> SandboxT h k v m a)
     -> m a
 rollback (tx, proof, endHash) unpack interp = do
-    tree <- AVL.currentRoot @h @k @v
+    tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree == endHash) $ do
         throw EndHashMismatch
@@ -158,7 +150,7 @@ transact
     => m a
     -> m (Either e a)
 transact action = do
-    saved <- AVL.currentRoot @h @k @v
+    saved <- AVL.currentRoot
     (Right <$> action) `catch` \e -> do
         AVL.append saved
         return (Left e)
@@ -170,4 +162,4 @@ transactAndRethrow
     => m a
     -> m a
 transactAndRethrow action = do
-    transact @e @h @k @v action >>= either throwM return
+    transact @e action >>= either throwM return
