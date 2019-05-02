@@ -62,7 +62,7 @@ proven
     :: AVL.Appends h k v m
     => tx
     -> (tx -> SandboxT h k v m a)
-    -> m (a, (tx, AVL.Proof h k v, h))
+    -> m (a, Proven h k v tx)
 proven tx interp = do
     tree                <- AVL.currentRoot
     ((res, tree'), set) <- runWriterT $ runStateT (interp tx) tree
@@ -70,7 +70,7 @@ proven tx interp = do
 
     AVL.append tree'
 
-    return (res, (tx, proof, AVL.rootHash tree'))
+    return (res, Proven tx proof (AVL.rootHash tree'))
 
 -- | Thrown when the proof mismatches current tree.
 data BeginHashMismatch = BeginHashMismatch
@@ -95,15 +95,21 @@ unpackClient (AVL.Proof p) = return p
 unpackServer :: AVL.Appends h k v m => AVL.Proof h k v -> m (AVL.Map h k v)
 unpackServer _ = AVL.currentRoot
 
+data Proven h k v tx = Proven
+    { pTx      :: tx
+    , pProof   :: AVL.Proof h k v
+    , pEndHash :: h
+    }
+
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
 prove
     :: AVL.Appends h k v m
-    => (tx, AVL.Proof h k v, h)
+    => Proven h k v tx
     -> (AVL.Proof h k v -> m (AVL.Map h k v))
     -> (tx -> SandboxT h k v m a)
     -> m a
-prove (tx, proof, endHash) unpack interp = do
+prove (Proven tx proof endHash) unpack interp = do
     tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
@@ -123,11 +129,11 @@ prove (tx, proof, endHash) unpack interp = do
 --   run the transaction.
 rollback
     :: AVL.Appends h k v m
-    => (tx, AVL.Proof h k v, h)
+    => Proven h k v tx
     -> (AVL.Proof h k v -> m (AVL.Map h k v))
     -> (tx -> SandboxT h k v m a)
     -> m a
-rollback (tx, proof, endHash) unpack interp = do
+rollback (Proven tx proof endHash) unpack interp = do
     tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree == endHash) $ do
