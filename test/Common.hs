@@ -26,6 +26,7 @@ import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, 
 import Test.QuickCheck.Instances as T ()
 
 import qualified Data.Tree.AVL as AVL
+import qualified Data.Tree.AVL.Adapter as Adapter
 import qualified Data.Tree.AVL.Store.Pure as Pure
 import qualified Data.Tree.AVL.Store.Void as Void
 
@@ -94,6 +95,9 @@ unique = nubBy  ((==) `on` fst)
 
 uniqued :: Ord a => [(a, b)] -> [(a, b)]
 uniqued = sortBy (comparing fst) . unique . reverse
+
+instance Adapter.CanUnwrapProof IntHash StringName Int StorageMonad' where
+    unwrapProof = Adapter.unpackOnClient
 
 it'
     ::  ( Testable (f Property)

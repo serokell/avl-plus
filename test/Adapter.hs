@@ -47,7 +47,7 @@ tests = describe "Adapter" do
 
             Base.append save
 
-            AVL.prove tx AVL.unpackServer \() -> AVL.insert k v
+            AVL.prove tx \() -> AVL.insert k v
 
             return True
 
@@ -61,7 +61,7 @@ tests = describe "Adapter" do
 
             ~(Left AVL.EndHashMismatch) <-
                 AVL.transact @AVL.EndHashMismatch do
-                    AVL.prove tx AVL.unpackClient \() -> do
+                    AVL.prove tx \() -> do
                         AVL.insert k (v + 1)
 
             return True
@@ -73,7 +73,7 @@ tests = describe "Adapter" do
             old      <- Base.currentRoot
             ((), tx) <- AVL.proven () \() -> AVL.insert k v
 
-            AVL.rollback tx AVL.unpackClient \() -> AVL.insert k v
+            AVL.rollback tx \() -> AVL.insert k v
 
             back <- Base.currentRoot
 
@@ -86,7 +86,7 @@ tests = describe "Adapter" do
             new       <- Base.currentRoot
 
             ~(Left _) <- AVL.transact @(Base.NotFound StringName) do
-                AVL.rollback tx AVL.unpackClient \() -> do
+                AVL.rollback tx \() -> do
                     AVL.insert k v
                     throwM $ Base.NotFound k
 

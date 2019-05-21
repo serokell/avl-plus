@@ -87,13 +87,8 @@ instance Exception EndHashMismatch
 -- | The sandbox transformer to run `insert`, `delete` and `lookup` in.
 type SandboxT h k v m = StateT (AVL.Map h k v) (WriterT (Set.Set h) m)
 
--- | The client proof unwrapping: retrieves the pruned tree from proof.
-unpackClient :: Monad m => AVL.Proof h k v -> m (AVL.Map h k v)
-unpackClient (AVL.Proof p) = return p
-
--- | The server proof unwrapping: uses current tree instead.
-unpackServer :: AVL.Appends h k v m => AVL.Proof h k v -> m (AVL.Map h k v)
-unpackServer _ = AVL.currentRoot
+class CanUnwrapProof h k v m where
+    unwrapProof :: AVL.Proof h k v -> m (AVL.Map h k v)
 
 data Proven h k v tx = Proven
     { pTx      :: tx
@@ -104,18 +99,17 @@ data Proven h k v tx = Proven
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
 prove
-    :: AVL.Appends h k v m
+    :: (AVL.Appends h k v m, CanUnwrapProof h k v m)
     => Proven h k v tx
-    -> (AVL.Proof h k v -> m (AVL.Map h k v))
     -> (tx -> SandboxT h k v m a)
     -> m a
-prove (Proven tx proof endHash) unpack interp = do
+prove (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
         throw BeginHashMismatch
 
-    tree'              <- unpack proof
+    tree'              <- unwrapProof proof
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
 
     unless (AVL.rootHash tree'' == endHash) $ do
@@ -128,18 +122,17 @@ prove (Proven tx proof endHash) unpack interp = do
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
 rollback
-    :: AVL.Appends h k v m
+    :: (AVL.Appends h k v m, CanUnwrapProof h k v m)
     => Proven h k v tx
-    -> (AVL.Proof h k v -> m (AVL.Map h k v))
     -> (tx -> SandboxT h k v m a)
     -> m a
-rollback (Proven tx proof endHash) unpack interp = do
+rollback (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree == endHash) $ do
         throw EndHashMismatch
 
-    tree' <- unpack proof
+    tree' <- unwrapProof proof
 
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
 
@@ -169,3 +162,11 @@ transactAndRethrow
     -> m a
 transactAndRethrow action = do
     transact @e action >>= either throwM return
+
+-- | The client proof unwrapping: retrieves the pruned tree from proof.
+unpackOnClient :: Monad m => AVL.Proof h k v -> m (AVL.Map h k v)
+unpackOnClient (AVL.Proof p) = return p
+
+-- | The server proof unwrapping: uses current tree instead.
+unpackOnServer :: AVL.Appends h k v m => AVL.Proof h k v -> m (AVL.Map h k v)
+unpackOnServer _ = AVL.currentRoot
