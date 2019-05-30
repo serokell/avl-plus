@@ -83,6 +83,9 @@ type StorageMonad' = Pure.StoreT IntHash StringName Int StorageMonad
 
 type M = AVL.Map IntHash StringName Int
 
+instance Adapter.CanUnwrapProof IntHash StringName Int StorageMonad' where
+    unwrapProof = Adapter.unpackClient
+
 scanM :: Monad m => (a -> b -> m b) -> b -> [a] -> m [b]
 scanM _      _     []       = return []
 scanM action accum (x : xs) = do
