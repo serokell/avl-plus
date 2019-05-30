@@ -72,6 +72,22 @@ proven tx interp = do
 
     return (res, Proven tx proof (AVL.rootHash tree'))
 
+-- | Given a transaction and interpreter, perform it, write end tree into the storage and
+--   equip the transaction with the proof and a hash of end state.
+proven_
+    :: AVL.Appends h k v m
+    => tx
+    -> (tx -> SandboxT h k v m a)
+    -> m (Proven h k v tx)
+proven_ tx interp = do
+    tree                <- AVL.currentRoot
+    ((_, tree'), set) <- runWriterT $ runStateT (interp tx) tree
+    proof               <- AVL.prune set tree
+
+    AVL.append tree'
+
+    return (Proven tx proof (AVL.rootHash tree'))
+
 -- | Thrown when the proof mismatches current tree.
 data BeginHashMismatch = BeginHashMismatch
     deriving (Show)
