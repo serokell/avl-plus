@@ -100,6 +100,7 @@ module Data.Tree.AVL
       -- * Main type ('Map') and all other types
     , Map
     , MapLayer (..)
+    , Isolated
 
       -- * Constructors/toList
     , empty
