@@ -11,6 +11,7 @@ import Control.Monad.Writer
 
 import qualified Data.Set as Set
 import qualified Data.Tree.AVL as AVL
+import Data.Typeable
 
 import GHC.Generics (Generic)
 
@@ -60,12 +61,12 @@ require k = do
 
 -- | Given a transaction and interpreter, perform it, write end tree into the storage and
 --   equip the transaction with the proof and a hash of end state.
-proven
+record
     :: AVL.Appends h k v m
     => tx
     -> (tx -> SandboxT h k v m a)
     -> m (a, Proven h k v tx)
-proven tx interp = do
+record tx interp = do
     tree                <- AVL.currentRoot
     ((res, tree'), set) <- runWriterT $ runStateT (interp tx) tree
     proof               <- AVL.prune set tree
@@ -76,12 +77,12 @@ proven tx interp = do
 
 -- | Given a transaction and interpreter, perform it, write end tree into the storage and
 --   equip the transaction with the proof and a hash of end state.
-proven_
+record_
     :: AVL.Appends h k v m
     => tx
     -> (tx -> SandboxT h k v m a)
     -> m (Proven h k v tx)
-proven_ tx interp = do
+record_ tx interp = do
     tree                <- AVL.currentRoot
     ((_, tree'), set) <- runWriterT $ runStateT (interp tx) tree
     proof               <- AVL.prune set tree
@@ -90,17 +91,37 @@ proven_ tx interp = do
 
     return (Proven tx proof (AVL.rootHash tree'))
 
--- | Thrown when the proof mismatches current tree.
-data BeginHashMismatch = BeginHashMismatch
+data NotCorrectStateToApply h = NotCorrectStateToApply
+    { ncstaExpected :: h
+    , ncstaGot      :: h
+    }
     deriving (Show)
 
-instance Exception BeginHashMismatch
+instance (Show h, Typeable h) => Exception (NotCorrectStateToApply h)
 
--- | Thrown when the proposed endhash and real endhash diverge.
-data EndHashMismatch = EndHashMismatch
+data NotCorrectStateToRollback h = NotCorrectStateToRollback
+    { ncstrExpected :: h
+    , ncstrGot      :: h
+    }
     deriving (Show)
 
-instance Exception EndHashMismatch
+instance (Show h, Typeable h) => Exception (NotCorrectStateToRollback h)
+
+data DivergedWithProof h = DivergedWithProof
+    { dwpExpected :: h
+    , dwpGot      :: h
+    }
+    deriving (Show)
+
+instance (Show h, Typeable h) => Exception (DivergedWithProof h)
+
+data CannotReplicate h = CannotReplicate
+    { crExpected :: h
+    , crGot      :: h
+    }
+    deriving (Show)
+
+instance (Show h, Typeable h) => Exception (CannotReplicate h)
 
 -- | The sandbox transformer to run `insert`, `delete` and `lookup` in.
 type SandboxT h k v m = StateT (AVL.Map h k v) (WriterT (Set.Set h) m)
@@ -114,16 +135,19 @@ data Proven h k v tx = Proven
 
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
-prove
+apply
     :: AVL.Appends h k v m
     => Proven h k v tx
     -> (tx -> SandboxT h k v m a)
     -> m a
-prove (Proven tx proof endHash) interp = do
+apply (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
-        throw BeginHashMismatch
+        throwM NotCorrectStateToApply
+            { ncstaExpected = AVL.rootHash (AVL.unProof proof)
+            , ncstaGot      = AVL.rootHash  tree
+            }
 
     let tree' = AVL.unProof proof
     AVL.append tree'
@@ -131,7 +155,10 @@ prove (Proven tx proof endHash) interp = do
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
 
     unless (AVL.rootHash tree'' == endHash) $ do
-        throw EndHashMismatch
+        throw DivergedWithProof
+            { dwpExpected = endHash
+            , dwpGot      = AVL.rootHash tree''
+            }
 
     AVL.append tree''
 
@@ -148,7 +175,10 @@ rollback (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree == endHash) $ do
-        throw EndHashMismatch
+        throw NotCorrectStateToRollback
+            { ncstrExpected = endHash
+            , ncstrGot      = AVL.rootHash tree
+            }
 
     let tree' = AVL.unProof proof
     AVL.append tree'
@@ -156,7 +186,10 @@ rollback (Proven tx proof endHash) interp = do
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
 
     unless (AVL.rootHash tree'' == AVL.rootHash tree) $ do
-        throw EndHashMismatch
+        throw CannotReplicate
+            { crExpected = AVL.rootHash tree
+            , crGot      = AVL.rootHash tree''
+            }
 
     AVL.append tree'
     return res
