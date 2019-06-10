@@ -155,6 +155,10 @@ rollback (Proven tx proof endHash) interp = do
     Debug.traceShowM ("Before rollback", AVL.rootHash tree)
     Debug.traceShowM ("Endhash        ", endHash)
 
+    let AVL.Proof proofTree = proof
+
+    Debug.traceShowM ("Proof hash     ", AVL.rootHash proofTree)
+
     unless (AVL.rootHash tree == endHash) $ do
         throw EndHashMismatch
 
