@@ -127,6 +127,8 @@ prove
 prove (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
+    Debug.traceShowM ("Before apply", AVL.rootHash tree)
+
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
         throw BeginHashMismatch
 
