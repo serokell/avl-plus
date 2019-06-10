@@ -1,6 +1,7 @@
 
 module Data.Tree.AVL.Adapter
     ( Proven
+    , SandboxT
     , WrongOriginState (..)
     , DivergedWithProof (..)
     , insert
