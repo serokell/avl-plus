@@ -127,7 +127,10 @@ prove
 prove (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
+    Debug.traceM "\napply"
     Debug.traceShowM ("Before apply", AVL.rootHash tree)
+    Debug.traceShowM ("Endhash     ", endHash)
+    Debug.traceShowM ("Proof hash  ", AVL.rootHash (AVL.unProof proof))
 
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
         throw BeginHashMismatch
@@ -152,17 +155,17 @@ rollback
 rollback (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
+    Debug.traceM "\nrollback"
     Debug.traceShowM ("Before rollback", AVL.rootHash tree)
     Debug.traceShowM ("Endhash        ", endHash)
-
-    let AVL.Proof proofTree = proof
-
-    Debug.traceShowM ("Proof hash     ", AVL.rootHash proofTree)
+    Debug.traceShowM ("Proof hash     ", AVL.rootHash (AVL.unProof proof))
 
     unless (AVL.rootHash tree == endHash) $ do
         throw EndHashMismatch
 
     tree' <- unwrapProof proof
+
+    AVL.append tree'
 
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
 
