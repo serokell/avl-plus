@@ -49,6 +49,7 @@ class
 
 class KVAppend h k v m => KVOverwrite h k v m | m -> h k v where
     erase :: h -> m ()  -- ^ Remove node with given hash
+
 -- | Exception to be thrown by storage, if 'getRoot' impl can't
 --   return current root.
 data NoRootExists = NoRootExists

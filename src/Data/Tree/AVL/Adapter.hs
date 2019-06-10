@@ -111,6 +111,7 @@ data Proven h k v tx = Proven
     , pProof   :: AVL.Proof h k v
     , pEndHash :: h
     }
+    deriving (Eq, Ord, Show, Generic)
 
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
