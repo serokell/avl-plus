@@ -12,6 +12,8 @@ import Control.Monad.Writer
 import qualified Data.Set as Set
 import qualified Data.Tree.AVL as AVL
 
+import GHC.Generics (Generic)
+
 -- | Insert key/value into the global tree.
 insert
     :: AVL.Retrieves h k v m
@@ -111,7 +113,7 @@ data Proven h k v tx = Proven
     , pProof   :: AVL.Proof h k v
     , pEndHash :: h
     }
-    deriving (Eq, Ord, Show, Generic)
+    deriving (Eq, Show, Generic)
 
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
