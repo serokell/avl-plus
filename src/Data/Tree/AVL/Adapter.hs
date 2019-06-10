@@ -135,7 +135,9 @@ prove (Proven tx proof endHash) interp = do
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
         throw BeginHashMismatch
 
-    tree'              <- unwrapProof proof
+    let tree' = AVL.unProof proof
+    AVL.append tree'
+
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
 
     unless (AVL.rootHash tree'' == endHash) $ do
@@ -163,8 +165,7 @@ rollback (Proven tx proof endHash) interp = do
     unless (AVL.rootHash tree == endHash) $ do
         throw EndHashMismatch
 
-    tree' <- unwrapProof proof
-
+    let tree' = AVL.unProof proof
     AVL.append tree'
 
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
