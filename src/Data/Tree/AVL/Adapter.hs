@@ -1,5 +1,20 @@
 
-module Data.Tree.AVL.Adapter where
+module Data.Tree.AVL.Adapter
+    ( Proven
+    , WrongOriginState (..)
+    , DivergedWithProof (..)
+    , insert
+    , delete
+    , lookup
+    , require
+    , record
+    , record_
+    , apply
+    , rollback
+    , transact
+    , transactAndRethrow
+    )
+    where
 
 import Prelude hiding (lookup)
 
@@ -91,21 +106,13 @@ record_ tx interp = do
 
     return (Proven tx proof (AVL.rootHash tree'))
 
-data NotCorrectStateToApply h = NotCorrectStateToApply
-    { ncstaExpected :: h
-    , ncstaGot      :: h
+data WrongOriginState h = WrongOriginState
+    { wosExpected :: h
+    , wosGot      :: h
     }
     deriving (Show)
 
-instance (Show h, Typeable h) => Exception (NotCorrectStateToApply h)
-
-data NotCorrectStateToRollback h = NotCorrectStateToRollback
-    { ncstrExpected :: h
-    , ncstrGot      :: h
-    }
-    deriving (Show)
-
-instance (Show h, Typeable h) => Exception (NotCorrectStateToRollback h)
+instance (Show h, Typeable h) => Exception (WrongOriginState h)
 
 data DivergedWithProof h = DivergedWithProof
     { dwpExpected :: h
@@ -114,14 +121,6 @@ data DivergedWithProof h = DivergedWithProof
     deriving (Show)
 
 instance (Show h, Typeable h) => Exception (DivergedWithProof h)
-
-data CannotReplicate h = CannotReplicate
-    { crExpected :: h
-    , crGot      :: h
-    }
-    deriving (Show)
-
-instance (Show h, Typeable h) => Exception (CannotReplicate h)
 
 -- | The sandbox transformer to run `insert`, `delete` and `lookup` in.
 type SandboxT h k v m = StateT (AVL.Map h k v) (WriterT (Set.Set h) m)
@@ -144,9 +143,9 @@ apply (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
-        throwM NotCorrectStateToApply
-            { ncstaExpected = AVL.rootHash (AVL.unProof proof)
-            , ncstaGot      = AVL.rootHash  tree
+        throwM WrongOriginState
+            { wosExpected = AVL.rootHash (AVL.unProof proof)
+            , wosGot      = AVL.rootHash  tree
             }
 
     let tree' = AVL.unProof proof
@@ -175,9 +174,9 @@ rollback (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree == endHash) $ do
-        throw NotCorrectStateToRollback
-            { ncstrExpected = endHash
-            , ncstrGot      = AVL.rootHash tree
+        throw WrongOriginState
+            { wosExpected = endHash
+            , wosGot      = AVL.rootHash tree
             }
 
     let tree' = AVL.unProof proof
@@ -186,9 +185,9 @@ rollback (Proven tx proof endHash) interp = do
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
 
     unless (AVL.rootHash tree'' == AVL.rootHash tree) $ do
-        throw CannotReplicate
-            { crExpected = AVL.rootHash tree
-            , crGot      = AVL.rootHash tree''
+        throw DivergedWithProof
+            { dwpExpected = AVL.rootHash tree
+            , dwpGot      = AVL.rootHash tree''
             }
 
     AVL.append tree'
