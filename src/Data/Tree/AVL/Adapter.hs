@@ -163,7 +163,7 @@ rollback (Proven tx proof endHash) interp = do
     Debug.traceShowM ("After rollback ", AVL.rootHash tree'')
     Debug.traceShowM ("Endhash        ", endHash)
 
-    unless (AVL.rootHash tree'' == endHash) $ do
+    unless (AVL.rootHash tree'' == AVL.rootHash tree) $ do
         throw EndHashMismatch
 
     AVL.append tree'
