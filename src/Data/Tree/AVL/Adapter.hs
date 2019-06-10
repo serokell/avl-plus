@@ -14,8 +14,6 @@ import qualified Data.Tree.AVL as AVL
 
 import GHC.Generics (Generic)
 
-import qualified Debug.Trace as Debug
-
 -- | Insert key/value into the global tree.
 insert
     :: AVL.Retrieves h k v m
@@ -107,9 +105,6 @@ instance Exception EndHashMismatch
 -- | The sandbox transformer to run `insert`, `delete` and `lookup` in.
 type SandboxT h k v m = StateT (AVL.Map h k v) (WriterT (Set.Set h) m)
 
-class CanUnwrapProof h k v m where
-    unwrapProof :: AVL.Proof h k v -> m (AVL.Map h k v)
-
 data Proven h k v tx = Proven
     { pTx      :: tx
     , pProof   :: AVL.Proof h k v
@@ -120,17 +115,12 @@ data Proven h k v tx = Proven
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
 prove
-    :: (AVL.Appends h k v m, CanUnwrapProof h k v m)
+    :: AVL.Appends h k v m
     => Proven h k v tx
     -> (tx -> SandboxT h k v m a)
     -> m a
 prove (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
-
-    Debug.traceM "\napply"
-    Debug.traceShowM ("Before apply", AVL.rootHash tree)
-    Debug.traceShowM ("Endhash     ", endHash)
-    Debug.traceShowM ("Proof hash  ", AVL.rootHash (AVL.unProof proof))
 
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
         throw BeginHashMismatch
@@ -150,17 +140,12 @@ prove (Proven tx proof endHash) interp = do
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
 rollback
-    :: (AVL.Appends h k v m, CanUnwrapProof h k v m)
+    :: AVL.Appends h k v m
     => Proven h k v tx
     -> (tx -> SandboxT h k v m a)
     -> m a
 rollback (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
-
-    Debug.traceM "\nrollback"
-    Debug.traceShowM ("Before rollback", AVL.rootHash tree)
-    Debug.traceShowM ("Endhash        ", endHash)
-    Debug.traceShowM ("Proof hash     ", AVL.rootHash (AVL.unProof proof))
 
     unless (AVL.rootHash tree == endHash) $ do
         throw EndHashMismatch
@@ -169,9 +154,6 @@ rollback (Proven tx proof endHash) interp = do
     AVL.append tree'
 
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
-
-    Debug.traceShowM ("After rollback ", AVL.rootHash tree'')
-    Debug.traceShowM ("Endhash        ", endHash)
 
     unless (AVL.rootHash tree'' == AVL.rootHash tree) $ do
         throw EndHashMismatch

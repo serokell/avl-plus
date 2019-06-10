@@ -26,7 +26,6 @@ import Test.QuickCheck as T (Arbitrary (..), Gen, Property, Testable, elements, 
 import Test.QuickCheck.Instances as T ()
 
 import qualified Data.Tree.AVL as AVL
-import qualified Data.Tree.AVL.Adapter as Adapter
 import qualified Data.Tree.AVL.Store.Pure as Pure
 import qualified Data.Tree.AVL.Store.Void as Void
 
@@ -82,9 +81,6 @@ type StorageMonad = Void.Store IntHash StringName Int
 type StorageMonad' = Pure.StoreT IntHash StringName Int StorageMonad
 
 type M = AVL.Map IntHash StringName Int
-
-instance Adapter.CanUnwrapProof IntHash StringName Int StorageMonad' where
-    unwrapProof = Adapter.unpackClient
 
 scanM :: Monad m => (a -> b -> m b) -> b -> [a] -> m [b]
 scanM _      _     []       = return []

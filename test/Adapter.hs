@@ -93,6 +93,3 @@ tests = describe "Adapter" do
             back <- Base.currentRoot
 
             return $ new == back
-
-    describe "Multiple transact/rollbacks" do
-        it'' ""
