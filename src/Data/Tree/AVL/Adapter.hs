@@ -14,6 +14,8 @@ import qualified Data.Tree.AVL as AVL
 
 import GHC.Generics (Generic)
 
+import qualified Debug.Trace as Debug
+
 -- | Insert key/value into the global tree.
 insert
     :: AVL.Retrieves h k v m
@@ -148,12 +150,18 @@ rollback
 rollback (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
+    Debug.traceShowM ("Before rollback", AVL.rootHash tree)
+    Debug.traceShowM ("Endhash        ", endHash)
+
     unless (AVL.rootHash tree == endHash) $ do
         throw EndHashMismatch
 
     tree' <- unwrapProof proof
 
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
+
+    Debug.traceShowM ("After rollback ", AVL.rootHash tree'')
+    Debug.traceShowM ("Endhash        ", endHash)
 
     unless (AVL.rootHash tree'' == endHash) $ do
         throw EndHashMismatch
