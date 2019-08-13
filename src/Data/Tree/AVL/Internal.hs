@@ -218,7 +218,7 @@ data MapLayer h k v self
   | MLEmpty
     { _mlHash     :: ~h
     }
-    deriving (Show, Functor, Foldable, Traversable, Generic)
+    deriving (Show, Functor, Foldable, Traversable)
 
 type Rep h k v
   = Either (h, k, k, Tilt, h, h)
@@ -231,10 +231,6 @@ deriveShow1 ''MapLayer
 
 -- | AVL tree as whole.
 type Map h k v = Free (MapLayer h k v) h
-
-#if !MIN_VERSION_free(5,0,2)
-deriving instance Generic (Free t a)
-#endif
 
 -------------------------------------------------------------------------------
 -- * Lenses

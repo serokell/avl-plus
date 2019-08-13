@@ -101,6 +101,8 @@ module Data.Tree.AVL
     , Map
     , MapLayer
     , Rep
+    , toRep
+    , fromRep
 
       -- * Constructors/toList
     , empty
