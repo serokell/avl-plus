@@ -53,7 +53,7 @@ instance {-# OVERLAPPING #-}
   where
     retrieve k = asState $
         use psStorage <&> Map.lookup k
-            >>= maybe (throwM $ NotFound k) pure
+            >>= maybe (notFound k) pure
 
 instance {-# OVERLAPPING #-}
     ( Base h k v m

@@ -50,10 +50,12 @@ library
                CPP
                DataKinds
                DefaultSignatures
+               DeriveAnyClass
                DeriveFoldable
                DeriveFunctor
                DeriveGeneric
                DeriveTraversable
+               DerivingStrategies
                ExplicitForAll
                FlexibleContexts
                FlexibleInstances

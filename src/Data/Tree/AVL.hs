@@ -96,6 +96,7 @@ module Data.Tree.AVL
 
       -- * Exceptions
     , NotFound (..)
+    , notFound
 
       -- * Main type ('Map') and all other types
     , Map

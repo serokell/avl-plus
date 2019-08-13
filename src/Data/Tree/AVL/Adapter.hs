@@ -89,7 +89,7 @@ require
     -> SandboxT h (Union ks) (Union vs) m v
 require k = do
     lookup k
-        >>= maybe (throwM $ AVL.NotFound k) return
+        >>= maybe (AVL.notFound k) return
 
 -- | Given a transaction and interpreter, perform it, write end tree into the storage and
 --   equip the transaction with the proof and a hash of end state.
@@ -123,21 +123,19 @@ record_ tx interp = do
 
     return (Proven tx proof (AVL.rootHash tree'))
 
-data WrongOriginState h = WrongOriginState
-    { wosExpected :: h
-    , wosGot      :: h
+data WrongOriginState = WrongOriginState
+    { wosExpected :: String
+    , wosGot      :: String
     }
-    deriving (Show)
+    deriving stock    Show
+    deriving anyclass Exception
 
-instance (Show h, Typeable h) => Exception (WrongOriginState h)
-
-data DivergedWithProof h = DivergedWithProof
-    { dwpExpected :: h
-    , dwpGot      :: h
+data DivergedWithProof = DivergedWithProof
+    { dwpExpected :: String
+    , dwpGot      :: String
     }
-    deriving (Show)
-
-instance (Show h, Typeable h) => Exception (DivergedWithProof h)
+    deriving stock    Show
+    deriving anyclass Exception
 
 -- | The sandbox transformer to run `insert`, `delete` and `lookup` in.
 type SandboxT h k v m = StateT (AVL.Map h k v) (WriterT (Set.Set h) m)
@@ -161,8 +159,8 @@ apply (Proven tx proof endHash) interp = do
 
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
         throwM WrongOriginState
-            { wosExpected = AVL.rootHash (AVL.unProof proof)
-            , wosGot      = AVL.rootHash  tree
+            { wosExpected = show $ AVL.rootHash (AVL.unProof proof)
+            , wosGot      = show $ AVL.rootHash  tree
             }
 
     let tree' = AVL.unProof proof
@@ -172,8 +170,8 @@ apply (Proven tx proof endHash) interp = do
 
     unless (AVL.rootHash tree'' == endHash) $ do
         throw DivergedWithProof
-            { dwpExpected = endHash
-            , dwpGot      = AVL.rootHash tree''
+            { dwpExpected = show $ endHash
+            , dwpGot      = show $ AVL.rootHash tree''
             }
 
     AVL.append tree''
@@ -192,8 +190,8 @@ rollback (Proven tx proof endHash) interp = do
 
     unless (AVL.rootHash tree == endHash) $ do
         throw WrongOriginState
-            { wosExpected = endHash
-            , wosGot      = AVL.rootHash tree
+            { wosExpected = show $ endHash
+            , wosGot      = show $ AVL.rootHash tree
             }
 
     let tree' = AVL.unProof proof
@@ -203,8 +201,8 @@ rollback (Proven tx proof endHash) interp = do
 
     unless (AVL.rootHash tree'' == AVL.rootHash tree) $ do
         throw DivergedWithProof
-            { dwpExpected = AVL.rootHash tree
-            , dwpGot      = AVL.rootHash tree''
+            { dwpExpected = show $ AVL.rootHash tree
+            , dwpGot      = show $ AVL.rootHash tree''
             }
 
     AVL.append tree'

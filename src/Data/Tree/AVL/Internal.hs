@@ -21,6 +21,7 @@ module Data.Tree.AVL.Internal
 
       -- * Exception to be thrown by DB operations
     , NotFound (..)
+    , notFound
 
       -- * AVL map type, its layer and variants
     , Map
@@ -93,7 +94,7 @@ module Data.Tree.AVL.Internal
   where
 
 import Control.Exception (Exception)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow (throwM))
 import Control.Monad.Free (Free (Free, Pure))
 import Lens.Micro.Platform (makeLenses, to, (&), (.~), (^.), (^?))
 
@@ -297,16 +298,18 @@ class KVStore h k v m | m -> h k v where
     massStore :: [(h, Rep h k v)] -> m ()
 
 -- | Exception to be thrown when node with given hashkey is missing.
-data NotFound k = NotFound k
-    deriving (Show)
+newtype NotFound = NotFound String
+    deriving stock    Show
+    deriving anyclass Exception
 
-instance (Show k, Typeable k) => Exception (NotFound k)
+notFound :: (MonadThrow m, Show k) => k -> m a
+notFound = throwM . NotFound . show
 
 -- | Constraints on type parameters for AVL 'Map'.
 type Params h k v =
-    ( Ord h, Show h, Typeable h
-    , Ord k, Show k, Typeable k
-           , Show v, Typeable v
+    ( Ord h, Show h
+    , Ord k, Show k
+           , Show v
     , Hash h k v
     )
 
