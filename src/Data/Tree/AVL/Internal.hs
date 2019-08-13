@@ -6,13 +6,10 @@
 module Data.Tree.AVL.Internal
     ( -- * Interfaces with database
       KVRetrieve (..)
-    , KVStore (..)
 
       -- * Contexts for tree operations
     , Retrieves
-    , Stores
     , Params
-    , Base
 
       -- * Interface to plug in hash
     , ProvidesHash (..)
@@ -32,7 +29,6 @@ module Data.Tree.AVL.Internal
 
       -- * High-level operations
     , rootHash
-    , save
     , size
     , toList
 
@@ -101,7 +97,6 @@ import Lens.Micro.Platform (makeLenses, to, (&), (.~), (^.), (^?))
 import Data.Function (on)
 import Data.Maybe (fromMaybe)
 import qualified Data.Tree as Tree
-import Data.Typeable (Typeable)
 import Data.Word (Word8)
 
 import GHC.Generics (Generic)
@@ -240,14 +235,14 @@ type Map h k v = Free (MapLayer h k v) h
 -- | Lenses.
 makeLenses ''MapLayer
 
-toRep :: forall h k v. MapLayer h k v h -> Rep h k v
-toRep (MLBranch a b c d e f) = Left          (a, b, c, d, e, f)
+toRep :: forall h k v. MapLayer h k v (Map h k v) -> Rep h k v
+toRep (MLBranch a b c d e f) = Left          (a, b, c, d, rootHash e, rootHash f)
 toRep (MLLeaf   a b c)       = Right $ Left  (a, b, c)
 toRep (MLEmpty  a)           = Right $ Right  a
 
-fromRep :: Rep h k v -> MapLayer h k v h
+fromRep :: Rep h k v -> MapLayer h k v (Map h k v)
 fromRep
-  = either (\(a, b, c, d, e, f) -> MLBranch a b c d e f)
+  = either (\(a, b, c, d, e, f) -> MLBranch a b c d (Pure e) (Pure f))
   $ either (\(a, b, c)          -> MLLeaf   a b c)
            (\ a                 -> MLEmpty  a)
 
@@ -293,10 +288,6 @@ hashOf = \case
 class KVRetrieve h k v m | m -> h k v where
     retrieve :: h -> m (Rep h k v)
 
--- | DB monad capable of storing 'isolate'd nodes altogether.
-class KVStore h k v m | m -> h k v where
-    massStore :: [(h, Rep h k v)] -> m ()
-
 -- | Exception to be thrown when node with given hashkey is missing.
 newtype NotFound = NotFound String
     deriving stock    Show
@@ -313,22 +304,10 @@ type Params h k v =
     , Hash h k v
     )
 
--- | Umbrella constraint to grab all the required capabilities for
--- tree to operate.
-type Base h k v m =
-    ( Params h k v
-    , MonadCatch m
-    )
-
--- | Ability to write into the storage.
-type Stores h k v m =
-    ( Base    h k v m
-    , KVStore h k v m
-    )
-
 -- | Ability to read from the storage.
 type Retrieves h k v m =
-    ( Base       h k v m
+    ( Params h k v
+    , MonadCatch m
     , KVRetrieve h k v m
     )
 
@@ -361,7 +340,7 @@ load :: Retrieves h k v m => Map h k v -> m (MapLayer h k v (Map h k v))
 load = \case
     Pure key -> do
         actual <- retrieve key
-        return (Pure <$> fromRep actual)
+        return (fromRep actual)
     Free layer ->
         return layer
 
@@ -394,25 +373,6 @@ onTopNode ::
 onTopNode f tree = do
     layer <- load tree
     return $ close $ f layer
-
--- | Recursively store all the materialized nodes in the database.
-save :: forall h k v m . Stores h k v m => Map h k v -> m (Map h k v)
-save tree = do
-    massStore $ collect tree
-    return (ref (rootHash tree))
-  where
-    -- | Turns a 'Map' into relation of (hash, isolated-node),
-    --   to use in 'save'.
-    collect :: Map h k v -> [(h, Rep h k v)]
-    collect it = case it of
-        Pure _     -> []
-        Free layer -> do
-            let hash  = rootHash it
-            let node  = toRep $ isolate (layer :: MapLayer h k v (Map h k v))
-            let left  = layer^?mlLeft .to collect `orElse` []
-            let right = layer^?mlRight.to collect `orElse` []
-
-            [(hash, node)] ++ left ++ right
 
 -- | Returns minimal key contained in a tree (or a 'minbound' if empty).
 minKey :: Retrieves h k v m => Map h k v -> m (WithBounds k)

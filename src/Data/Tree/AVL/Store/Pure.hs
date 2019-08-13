@@ -12,7 +12,7 @@ module Data.Tree.AVL.Store.Pure
     ) where
 
 import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
-import Control.Monad.Catch (throwM)
+import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Reader (ReaderT, ask, lift, runReaderT, MonadTrans (lift))
 import Control.Monad.State (StateT, put, runStateT)
@@ -45,7 +45,8 @@ asState action = do
     return b
 
 instance {-# OVERLAPPING #-}
-    ( Base h k v m
+    ( Params h k v
+    , MonadThrow m
     , MonadIO m
     )
   =>
@@ -55,18 +56,9 @@ instance {-# OVERLAPPING #-}
         use psStorage <&> Map.lookup k
             >>= maybe (notFound k) pure
 
-instance {-# OVERLAPPING #-}
-    ( Base h k v m
-    , MonadIO m
-    )
-  =>
-    KVStore h k v (StoreT h k v m)
-  where
-    massStore pairs = asState $
-        psStorage %= (<> Map.fromList pairs)
-
 instance
-    ( Base h k v m
+    ( Params h k v
+    , MonadThrow m
     , MonadIO m
     )
   =>
@@ -74,9 +66,12 @@ instance
   where
     getRoot      = asState $ maybe (throwM NoRootExists) pure =<< use psRoot
     setRoot new  = asState $ psRoot    .= Just new
+    massStore pairs = asState $
+        psStorage %= (<> Map.fromList pairs)
 
 instance
-    ( Base h k v m
+    ( Params h k v
+    , MonadThrow m
     , MonadIO m
     )
   =>
@@ -104,7 +99,7 @@ emptyState = State
     }
 
 -- | Dumps storage into console with given message.
-dump :: forall h k v m . (MonadIO m, Base h k v m) => String -> StoreT h k v m ()
+dump :: forall h k v m . (MonadIO m, Params h k v) => String -> StoreT h k v m ()
 dump msg = asState $ do
     State storage root <- use id
     liftIO $ do
@@ -114,5 +109,5 @@ dump msg = asState $ do
         putStrLn ""
 
 -- | Resets current state to empty.
-clean :: forall h k v m . (MonadIO m, Base h k v m) => StoreT h k v m ()
+clean :: forall h k v m . (MonadIO m, Params h k v) => StoreT h k v m ()
 clean = asState $ put emptyState

@@ -78,19 +78,16 @@
 module Data.Tree.AVL
     ( -- * Required interfaces
       KVRetrieve (..)
-    , KVStore (..)
     , KVAppend (..)
     , KVOverwrite (..)
 
       -- * Constraints for most AVL+-related actions
     , Retrieves
-    , Stores
     , Appends
     , Overwrites
 
       -- * Some base constraints
     , Hash
-    , Base
     , Params
     , ProvidesHash (..)
 
