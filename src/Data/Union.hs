@@ -33,9 +33,7 @@ data Union (fs :: [*]) = Case
   }
   deriving (Generic)
 
-newtype Dispatch (fs :: [*]) r = Dispatch
-  { runDispatch :: Array Int (Any fs r)
-  }
+newtype Dispatch (fs :: [*]) r = Dispatch (Array Int (Any fs r))
 
 match :: Dispatch fs r -> Union fs -> r
 match (Dispatch handlers) (Case i payload) =

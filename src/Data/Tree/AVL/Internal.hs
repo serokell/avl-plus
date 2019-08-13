@@ -25,7 +25,9 @@ module Data.Tree.AVL.Internal
       -- * AVL map type, its layer and variants
     , Map
     , MapLayer (..)
-    , Isolated
+    , Rep
+    , toRep
+    , fromRep
 
       -- * High-level operations
     , rootHash
@@ -218,15 +220,17 @@ data MapLayer h k v self
     }
     deriving (Show, Functor, Foldable, Traversable, Generic)
 
+type Rep h k v
+  = Either (h, k, k, Tilt, h, h)
+  ( Either (h, k, v)
+            h )
+
 deriveEq1 ''MapLayer
 deriveOrd1 ''MapLayer
 deriveShow1 ''MapLayer
 
 -- | AVL tree as whole.
 type Map h k v = Free (MapLayer h k v) h
-
--- | AVL node that was isolated (hashes were put where in places of subtrees).
-type Isolated h k v = MapLayer h k v h
 
 #if !MIN_VERSION_free(5,0,2)
 deriving instance Generic (Free t a)
@@ -238,6 +242,17 @@ deriving instance Generic (Free t a)
 
 -- | Lenses.
 makeLenses ''MapLayer
+
+toRep :: forall h k v. MapLayer h k v h -> Rep h k v
+toRep (MLBranch a b c d e f) = Left          (a, b, c, d, e, f)
+toRep (MLLeaf   a b c)       = Right $ Left  (a, b, c)
+toRep (MLEmpty  a)           = Right $ Right  a
+
+fromRep :: Rep h k v -> MapLayer h k v h
+fromRep
+  = either (\(a, b, c, d, e, f) -> MLBranch a b c d e f)
+  $ either (\(a, b, c)          -> MLLeaf   a b c)
+           (\ a                 -> MLEmpty  a)
 
 -------------------------------------------------------------------------------
 -- * Instances
@@ -266,28 +281,24 @@ type Hash h k v =
     ( ProvidesHash k h
     , ProvidesHash v h
     , ProvidesHash () h
-    , ProvidesHash Int h
+    , ProvidesHash Word8 h
     , ProvidesHash [h] h
     )
 
 -- | Calculate hash of one layer.
 hashOf :: Hash h k v => MapLayer h k v h -> h
 hashOf = \case
-    MLBranch _ m c t l r ->
-        getHash [getHash m, getHash c, getHash (fromEnum t), l, r]
-
-    MLLeaf _ k v ->
-        getHash [getHash k, getHash v]
-
-    MLEmpty _ -> getHash ()
+    MLBranch _ m c t l r -> getHash [getHash m, getHash c, getHash t, l, r]
+    MLLeaf   _ k v       -> getHash [getHash k, getHash v]
+    MLEmpty  _           -> getHash ()
 
 -- | DB monad capable of retrieving 'isolate'd nodes.
 class KVRetrieve h k v m | m -> h k v where
-    retrieve :: h -> m (Isolated h k v)
+    retrieve :: h -> m (Rep h k v)
 
 -- | DB monad capable of storing 'isolate'd nodes altogether.
 class KVStore h k v m | m -> h k v where
-    massStore :: [(h, Isolated h k v)] -> m ()
+    massStore :: [(h, Rep h k v)] -> m ()
 
 -- | Exception to be thrown when node with given hashkey is missing.
 data NotFound k = NotFound k
@@ -351,7 +362,7 @@ load :: Retrieves h k v m => Map h k v -> m (MapLayer h k v (Map h k v))
 load = \case
     Pure key -> do
         actual <- retrieve key
-        return (Pure <$> actual)
+        return (Pure <$> fromRep actual)
     Free layer ->
         return layer
 
@@ -393,12 +404,12 @@ save tree = do
   where
     -- | Turns a 'Map' into relation of (hash, isolated-node),
     --   to use in 'save'.
-    collect :: Map h k v -> [(h, Isolated h k v)]
+    collect :: Map h k v -> [(h, Rep h k v)]
     collect it = case it of
         Pure _     -> []
         Free layer -> do
             let hash  = rootHash it
-            let node  = isolate (layer :: MapLayer h k v (Map h k v))
+            let node  = toRep $ isolate (layer :: MapLayer h k v (Map h k v))
             let left  = layer^?mlLeft .to collect `orElse` []
             let right = layer^?mlRight.to collect `orElse` []
 

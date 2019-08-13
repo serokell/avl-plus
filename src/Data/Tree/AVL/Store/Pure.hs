@@ -26,7 +26,7 @@ import Data.Tree.AVL.Persistence
 
 -- | Pure state containing avl changes as a regular 'Map'.
 data State h k v = State
-    { _psStorage :: Map.Map h (Isolated h k v)
+    { _psStorage :: Map.Map h (Rep h k v)
     , _psRoot    :: Maybe h
     }
 
