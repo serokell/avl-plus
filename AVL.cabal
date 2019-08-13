@@ -32,7 +32,8 @@ library
                  , Data.Union
                  , Data.Relation
   other-modules:
-  build-depends:       base
+  build-depends:       array
+                     , base
                      , containers
                      , deriving-compat
                      , exceptions
@@ -47,6 +48,7 @@ library
                BlockArguments
                ConstraintKinds
                CPP
+               DataKinds
                DefaultSignatures
                DeriveFoldable
                DeriveFunctor

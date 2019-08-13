@@ -3,59 +3,71 @@
 {-# language TypeOperators #-}
 {-# language TypeFamilies #-}
 
-module Data.Union where
+module Data.Union
+  ( Union
+  , inject
+  , project
+  , All
+  , Dispatch
+  , nothing
+  , (\/)
+  , match
+  , Member
+  , is
+  ) where
 
+import qualified Data.Array as Array
+import Data.Array (Array, (!))
 import Data.Maybe (isJust)
 import Data.Proxy (Proxy (..))
 
-import GHC.Exts (Any{-, Constraint-})
+import GHC.Exts (Any, Constraint)
 import GHC.Generics (Generic)
-import GHC.TypeLits (type (+), type (-), Nat, KnownNat, natVal)
+import GHC.TypeLits (type (+), Nat, KnownNat, natVal)
 
 import Unsafe.Coerce (unsafeCoerce)
 
-data Union (fs :: [*])
-  = Case Int (Any fs)
+data Union (fs :: [*]) = Case
+  { uTag     :: Int
+  , uPayload :: Any fs
+  }
   deriving (Generic)
 
--- type family All c (fs :: [*]) :: Constraint where
---   All c '[]      = ()
---   All c (f : fs) = (c f, All c fs)
+newtype Dispatch (fs :: [*]) r = Dispatch
+  { runDispatch :: Array Int (Any fs r)
+  }
 
--- instance
---   ( Show f
---   , Show (Union fs)
---   , KnownNat (Len fs)
---   )
---   => Show (Union (f : fs))
---   where
---     show = either show show . split
+match :: Dispatch fs r -> Union fs -> r
+match (Dispatch handlers) (Case i payload) =
+  handlers ! i `unsafeCoerce` payload
 
--- instance Show (Union '[]) where
---   show _ = "Impossible"
+nothing :: Dispatch '[] r
+nothing = Dispatch (array [])
 
-type family At fs n where
-  At (f : _)  0 = f
-  At (_ : fs) n = At fs (n - 1)
+infixr 1 \/
+
+(\/) :: (f -> r) -> Dispatch fs r -> Dispatch (f : fs) r
+handler \/ Dispatch rest =
+  Dispatch
+    $ unsafeCoerce
+    $ array
+    $ handler : unsafeCoerce (Array.elems rest)
+
+array :: [a] -> Array Int a
+array list = Array.listArray (0, length list - 1) list
+
+type family All c (fs :: [*]) :: Constraint where
+  All c '[]      = ()
+  All c (f : fs) = (c f, All c fs)
 
 type family Index f fs :: Nat where
   Index f (f : fs) = 0
   Index f (g : fs) = 1 + Index f fs
 
-type family Len fs :: Nat where
-  Len '[]       = 0
-  Len  (f : fs) = 1 + Len fs
-
-type Member f fs = (KnownNat (Index f fs), KnownNat (Len fs))
-
-offset :: forall f fs. Member f fs => Int
-offset = fromIntegral $ natVal (Proxy :: Proxy (Index f fs))
-
-len :: forall fs. KnownNat (Len fs) => Int
-len = fromIntegral $ natVal (Proxy :: Proxy (Len fs))
+type Member f fs = KnownNat (Index f fs)
 
 index :: forall f fs. Member f fs => Int
-index = len @fs - offset @f @fs - 1
+index = fromIntegral $ natVal (Proxy :: Proxy (Index f fs))
 
 inject :: forall f fs. Member f fs => f -> Union fs
 inject f = Case (index @f @fs) (unsafeCoerce f)
@@ -67,7 +79,3 @@ project (Case i f)
 
 is :: forall f fs. Member f fs => Union fs -> Bool
 is = isJust . project @f @fs
-
--- split :: forall f fs. KnownNat (Len fs) => Union (f : fs) -> Either f (Union fs)
--- split    (Case n f) | n == len @fs = Left  (unsafeCoerce f)
--- split it@(Case n f)                = Right (unsafeCoerce it)
