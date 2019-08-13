@@ -28,49 +28,65 @@ import Control.Monad.Writer
 import qualified Data.Set as Set
 import qualified Data.Tree.AVL as AVL
 import Data.Typeable
+import Data.Union
+import Data.Relation
 
 import GHC.Generics (Generic)
 
+inSandbox :: (Ord h, Monad m) => m a -> SandboxT h k v m a
+inSandbox = lift . lift
+
 -- | Insert key/value into the global tree.
 insert
-    :: AVL.Retrieves h k v m
+    :: AVL.Retrieves h (Union ks) (Union vs) m
+    => Member k ks
+    => Member v vs
+    => Relates k v
     => k
     -> v
-    -> SandboxT h k v m ()
+    -> SandboxT h (Union ks) (Union vs) m ()
 insert k v = do
     tree <- get
-    (set, tree') <- lift $ lift $ AVL.insert k v tree
+    (set, tree') <- inSandbox $ AVL.insert (inject k) (inject v) tree
     put tree'
     tell set
 
 -- | Delete key from the global tree.
 delete
-    :: AVL.Retrieves h k v m
+    :: AVL.Retrieves h (Union ks) (Union vs) m
+    => Member k ks
     => k
-    -> SandboxT h k v m ()
+    -> SandboxT h (Union ks) (Union vs) m ()
 delete k = do
     tree <- get
-    (set, tree') <- lift $ lift $ AVL.delete k tree
+    (set, tree') <- inSandbox $ AVL.delete (inject k) tree
     put tree'
     tell set
 
 -- | Lookup key in the global tree.
 lookup
-    :: AVL.Retrieves h k v m
+    :: AVL.Retrieves h (Union ks) (Union vs) m
+    => Member k ks
+    => Member v vs
+    => Relates k v
     => k
-    -> SandboxT h k v m (Maybe v)
+    -> SandboxT h (Union ks) (Union vs) m (Maybe v)
 lookup k = do
     tree <- get
-    ((res, set), tree') <- lift $ lift $ AVL.lookup k tree
+    ((res, set), tree') <- inSandbox $ AVL.lookup (inject k) tree
     put tree'
     lift $ tell set
-    return res
+    return (join $ project <$> res)
 
 -- | Lookup key in the global tree.
 require
-    :: AVL.Retrieves h k v m
+    :: AVL.Retrieves h (Union ks) (Union vs) m
+    => Member k ks
+    => Member v vs
+    => Relates k v
+    => (Show k, Typeable k)
     => k
-    -> SandboxT h k v m v
+    -> SandboxT h (Union ks) (Union vs) m v
 require k = do
     lookup k
         >>= maybe (throwM $ AVL.NotFound k) return

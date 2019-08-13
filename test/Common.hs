@@ -13,7 +13,6 @@ import Data.Default as T (Default (def))
 import Data.Foldable ()
 import Data.Function (on)
 import Data.Hashable (Hashable, hash)
-import Data.HashMap.Strict (HashMap, fromList)
 import Data.List (nubBy, sortBy)
 import Data.Ord (comparing)
 import Data.String (IsString (fromString))
@@ -69,9 +68,6 @@ instance Arbitrary StringName where
     arbitrary = do
         a <- elements ['B'.. 'Y']
         return (StringName [a])
-
-instance (Eq k, Hashable k) => Default (HashMap k v) where
-    def = fromList []
 
 -- Requirement of QuickCheck
 instance Show (a -> b) where
