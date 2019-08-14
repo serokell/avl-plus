@@ -92,27 +92,15 @@ instance Arbitrary UValue where
     arbitrary = genericArbitraryU
 
 instance Relates StringName Int
-instance Relates Bool String
+instance Relates Bool       String
 
-instance Member StringName UKey where
-    inject = K1
-    project (K1 n) = Just n
-    project  _     = Nothing
+Lenses.makePrisms ''UKey
+Lenses.makePrisms ''UValue
 
-instance Member Bool UKey where
-    inject = K2
-    project (K2 n) = Just n
-    project  _     = Nothing
-
-instance Member Int UValue where
-    inject = V1
-    project (V1 n) = Just n
-    project  _     = Nothing
-
-instance Member String UValue where
-    inject = V2
-    project (V2 n) = Just n
-    project  _     = Nothing
+instance Member StringName UKey   where union = _K1
+instance Member Bool       UKey   where union = _K2
+instance Member Int        UValue where union = _V1
+instance Member String     UValue where union = _V2
 
 type StorageMonad = Void.Store IntHash StringName Int
 type StorageMonad' = Pure.StoreT IntHash StringName Int StorageMonad

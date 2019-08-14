@@ -24,6 +24,7 @@ import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.State
 import Control.Monad.Writer
+import Control.Lens ((#), (^?))
 
 import qualified Data.Set as Set
 import qualified Data.Tree.AVL as AVL
@@ -47,7 +48,7 @@ insert
     -> SandboxT h ks vs m ()
 insert k v = do
     tree <- get
-    (set, tree') <- inSandbox $ AVL.insert (inject k) (inject v) tree
+    (set, tree') <- inSandbox $ AVL.insert (union # k) (union # v) tree
     put tree'
     tell set
 
@@ -59,7 +60,7 @@ delete
     -> SandboxT h ks vs m ()
 delete k = do
     tree <- get
-    (set, tree') <- inSandbox $ AVL.delete (inject k) tree
+    (set, tree') <- inSandbox $ AVL.delete (union # k) tree
     put tree'
     tell set
 
@@ -73,10 +74,10 @@ lookup
     -> SandboxT h ks vs m (Maybe v)
 lookup k = do
     tree <- get
-    ((res, set), tree') <- inSandbox $ AVL.lookup (inject k) tree
+    ((res, set), tree') <- inSandbox $ AVL.lookup (union # k) tree
     put tree'
     lift $ tell set
-    return (join $ project <$> res)
+    return (join $ (^?union) <$> res)
 
 -- | Lookup key in the global tree.
 require

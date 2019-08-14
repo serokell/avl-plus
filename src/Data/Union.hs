@@ -5,11 +5,11 @@ module Data.Union
   ( Member(..)
   ) where
 
+import Control.Lens
+
 -- |
 class Member e u where
-  inject  :: e -> u
-  project :: u -> Maybe e
+  union :: Prism' u e
 
 instance Member e e where
-  inject  = id
-  project = Just
+  union = id
