@@ -12,7 +12,7 @@ module Data.Tree.AVL.Prune
 import Control.Monad.Free (Free (Free))
 import Data.Set (Set)
 import qualified Data.Set as Set (notMember)
-import Lens.Micro.Platform ((&), (.~), (<&>), (^.))
+import Control.Lens ((&), (.~), (<&>), (^.))
 
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof

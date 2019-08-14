@@ -25,7 +25,7 @@ import Control.Exception (Exception)
 import Control.Monad (void, when)
 import Control.Monad.Catch (catch)
 import Control.Monad.Free (Free (..))
-import Lens.Micro.Platform (to, (^?))
+import Control.Lens (to, (^?))
 
 import Data.Foldable (for_)
 import Data.Monoid ((<>))

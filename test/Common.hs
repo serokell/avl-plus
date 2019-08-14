@@ -7,7 +7,7 @@ module Common
 import Control.Monad as T (unless, when)
 import Control.Monad.Catch as T (catch)
 import Control.Monad.IO.Class as T (MonadIO, liftIO)
-import Lens.Micro.Platform as Lenses
+import qualified Control.Lens as Lenses
 
 import Data.Default as T (Default (def))
 import Data.Foldable ()

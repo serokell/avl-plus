@@ -16,7 +16,7 @@ import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Reader (ReaderT, ask, lift, runReaderT, MonadTrans (lift))
 import Control.Monad.State (StateT, put, runStateT)
-import Lens.Micro.Platform (makeLenses, use, (%=), (.=), (<&>))
+import Control.Lens (makeLenses, use, (%=), (.=), (<&>))
 
 import qualified Data.Map as Map
 import Data.Monoid ((<>))

@@ -39,7 +39,7 @@ library
                      , exceptions
                      , free
                      , ghc-prim
-                     , microlens-platform
+                     , lens
                      , mtl
                      , stm
                      , zipp
@@ -105,7 +105,7 @@ test-suite avl-tree-sanity
                      , exceptions
                      , generic-random
                      , hashable
-                     , microlens-platform
+                     , lens
                      , mtl
                      , hspec
                      , QuickCheck

@@ -92,7 +92,7 @@ module Data.Tree.AVL.Internal
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch, MonadThrow (throwM))
 import Control.Monad.Free (Free (Free, Pure))
-import Lens.Micro.Platform (makeLenses, to, (&), (.~), (^.), (^?))
+import Control.Lens (makeLenses, to, (&), (.~), (^.), (^?))
 
 import Data.Function (on)
 import Data.Maybe (fromMaybe)
