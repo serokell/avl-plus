@@ -15,7 +15,15 @@ import Data.Tree.AVL.Internal
 
 -- | Wrapper. Cancels any capabilities of @m@ to store stuff.
 newtype StoreT h k v m a = StoreT { runStoreT :: m a }
-    deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask)
+    deriving newtype
+        ( Functor
+        , Applicative
+        , Monad
+        , MonadIO
+        , MonadThrow
+        , MonadCatch
+        , MonadMask
+        )
 
 -- | This "storage" always throws when you try to read from it.
 --   It does this, because on light client you don't have any storage,
@@ -28,7 +36,7 @@ instance {-# OVERLAPPING #-}
   =>
     KVRetrieve h k v (StoreT h k v m)
   where
-    retrieve k = throwM (NotFound k)
+    retrieve = notFound
 
 -- | Storage monad that fails on any access attempt.
 type Store h k v = StoreT h k v IO

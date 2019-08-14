@@ -11,67 +11,69 @@ import qualified Data.Tree.AVL         as Base
 tests :: Spec
 tests = describe "Adapter" do
     describe "transact" do
-        it'' "rolls back" \(list, k, v) -> do
+        uit'' "rolls back" \(list, k :: StringName, v) -> do
             Base.initialiseStorageIfNotAlready list
 
-            _ <- AVL.proven () \() -> AVL.insert k v
+            _ <- AVL.record () \() -> AVL.insert k v
             _ <- AVL.transact @SomeException do
-                _ <- AVL.proven () \() -> do
+                _ <- AVL.record () \() -> do
                     AVL.insert k (v + 1)
-                    throwM $ Base.NotFound ("b" :: StringName)
+                    Base.notFound k
                 return ()
 
-            (res, _) <- AVL.proven () \() -> AVL.lookup k
+            (res, _) <- AVL.record () \() -> AVL.lookup k
 
             return $ res == Just v
 
-        it'' "doesn't roll back when nothing is failed" \(list, k, v) -> do
-            Base.initialiseStorageIfNotAlready list
+        uit'' "doesn't roll back when nothing is failed"
+            \(list, k :: StringName, v) -> do
+                Base.initialiseStorageIfNotAlready list
 
-            _ <- AVL.proven () \() -> AVL.insert k v
-            _ <- AVL.transact @SomeException do
-                _ <- AVL.proven () \() -> do
-                    AVL.insert k (v + 1)
-                return ()
-
-            (res, _) <- AVL.proven () \() -> AVL.lookup k
-
-            return $ res == Just (v + 1)
-
-    describe "proven/prove" do
-        it'' "is able to prove" \(list, k, v) -> do
-            Base.initialiseStorageIfNotAlready list
-
-            save     <- Base.currentRoot
-            ((), tx) <- AVL.proven () \() -> AVL.insert k v
-
-            Base.append save
-
-            AVL.prove tx \() -> AVL.insert k v
-
-            return True
-
-        it'' "isn't able to prove when incorrect" \(k, v, list) -> do
-            Base.initialiseStorageIfNotAlready list
-
-            save     <- Base.currentRoot
-            ((), tx) <- AVL.proven () \() -> AVL.insert k v
-
-            Base.append save
-
-            ~(Left AVL.EndHashMismatch) <-
-                AVL.transact @AVL.EndHashMismatch do
-                    AVL.prove tx \() -> do
+                _ <- AVL.record () \() -> AVL.insert k v
+                _ <- AVL.transact @SomeException do
+                    _ <- AVL.record () \() -> do
                         AVL.insert k (v + 1)
+                    return ()
+
+                (res, _) <- AVL.record () \() -> AVL.lookup k
+
+                return $ res == Just (v + 1)
+
+    describe "record/apply" do
+        uit'' "is able to apply" \(list, k :: Bool, v) -> do
+            Base.initialiseStorageIfNotAlready list
+
+            save     <- Base.currentRoot
+            ((), tx) <- AVL.record () \() -> AVL.insert k v
+
+            Base.append save
+
+            AVL.apply tx \() -> AVL.insert k v
 
             return True
+
+        uit'' "isn't able to apply when incorrect"
+            \(k :: StringName, v, list) -> do
+                Base.initialiseStorageIfNotAlready list
+
+                save     <- Base.currentRoot
+                ((), tx) <- AVL.record () \() -> AVL.insert k v
+
+                Base.append save
+
+                ~(Left AVL.DivergedWithProof {}) <-
+                    AVL.transact @AVL.DivergedWithProof do
+                        AVL.apply tx \() -> do
+                            AVL.insert k (v + 1)
+
+                return True
 
     describe "rollback" do
-        it'' "rolls transaction back" \(k, v, list) -> do
+        uit'' "rolls transaction back" \(k :: Bool, v, list) -> do
             Base.initialiseStorageIfNotAlready list
 
             old      <- Base.currentRoot
-            ((), tx) <- AVL.proven () \() -> AVL.insert k v
+            ((), tx) <- AVL.record () \() -> AVL.insert k v
 
             AVL.rollback tx \() -> AVL.insert k v
 
@@ -79,16 +81,16 @@ tests = describe "Adapter" do
 
             return $ old == back
 
-        it'' "keeps state if failed" \(k, v, list) -> do
+        uit'' "keeps state if failed" \(k :: StringName, v, list) -> do
             Base.initialiseStorageIfNotAlready list
 
-            ((), tx)  <- AVL.proven () \() -> AVL.insert k v
+            ((), tx)  <- AVL.record () \() -> AVL.insert k v
             new       <- Base.currentRoot
 
-            ~(Left _) <- AVL.transact @(Base.NotFound StringName) do
+            ~(Left _) <- AVL.transact @Base.NotFound do
                 AVL.rollback tx \() -> do
                     AVL.insert k v
-                    throwM $ Base.NotFound k
+                    Base.notFound k
 
             back <- Base.currentRoot
 

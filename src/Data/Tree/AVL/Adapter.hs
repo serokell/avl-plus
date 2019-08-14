@@ -1,5 +1,21 @@
 
-module Data.Tree.AVL.Adapter where
+module Data.Tree.AVL.Adapter
+    ( Proven
+    , SandboxT
+    , WrongOriginState (..)
+    , DivergedWithProof (..)
+    , insert
+    , delete
+    , lookup
+    , require
+    , record
+    , record_
+    , apply
+    , rollback
+    , transact
+    , transactAndRethrow
+    )
+    where
 
 import Prelude hiding (lookup)
 
@@ -8,62 +24,86 @@ import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.State
 import Control.Monad.Writer
+import Control.Lens ((#), (^?))
 
 import qualified Data.Set as Set
 import qualified Data.Tree.AVL as AVL
+import Data.Typeable
+import Data.Union
+import Data.Relation
+
+import GHC.Generics (Generic)
+
+inSandbox :: (Ord h, Monad m) => m a -> SandboxT h k v m a
+inSandbox = lift . lift
 
 -- | Insert key/value into the global tree.
 insert
-    :: AVL.Retrieves h k v m
+    :: forall k v h ks vs m
+    .  AVL.Retrieves h ks vs m
+    => Member k ks
+    => Member v vs
+    => Relates k v
     => k
     -> v
-    -> SandboxT h k v m ()
+    -> SandboxT h ks vs m ()
 insert k v = do
     tree <- get
-    (set, tree') <- lift $ lift $ AVL.insert k v tree
+    (set, tree') <- inSandbox $ AVL.insert (union # k) (union # v) tree
     put tree'
     tell set
 
 -- | Delete key from the global tree.
 delete
-    :: AVL.Retrieves h k v m
+    :: forall k h ks vs m
+    .  AVL.Retrieves h ks vs m
+    => Member k ks
     => k
-    -> SandboxT h k v m ()
+    -> SandboxT h ks vs m ()
 delete k = do
     tree <- get
-    (set, tree') <- lift $ lift $ AVL.delete k tree
+    (set, tree') <- inSandbox $ AVL.delete (union # k) tree
     put tree'
     tell set
 
 -- | Lookup key in the global tree.
 lookup
-    :: AVL.Retrieves h k v m
+    :: forall k v h ks vs m
+    .  AVL.Retrieves h ks vs m
+    => Member k ks
+    => Member v vs
+    => Relates k v
     => k
-    -> SandboxT h k v m (Maybe v)
+    -> SandboxT h ks vs m (Maybe v)
 lookup k = do
     tree <- get
-    ((res, set), tree') <- lift $ lift $ AVL.lookup k tree
+    ((res, set), tree') <- inSandbox $ AVL.lookup (union # k) tree
     put tree'
     lift $ tell set
-    return res
+    return (join $ (^?union) <$> res)
 
 -- | Lookup key in the global tree.
 require
-    :: AVL.Retrieves h k v m
+    :: forall k v h ks vs m
+    .  AVL.Retrieves h ks vs m
+    => Member k ks
+    => Member v vs
+    => Relates k v
+    => (Show k, Typeable k)
     => k
-    -> SandboxT h k v m v
+    -> SandboxT h ks vs m v
 require k = do
     lookup k
-        >>= maybe (throwM $ AVL.NotFound k) return
+        >>= maybe (AVL.notFound k) return
 
 -- | Given a transaction and interpreter, perform it, write end tree into the storage and
 --   equip the transaction with the proof and a hash of end state.
-proven
+record
     :: AVL.Appends h k v m
     => tx
     -> (tx -> SandboxT h k v m a)
     -> m (a, Proven h k v tx)
-proven tx interp = do
+record tx interp = do
     tree                <- AVL.currentRoot
     ((res, tree'), set) <- runWriterT $ runStateT (interp tx) tree
     proof               <- AVL.prune set tree
@@ -72,48 +112,72 @@ proven tx interp = do
 
     return (res, Proven tx proof (AVL.rootHash tree'))
 
--- | Thrown when the proof mismatches current tree.
-data BeginHashMismatch = BeginHashMismatch
-    deriving (Show)
+-- | Given a transaction and interpreter, perform it, write end tree into the storage and
+--   equip the transaction with the proof and a hash of end state.
+record_
+    :: AVL.Appends h k v m
+    => tx
+    -> (tx -> SandboxT h k v m a)
+    -> m (Proven h k v tx)
+record_ tx interp = do
+    tree                <- AVL.currentRoot
+    ((_, tree'), set) <- runWriterT $ runStateT (interp tx) tree
+    proof               <- AVL.prune set tree
 
-instance Exception BeginHashMismatch
+    AVL.append tree'
 
--- | Thrown when the proposed endhash and real endhash diverge.
-data EndHashMismatch = EndHashMismatch
-    deriving (Show)
+    return (Proven tx proof (AVL.rootHash tree'))
 
-instance Exception EndHashMismatch
+data WrongOriginState = WrongOriginState
+    { wosExpected :: String
+    , wosGot      :: String
+    }
+    deriving stock    Show
+    deriving anyclass Exception
+
+data DivergedWithProof = DivergedWithProof
+    { dwpExpected :: String
+    , dwpGot      :: String
+    }
+    deriving stock    Show
+    deriving anyclass Exception
 
 -- | The sandbox transformer to run `insert`, `delete` and `lookup` in.
 type SandboxT h k v m = StateT (AVL.Map h k v) (WriterT (Set.Set h) m)
-
-class CanUnwrapProof h k v m where
-    unwrapProof :: AVL.Proof h k v -> m (AVL.Map h k v)
 
 data Proven h k v tx = Proven
     { pTx      :: tx
     , pProof   :: AVL.Proof h k v
     , pEndHash :: h
     }
+    deriving (Eq, Show, Generic)
 
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
-prove
-    :: (AVL.Appends h k v m, CanUnwrapProof h k v m)
+apply
+    :: AVL.Appends h k v m
     => Proven h k v tx
     -> (tx -> SandboxT h k v m a)
     -> m a
-prove (Proven tx proof endHash) interp = do
+apply (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
-        throw BeginHashMismatch
+        throwM WrongOriginState
+            { wosExpected = show $ AVL.rootHash (AVL.unProof proof)
+            , wosGot      = show $ AVL.rootHash  tree
+            }
 
-    tree'              <- unwrapProof proof
+    let tree' = AVL.unProof proof
+    AVL.append tree'
+
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
 
     unless (AVL.rootHash tree'' == endHash) $ do
-        throw EndHashMismatch
+        throw DivergedWithProof
+            { dwpExpected = show $ endHash
+            , dwpGot      = show $ AVL.rootHash tree''
+            }
 
     AVL.append tree''
 
@@ -122,7 +186,7 @@ prove (Proven tx proof endHash) interp = do
 -- | Using proven transaction, proof unwrapper and interpreter,
 --   run the transaction.
 rollback
-    :: (AVL.Appends h k v m, CanUnwrapProof h k v m)
+    :: AVL.Appends h k v m
     => Proven h k v tx
     -> (tx -> SandboxT h k v m a)
     -> m a
@@ -130,14 +194,21 @@ rollback (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
 
     unless (AVL.rootHash tree == endHash) $ do
-        throw EndHashMismatch
+        throw WrongOriginState
+            { wosExpected = show $ endHash
+            , wosGot      = show $ AVL.rootHash tree
+            }
 
-    tree' <- unwrapProof proof
+    let tree' = AVL.unProof proof
+    AVL.append tree'
 
     ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
 
-    unless (AVL.rootHash tree'' == endHash) $ do
-        throw EndHashMismatch
+    unless (AVL.rootHash tree'' == AVL.rootHash tree) $ do
+        throw DivergedWithProof
+            { dwpExpected = show $ AVL.rootHash tree
+            , dwpGot      = show $ AVL.rootHash tree''
+            }
 
     AVL.append tree'
     return res

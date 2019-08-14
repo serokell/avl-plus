@@ -1,0 +1,106 @@
+name:         AVL
+version:      1.5.0.0
+synopsis:     AVL+ tree-based storage for blockchains.
+license:      BSD3
+license-file: LICENSE
+author:       Heimdell
+maintainer:   hindmost.one@gmail.com
+category:     Data
+build-type:   Simple
+extra-source-files:
+- ChangeLog.md
+
+dependencies:
+- array
+- base
+- containers
+- deriving-compat
+- exceptions
+- free
+- ghc-prim
+- lens
+- mtl
+- stm
+- zipp
+
+default-extensions:
+- AllowAmbiguousTypes
+- BlockArguments
+- ConstraintKinds
+- CPP
+- DataKinds
+- DefaultSignatures
+- DeriveAnyClass
+- DeriveFoldable
+- DeriveFunctor
+- DeriveGeneric
+- DeriveTraversable
+- DerivingVia
+- DerivingStrategies
+- ExplicitForAll
+- FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- GeneralizedNewtypeDeriving
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- PatternSynonyms
+- RankNTypes
+- RecordWildCards
+- ScopedTypeVariables
+- StandaloneDeriving
+- StrictData
+- TemplateHaskell
+- TupleSections
+- TypeApplications
+- TypeSynonymInstances
+- UndecidableInstances
+- ViewPatterns
+
+ghc-options:
+  -Wall -fno-warn-orphans -Werror
+
+library:
+  exposed-modules:
+  - Data.Tree.AVL
+  - Data.Tree.AVL.Adapter
+  - Data.Tree.AVL.Deletion
+  - Data.Tree.AVL.Insertion
+  - Data.Tree.AVL.Iteration
+  - Data.Tree.AVL.Internal
+  - Data.Tree.AVL.Lookup
+  - Data.Tree.AVL.Proof
+  - Data.Tree.AVL.Prune
+  - Data.Tree.AVL.Store.Pure
+  - Data.Tree.AVL.Store.Void
+  - Data.Tree.AVL.Persistence
+  - Data.Tree.AVL.Zipper
+  - Data.Union
+  - Data.Relation
+  other-modules: []
+  source-dirs:   src
+
+tests:
+  avl-tree-sanity:
+    source-dirs: test
+    main:        Main.hs
+    other-modules:
+    - Deletion
+    - Insertion
+    - Common
+    - Lookup
+    - Algorithm
+    - Adapter
+    - Persistence
+
+    dependencies:
+    - AVL
+    - data-default
+    - generic-random
+    - hashable
+    - hspec
+    - QuickCheck
+    - quickcheck-instances

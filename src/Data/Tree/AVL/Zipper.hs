@@ -46,7 +46,7 @@ import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
 
-import Lens.Micro.Platform (makeLenses, use, to, (%=), (.~), (^?))
+import Control.Lens (makeLenses, use, to, (%=), (.~), (^?))
 
 import Control.Zipp as Zipp
 
@@ -95,7 +95,7 @@ runZipped mode tree action = do
                 { _cTouched = Set.empty
                 , _cMode    = mode
                 }
-    
+
     return (a, tree1, set)
 
 -- | Run zipper operation, build proof.
@@ -152,22 +152,22 @@ descent = \case
     leftDir = Direction
         { -- Raw direction.
           designation = L
-        
+
           -- Get left subtree.
         , tearOut = \(Locus tree (low, _)) -> do
-            
+
             -- Mark the point we're going from.
             -- That way, we'll never leave out root.
             mark (rootHash tree)
-            
+
             result <- lift $ load tree >>= \layer ->
                 maybe (throwM CantGoThere)
-                    return (layer^? mlLeft)                    
-            
+                    return (layer^? mlLeft)
+
             -- Mark the point we're going to.
             -- That way, we'll never leave out leaves.
             mark (rootHash result)
-            
+
             -- Replace upper border with center key of node we're going from.
             center <- lift $ centerKey result
             return (Locus result (low, center))
@@ -189,7 +189,7 @@ descent = \case
     rightDir :: Direction Side (Locus h k v) (WithTracking k h m)
     rightDir = Direction
         { designation = R
-        
+
         , tearOut = \(Locus tree (_, hi)) -> do
             mark (rootHash tree)
             result <- lift $ load tree >>= \case
@@ -197,7 +197,7 @@ descent = \case
                     return _mlRight
                 _ ->
                     throwM CantGoThere
-            
+
             mark (rootHash result)
             center <- lift $ centerKey result
             return (Locus result (center, hi))

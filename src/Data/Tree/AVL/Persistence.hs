@@ -12,6 +12,7 @@ module Data.Tree.AVL.Persistence
       -- * Wrappers
     , overwrite
     , append
+    , save
 
       -- * Methods
     , currentRoot
@@ -24,7 +25,7 @@ import Control.Exception (Exception)
 import Control.Monad (void, when)
 import Control.Monad.Catch (catch)
 import Control.Monad.Free (Free (..))
-import Lens.Micro.Platform (to, (^?))
+import Control.Lens (to, (^?))
 
 import Data.Foldable (for_)
 import Data.Monoid ((<>))
@@ -37,24 +38,44 @@ import Data.Tree.AVL.Internal
 -- | Provides possibility to use impure storage that is rewritten on
 -- the each write.
 class
-    ( KVStore    h k v m
-    , KVRetrieve h k v m
+    ( KVRetrieve h k v m
     )
   =>
     KVAppend h k v m
       | m -> h k v
   where
-    getRoot :: m h        -- ^ Get current root of the tree
-    setRoot :: h -> m ()  -- ^ Set current root of the tree
+    getRoot   :: m h        -- ^ Get current root of the tree
+    setRoot   :: h -> m ()  -- ^ Set current root of the tree
+    massStore :: [(h, Rep h k v)] -> m ()
 
 class KVAppend h k v m => KVOverwrite h k v m | m -> h k v where
     erase :: h -> m ()  -- ^ Remove node with given hash
+
 -- | Exception to be thrown by storage, if 'getRoot' impl can't
 --   return current root.
 data NoRootExists = NoRootExists
     deriving (Show)
 
 instance Exception NoRootExists
+
+-- | Recursively store all the materialized nodes in the database.
+save :: forall h k v m . Appends h k v m => Map h k v -> m (Map h k v)
+save tree = do
+    massStore $ collect tree
+    return (ref (rootHash tree))
+  where
+    -- | Turns a 'Map' into relation of (hash, isolated-node),
+    --   to use in 'save'.
+    collect :: Map h k v -> [(h, Rep h k v)]
+    collect it = case it of
+        Pure _     -> []
+        Free layer -> do
+            let hash  = rootHash it
+            let node  = toRep $ (layer :: MapLayer h k v (Map h k v))
+            let left  = layer^?mlLeft .to collect `orElse` []
+            let right = layer^?mlRight.to collect `orElse` []
+
+            [(hash, node)] ++ left ++ right
 
 -- | Returns current root from storage.
 currentRoot :: forall h k v m . Appends h k v m => m (Map h k v)
@@ -69,20 +90,20 @@ eraseTopNode = erase . rootHash
 -- | Enriches 'massStore'/'retrive' capabilities with 'erase' and a
 --   notion of single root.
 type Overwrites h k v m =
-    ( Base        h k v m
+    ( Retrieves   h k v m
     , KVOverwrite h k v m
     )
 
 type Appends h k v m =
-    ( Base     h k v m
-    , KVAppend h k v m
+    ( Retrieves h k v m
+    , KVAppend  h k v m
     )
 
 -- | Retrieve hashes of nearest subtrees that weren't materialised.
 --
 --   We will later remove all nodes that transitively refer to
 --   these [non-materialised] nodes.
-contour :: forall h k v . Params h k v => Map h k v -> Set.Set h
+contour :: forall h k v . (Hash h k v, Ord h) => Map h k v -> Set.Set h
 contour = Set.fromList . go
   where
     go :: Map h k v -> [h]

@@ -7,7 +7,7 @@ module Data.Tree.AVL.Iteration
 
 import Control.Monad.Writer.Strict (WriterT (runWriterT), lift, tell)
 import qualified Data.Set as Set
-import Lens.Micro.Platform ((^.))
+import Control.Lens ((^.))
 
 import Data.Tree.AVL.Internal
 
@@ -32,7 +32,7 @@ walkDFS (start, add, finish) root = runWriterT $ finish <$> go start root
                 MLBranch { _mlLeft = l, _mlRight = r } -> do
                   acc' <- go (add point' acc) l
                   go acc' r
-                
+
                 _ -> do
                   return $ add point' acc
 
