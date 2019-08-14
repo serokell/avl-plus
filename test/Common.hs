@@ -9,8 +9,6 @@ import Control.Monad.Catch as T (catch)
 import Control.Monad.IO.Class as T (MonadIO, liftIO)
 import qualified Control.Lens as Lenses
 
-import Data.Default as T (Default (def))
-import Data.Foldable ()
 import Data.Function (on)
 import Data.Hashable (Hashable, hash)
 import Data.List (nubBy, sortBy)
