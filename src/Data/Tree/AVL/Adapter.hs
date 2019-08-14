@@ -39,7 +39,8 @@ inSandbox = lift . lift
 
 -- | Insert key/value into the global tree.
 insert
-    :: AVL.Retrieves h ks vs m
+    :: forall k v h ks vs m
+    .  AVL.Retrieves h ks vs m
     => Member k ks
     => Member v vs
     => Relates k v
@@ -54,7 +55,8 @@ insert k v = do
 
 -- | Delete key from the global tree.
 delete
-    :: AVL.Retrieves h ks vs m
+    :: forall k h ks vs m
+    .  AVL.Retrieves h ks vs m
     => Member k ks
     => k
     -> SandboxT h ks vs m ()
@@ -66,7 +68,8 @@ delete k = do
 
 -- | Lookup key in the global tree.
 lookup
-    :: AVL.Retrieves h ks vs m
+    :: forall k v h ks vs m
+    .  AVL.Retrieves h ks vs m
     => Member k ks
     => Member v vs
     => Relates k v
@@ -81,7 +84,8 @@ lookup k = do
 
 -- | Lookup key in the global tree.
 require
-    :: AVL.Retrieves h ks vs m
+    :: forall k v h ks vs m
+    .  AVL.Retrieves h ks vs m
     => Member k ks
     => Member v vs
     => Relates k v

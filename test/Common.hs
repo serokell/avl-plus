@@ -69,10 +69,6 @@ instance Arbitrary StringName where
         a <- elements ['B'.. 'Y']
         return (StringName [a])
 
--- -- Requirement of QuickCheck
--- instance Show (a -> b) where
---     show _ = "<function>"
-
 data UKey
     = K1 StringName
     | K2 Bool
