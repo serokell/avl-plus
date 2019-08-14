@@ -60,6 +60,7 @@ library
                FlexibleContexts
                FlexibleInstances
                FunctionalDependencies
+               GADTs
                GeneralizedNewtypeDeriving
                LambdaCase
                MultiParamTypeClasses
@@ -102,6 +103,7 @@ test-suite avl-tree-sanity
                      , containers
                      , data-default
                      , exceptions
+                     , generic-random
                      , hashable
                      , microlens-platform
                      , mtl
@@ -113,11 +115,15 @@ test-suite avl-tree-sanity
                BlockArguments
                ConstraintKinds
                CPP
+               DataKinds
                DefaultSignatures
+               DeriveAnyClass
                DeriveFoldable
                DeriveFunctor
                DeriveGeneric
                DeriveTraversable
+               DerivingStrategies
+               DerivingVia
                ExplicitForAll
                FlexibleContexts
                FlexibleInstances

@@ -38,13 +38,13 @@ inSandbox = lift . lift
 
 -- | Insert key/value into the global tree.
 insert
-    :: AVL.Retrieves h (Union ks) (Union vs) m
+    :: AVL.Retrieves h ks vs m
     => Member k ks
     => Member v vs
     => Relates k v
     => k
     -> v
-    -> SandboxT h (Union ks) (Union vs) m ()
+    -> SandboxT h ks vs m ()
 insert k v = do
     tree <- get
     (set, tree') <- inSandbox $ AVL.insert (inject k) (inject v) tree
@@ -53,10 +53,10 @@ insert k v = do
 
 -- | Delete key from the global tree.
 delete
-    :: AVL.Retrieves h (Union ks) (Union vs) m
+    :: AVL.Retrieves h ks vs m
     => Member k ks
     => k
-    -> SandboxT h (Union ks) (Union vs) m ()
+    -> SandboxT h ks vs m ()
 delete k = do
     tree <- get
     (set, tree') <- inSandbox $ AVL.delete (inject k) tree
@@ -65,12 +65,12 @@ delete k = do
 
 -- | Lookup key in the global tree.
 lookup
-    :: AVL.Retrieves h (Union ks) (Union vs) m
+    :: AVL.Retrieves h ks vs m
     => Member k ks
     => Member v vs
     => Relates k v
     => k
-    -> SandboxT h (Union ks) (Union vs) m (Maybe v)
+    -> SandboxT h ks vs m (Maybe v)
 lookup k = do
     tree <- get
     ((res, set), tree') <- inSandbox $ AVL.lookup (inject k) tree
@@ -80,13 +80,13 @@ lookup k = do
 
 -- | Lookup key in the global tree.
 require
-    :: AVL.Retrieves h (Union ks) (Union vs) m
+    :: AVL.Retrieves h ks vs m
     => Member k ks
     => Member v vs
     => Relates k v
     => (Show k, Typeable k)
     => k
-    -> SandboxT h (Union ks) (Union vs) m v
+    -> SandboxT h ks vs m v
 require k = do
     lookup k
         >>= maybe (AVL.notFound k) return
