@@ -119,9 +119,6 @@ unique = nubBy  ((==) `on` fst)
 uniqued :: Ord a => [(a, b)] -> [(a, b)]
 uniqued = sortBy (comparing fst) . unique . reverse
 
-instance Adapter.CanUnwrapProof IntHash StringName Int StorageMonad' where
-    unwrapProof = Adapter.unpackOnClient
-
 it'
     ::  ( Testable (f Property)
         , Testable  prop

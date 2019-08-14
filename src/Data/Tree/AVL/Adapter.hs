@@ -233,11 +233,3 @@ transactAndRethrow
     -> m a
 transactAndRethrow action = do
     transact @e action >>= either throwM return
-
--- | The client proof unwrapping: retrieves the pruned tree from proof.
-unpackOnClient :: Monad m => AVL.Proof h k v -> m (AVL.Map h k v)
-unpackOnClient (AVL.Proof p) = return p
-
--- | The server proof unwrapping: uses current tree instead.
-unpackOnServer :: AVL.Appends h k v m => AVL.Proof h k v -> m (AVL.Map h k v)
-unpackOnServer _ = AVL.currentRoot
