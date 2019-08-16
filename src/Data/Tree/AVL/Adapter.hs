@@ -22,8 +22,8 @@ import Prelude hiding (lookup)
 import Control.Exception hiding (catch)
 import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.State
-import Control.Monad.Writer
+import Control.Monad.State.Strict
+import Control.Monad.Writer.Strict
 import Control.Lens ((#), (^?))
 
 import qualified Data.Set as Set

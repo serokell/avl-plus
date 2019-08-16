@@ -6,18 +6,18 @@
 packages:
 - completed:
     cabal-file:
-      size: 860
-      sha256: a015e6b58ef0ce03b74302db76a9969f1496fca6b626409b9ef37194fedc7a47
+      size: 842
+      sha256: 2d23acc5787cbbd802f0d062cce48841436c93d587d77edd3497cd7da1106b49
     name: zipp
     version: 0.1.0.0
     git: git@github.com:serokell/zipp.git
     pantry-tree:
-      size: 409
-      sha256: 40ad77dcd97d5dee95142d13604503a3291edfda6761b0780ec150330137c478
-    commit: 3c55c887845a01d12874264bf0af1cb21f9e6d5f
+      size: 464
+      sha256: 68a014c409973ae3b83eab6524aef5f40475019c82ab00eb4161bf7421847d8d
+    commit: ec15b334355784b4b6a052ab21108c3d6eaceff0
   original:
     git: git@github.com:serokell/zipp.git
-    commit: 3c55c887845a01d12874264bf0af1cb21f9e6d5f
+    commit: ec15b334355784b4b6a052ab21108c3d6eaceff0
 snapshots:
 - completed:
     size: 523443
