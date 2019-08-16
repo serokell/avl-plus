@@ -14,6 +14,9 @@ module Data.Tree.AVL.Adapter
     , rollback
     , transact
     , transactAndRethrow
+    , pair
+    , LightNode
+    , runOnLightNode
     )
     where
 
@@ -233,3 +236,38 @@ transactAndRethrow
     -> m a
 transactAndRethrow action = do
     transact @e action >>= either throwM return
+
+pair
+  :: ( Member k keys
+     , Member v values
+     , Relates k v
+     )
+  => (k, v)
+  -> (keys, values)
+pair (k, v) = (union # k, union # v)
+
+type LightNode h k v = StateT h
+
+instance
+    ( Show h
+    , MonadThrow m
+    )
+    => AVL.KVRetrieve h k v (LightNode h k v m)
+  where
+    retrieve = AVL.notFound
+
+instance
+    ( Show h
+    , MonadThrow m
+    )
+    => AVL.KVAppend h k v (LightNode h k v m)
+  where
+  getRoot = get
+  setRoot = put
+  massStore _kvs = do
+    -- do nothing, we're client
+    return ()
+
+runOnLightNode :: h -> LightNode h k v m a -> m (a, h)
+runOnLightNode initial action =
+  runStateT action initial
