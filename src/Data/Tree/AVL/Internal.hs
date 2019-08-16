@@ -278,11 +278,11 @@ type Hash h k v =
     )
 
 -- | Calculate hash of one layer.
-hashOf :: Hash h k v => MapLayer h k v h -> h
+hashOf :: Hash h k v => Rep h k v -> h
 hashOf = \case
-    MLBranch _ m c t l r -> getHash [getHash m, getHash c, getHash t, l, r]
-    MLLeaf   _ k v       -> getHash [getHash k, getHash v]
-    MLEmpty  _           -> getHash ()
+    Left  (_, m, c, t, l, r) -> getHash [getHash m, getHash c, getHash t, l, r]
+    Right (Left  (_, k, v))  -> getHash [getHash k, getHash v]
+    Right (Right (_))        -> getHash ()
 
 -- | DB monad capable of retrieving 'isolate'd nodes.
 class KVRetrieve h k v m | m -> h k v where
@@ -331,10 +331,6 @@ rootHash = \case
     Pure h     -> h
     Free layer -> layer^.mlHash
 
--- | Replace direct children with references on them.
-isolate :: Hash h k v => MapLayer h k v (Map h k v) -> MapLayer h k v h
-isolate = fmap rootHash
-
 -- | Unwrap the tree, possibly materializing its top node from the database.
 load :: Retrieves h k v m => Map h k v -> m (MapLayer h k v (Map h k v))
 load = \case
@@ -356,7 +352,7 @@ loadAndM f tree = f =<< load tree
 close :: Hash h k v => MapLayer h k v (Map h k v) -> Map h k v
 close = Free . rehashLayer
   where
-    rehashLayer layer = layer & mlHash .~ hashOf (isolate layer)
+    rehashLayer layer = layer & mlHash .~ hashOf (toRep layer)
 
 -- | Turn hash into unmaterialized tree.
 ref :: h -> Map h k v
