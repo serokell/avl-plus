@@ -1,23 +1,43 @@
 
+{- | High-level interface to AVL+-based blockchain storage, with capabilities
+     to prove and verify transactions.
+
+-}
+
 module Data.Blockchain.Storage.AVL
-    ( Proven
-    , SandboxT
-    , WrongOriginState (..)
-    , DivergedWithProof (..)
-    , insert
-    , delete
-    , lookup
-    , require
+    ( -- * Transaction wrapper
+      Proven
     , record
     , record_
     , apply
     , rollback
+
+      -- * Cache transformer
+    , CacheT
+    , insert
+    , delete
+    , lookup
+    , require
+
+      -- * Exceptions
+    , WrongOriginState (..)
+    , DivergedWithProof (..)
+
+      -- * Transactions
     , transact
-    , transactAndRethrow
-    , pair
+    , transactOrRethrow
+
+      -- * Light node
     , LightNode
     , runOnLightNode
+
+      -- * Helpers
+    , pair
     , AVL.genesis
+
+      -- * Database interfaces to implement
+    , AVL.Retrieves (..)
+    , AVL.Appends   (..)
     )
     where
 
@@ -32,106 +52,108 @@ import Control.Lens ((#), (^?))
 
 import qualified Data.Set as Set
 import qualified Data.Tree.AVL as AVL
-import Data.Typeable
 import Data.Union
 import Data.Relation
 
 import GHC.Generics (Generic)
 
-inSandbox :: (Ord h, Monad m) => m a -> SandboxT h k v m a
-inSandbox = lift . lift
-
--- | Insert key/value into the global tree.
+-- | Insert key/value into the blockchain state.
 insert
     :: forall k v h ks vs m
-    .  AVL.Retrieves h ks vs m
-    => Member k ks
-    => Member v vs
-    => Relates k v
+    .  ( AVL.Retrieves h ks vs m
+       , Member k ks
+       , Member v vs
+       , Relates k v
+       )
     => k
     -> v
-    -> SandboxT h ks vs m ()
+    -> CacheT h ks vs m ()
 insert k v = do
     tree <- get
-    (set, tree') <- inSandbox $ AVL.insert (union # k) (union # v) tree
+    (set, tree') <- inCacheT $ AVL.insert (union # k) (union # v) tree
     put tree'
     tell set
 
--- | Delete key from the global tree.
+-- | Delete key from the blockchain state.
 delete
     :: forall k h ks vs m
-    .  AVL.Retrieves h ks vs m
-    => Member k ks
+    .  ( AVL.Retrieves h ks vs m
+       , Member k ks
+       )
     => k
-    -> SandboxT h ks vs m ()
+    -> CacheT h ks vs m ()
 delete k = do
     tree <- get
-    (set, tree') <- inSandbox $ AVL.delete (union # k) tree
+    (set, tree') <- inCacheT $ AVL.delete (union # k) tree
     put tree'
     tell set
 
--- | Lookup key in the global tree.
+-- | Lookup key in the blockchain state.
 lookup
     :: forall k v h ks vs m
-    .  AVL.Retrieves h ks vs m
-    => Member k ks
-    => Member v vs
-    => Relates k v
+    .  ( AVL.Retrieves h ks vs m
+       , Member k ks
+       , Member v vs
+       , Relates k v
+    )
     => k
-    -> SandboxT h ks vs m (Maybe v)
+    -> CacheT h ks vs m (Maybe v)
 lookup k = do
     tree <- get
-    ((res, set), tree') <- inSandbox $ AVL.lookup (union # k) tree
+    ((res, set), tree') <- inCacheT $ AVL.lookup (union # k) tree
     put tree'
-    lift $ tell set
+    tell set
     return (join $ (^?union) <$> res)
 
--- | Lookup key in the global tree.
+-- | Lookup key in the the blockchain state.
 require
     :: forall k v h ks vs m
-    .  AVL.Retrieves h ks vs m
-    => Member k ks
-    => Member v vs
-    => Relates k v
-    => (Show k, Typeable k)
+    .  ( AVL.Retrieves h ks vs m
+       , Member k ks
+       , Member v vs
+       , Relates k v
+       , Show k
+       )
     => k
-    -> SandboxT h ks vs m v
+    -> CacheT h ks vs m v
 require k = do
     lookup k
         >>= maybe (AVL.notFound k) return
 
--- | Given a transaction and interpreter, perform it, write end tree into the storage and
---   equip the transaction with the proof and a hash of end state.
+-- | Perform a transaction with an interpreter, commit changes into the storage,
+--   return the result of the transaction and the transaction, equipped with
+--   a proof.
 record
     :: AVL.Appends h k v m
     => tx
-    -> (tx -> SandboxT h k v m a)
+    -> (tx -> CacheT h k v m a)
     -> m (a, Proven h k v tx)
 record tx interp = do
-    tree                <- AVL.currentRoot
-    ((res, tree'), set) <- runWriterT $ runStateT (interp tx) tree
-    proof               <- AVL.prune set tree
+    tree              <- AVL.currentRoot
+    (res, tree', set) <- interp tx `runCacheT` tree
+    proof             <- AVL.prune set tree
 
     AVL.append tree'
 
     return (res, Proven tx proof (AVL.rootHash tree'))
 
--- | Given a transaction and interpreter, perform it, write end tree into the storage and
---   equip the transaction with the proof and a hash of end state.
+-- | Same as the `record`, but the result of the transaction is @()@.
 record_
     :: AVL.Appends h k v m
     => tx
-    -> (tx -> SandboxT h k v m a)
+    -> (tx -> CacheT h k v m ())
     -> m (Proven h k v tx)
 record_ tx interp = do
-    tree                <- AVL.currentRoot
-    ((_, tree'), set) <- runWriterT $ runStateT (interp tx) tree
-    proof               <- AVL.prune set tree
+    tree             <- AVL.currentRoot
+    ((), tree', set) <- interp tx `runCacheT` tree
+    proof            <- AVL.prune set tree
 
     AVL.append tree'
 
     return (Proven tx proof (AVL.rootHash tree'))
 
+-- | Thrown if the state the proven transaction originates is not what
+--   it expects.
 data WrongOriginState = WrongOriginState
     { wosExpected :: String
     , wosGot      :: String
@@ -139,6 +161,8 @@ data WrongOriginState = WrongOriginState
     deriving stock    Show
     deriving anyclass Exception
 
+-- | Thrown if the state the proven transaction ends with is not the one
+--   captured in the proof.
 data DivergedWithProof = DivergedWithProof
     { dwpExpected :: String
     , dwpGot      :: String
@@ -147,8 +171,31 @@ data DivergedWithProof = DivergedWithProof
     deriving anyclass Exception
 
 -- | The sandbox transformer to run `insert`, `delete` and `lookup` in.
-type SandboxT h k v m = StateT (AVL.Map h k v) (WriterT (Set.Set h) m)
+newtype CacheT h k v m a = CacheT { unCacheT :: StateT (AVL.Map h k v) (WriterT (Set.Set h) m) a }
+  deriving newtype
+    ( Functor
+    , Applicative
+    , Monad
+    , MonadState  (AVL.Map h k v)
+    , MonadWriter (Set.Set h)
+    , MonadThrow
+    , MonadCatch
+    , MonadIO
+    )
 
+inCacheT :: (Ord h, Monad m) => m a -> CacheT h k v m a
+inCacheT = CacheT . lift . lift
+
+runCacheT
+    :: AVL.Retrieves h k v m
+    => CacheT h k v m a
+    -> AVL.Map h k v
+    -> m (a, AVL.Map h k v, Set.Set h)
+runCacheT action seed = do
+    ((a, s), w) <- runWriterT $ unCacheT action `runStateT` seed
+    return (a, s, w)
+
+-- | Transaction @tx@ with a proof.
 data Proven h k v tx = Proven
     { pTx      :: tx
     , pProof   :: AVL.Proof h k v
@@ -156,12 +203,14 @@ data Proven h k v tx = Proven
     }
     deriving (Eq, Show, Generic)
 
--- | Using proven transaction, proof unwrapper and interpreter,
---   run the transaction.
+-- | Run a transaction that has a proof.
+--
+--   Can be peformed on any node; it doesn't require that node to store
+--   the full network state.
 apply
     :: AVL.Appends h k v m
     => Proven h k v tx
-    -> (tx -> SandboxT h k v m a)
+    -> (tx -> CacheT h k v m a)
     -> m a
 apply (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
@@ -175,7 +224,7 @@ apply (Proven tx proof endHash) interp = do
     let tree' = AVL.unProof proof
     AVL.append tree'
 
-    ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
+    (res, tree'', _) <- interp tx `runCacheT` tree'
 
     unless (AVL.rootHash tree'' == endHash) $ do
         throw DivergedWithProof
@@ -187,12 +236,16 @@ apply (Proven tx proof endHash) interp = do
 
     return res
 
--- | Using proven transaction, proof unwrapper and interpreter,
---   run the transaction.
+-- | Rollback the transaction that has a proof.
+--
+--   Can be peformed on any node; it doesn't require that node to store
+--   the full blockchain state.
+--
+--   Only the last applied transaction can be rolled back.
 rollback
     :: AVL.Appends h k v m
     => Proven h k v tx
-    -> (tx -> SandboxT h k v m a)
+    -> (tx -> CacheT h k v m a)
     -> m a
 rollback (Proven tx proof endHash) interp = do
     tree <- AVL.currentRoot
@@ -206,7 +259,7 @@ rollback (Proven tx proof endHash) interp = do
     let tree' = AVL.unProof proof
     AVL.append tree'
 
-    ((res, tree''), _) <- runWriterT $ runStateT (interp tx) tree'
+    (res, tree'', _) <- interp tx `runCacheT` tree'
 
     unless (AVL.rootHash tree'' == AVL.rootHash tree) $ do
         throw DivergedWithProof
@@ -217,7 +270,7 @@ rollback (Proven tx proof endHash) interp = do
     AVL.append tree'
     return res
 
--- | If something fails, restore to pristine state.
+-- | Run action, restore the blockchain state if it fails.
 transact
     :: forall e h k v m a
     .  (Exception e, AVL.Appends h k v m)
@@ -229,15 +282,16 @@ transact action = do
         AVL.append saved
         return (Left e)
 
--- | If something fails, restore to pristine state and rethrow.
-transactAndRethrow
+-- | As `transact`, rethrows the exception.
+transactOrRethrow
     :: forall e h k v m a
     .  (Exception e, AVL.Appends h k v m)
     => m a
     -> m a
-transactAndRethrow action = do
+transactOrRethrow action = do
     transact @e action >>= either throwM return
 
+-- | Helper to generate a list for `genesis`.
 pair
   :: ( Member k keys
      , Member v values
@@ -247,7 +301,19 @@ pair
   -> (keys, values)
 pair (k, v) = (union # k, union # v)
 
-type LightNode h k v = StateT h
+-- | An implementation for the light node.
+--
+--   Only stores the last root hash.
+newtype LightNode h k v m a = LightNode { runLightNode :: StateT h m a }
+  deriving newtype
+    ( Functor
+    , Applicative
+    , Monad
+    , MonadTrans
+    , MonadThrow
+    , MonadCatch
+    , MonadIO
+    )
 
 instance
     ( Show h
@@ -269,12 +335,13 @@ instance
     )
     => AVL.Appends h k v (LightNode h k v m)
   where
-  getRoot = get
-  setRoot = put
+  getRoot = LightNode get
+  setRoot = LightNode . put
   massStore _kvs = do
     -- do nothing, we're client
     return ()
 
+-- |
 runOnLightNode :: h -> LightNode h k v m a -> m (a, h)
 runOnLightNode initial action =
-  runStateT action initial
+  runStateT (runLightNode action) initial
