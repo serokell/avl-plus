@@ -11,7 +11,7 @@ tests = describe "Persistence" $ do
     describe "Sanity check" $ do
         it'' "can rematerialise in Pure mutated storage after insert" $
             \(k, v, list) -> do
-                AVL.initialiseStorageIfNotAlready []
+                AVL.genesis []
                 tree       <- AVL.fromList         list
                 ()         <- AVL.overwrite        tree
                 (_, tree') <- AVL.insert       k v tree
@@ -25,7 +25,7 @@ tests = describe "Persistence" $ do
 
         it'' "can rematerialise in Pure mutated storage after delete" $
             \(k, list) -> do
-                AVL.initialiseStorageIfNotAlready[]
+                AVL.genesis []
                 tree       <- AVL.fromList        list
                 ()         <- AVL.overwrite       tree
                 (_, tree') <- AVL.delete        k tree
@@ -39,7 +39,7 @@ tests = describe "Persistence" $ do
 
         it'' "toList . initialiseStorageIfNotAlready ~ id" $
             \(kvs) -> do
-                AVL.initialiseStorageIfNotAlready []
+                AVL.genesis []
                 tree <- AVL.fromList    kvs
                 ()   <- AVL.overwrite   tree
                 root <- AVL.currentRoot

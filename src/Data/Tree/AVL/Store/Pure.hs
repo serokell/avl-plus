@@ -75,7 +75,7 @@ instance
     , MonadIO m
     )
   =>
-    KVOverwrite h k v (StoreT h k v m)
+    KVErase h k v (StoreT h k v m)
   where
     erase hash = asState $ psStorage %= Map.delete hash
 

@@ -104,8 +104,6 @@ type M = AVL.Map IntHash StringName Int
 type UStorageMonad = Void.Store IntHash UKey UValue
 type UStorageMonad' = Pure.StoreT IntHash UKey UValue UStorageMonad
 
-type UM = AVL.Map IntHash StringName Int
-
 scanM :: Monad m => (a -> b -> m b) -> b -> [a] -> m [b]
 scanM _      _     []       = return []
 scanM action accum (x : xs) = do

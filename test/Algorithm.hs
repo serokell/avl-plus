@@ -2,7 +2,7 @@ module Algorithm (tests) where
 
 import Common
 
-import qualified Data.Tree.AVL.Internal as AVL
+import qualified Data.Tree.AVL as AVL
 
 tests :: Spec
 tests = describe "Algorithms" $ do

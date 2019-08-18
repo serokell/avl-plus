@@ -7,14 +7,13 @@ import Data.List ((\\), nub)
 import Common
 
 import qualified Data.Tree.AVL as AVL
-import qualified Data.Tree.AVL.Internal as Internal
 
 tests :: Spec
 tests = describe "Delete" $ do
     it' "Tree is still balanced after delete" $ \list -> do
         tree  <- AVL.fromList list
         trees <- scanM (AVL.deleteWithNoProof . fst) tree list
-        yes   <- and <$> for trees Internal.isBalancedToTheLeaves
+        yes   <- and <$> for trees AVL.isBalancedToTheLeaves
         return yes
 
     it' "Deletion deletes" $ \(k, v, list) -> do

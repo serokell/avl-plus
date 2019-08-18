@@ -2,12 +2,12 @@
 --   so it only keeps the last version.
 module Data.Tree.AVL.Persistence
     ( -- * Constraint to use
-      Overwrites
+      Erases
     , Appends
 
       -- * Constraint to implement
-    , KVOverwrite (..)
-    , KVAppend    (..)
+    , KVErase  (..)
+    , KVAppend (..)
 
       -- * Wrappers
     , overwrite
@@ -18,7 +18,7 @@ module Data.Tree.AVL.Persistence
     , currentRoot
     , NoRootExists (..)
 
-    , initialiseStorageIfNotAlready
+    , genesis
     ) where
 
 import Control.Exception (Exception)
@@ -48,7 +48,7 @@ class
     setRoot   :: h -> m ()  -- ^ Set current root of the tree
     massStore :: [(h, Rep h k v)] -> m ()
 
-class KVAppend h k v m => KVOverwrite h k v m | m -> h k v where
+class KVAppend h k v m => KVErase h k v m | m -> h k v where
     erase :: h -> m ()  -- ^ Remove node with given hash
 
 -- | Exception to be thrown by storage, if 'getRoot' impl can't
@@ -84,14 +84,14 @@ currentRoot = ref <$> getRoot
 assignRoot :: forall h k v m . Appends h k v m => Map h k v -> m ()
 assignRoot = setRoot . rootHash
 
-eraseTopNode :: forall h k v m . Overwrites h k v m => Map h k v -> m ()
+eraseTopNode :: forall h k v m . Erases h k v m => Map h k v -> m ()
 eraseTopNode = erase . rootHash
 
 -- | Enriches 'massStore'/'retrive' capabilities with 'erase' and a
 --   notion of single root.
-type Overwrites h k v m =
+type Erases h k v m =
     ( Retrieves   h k v m
-    , KVOverwrite h k v m
+    , KVErase h k v m
     )
 
 type Appends h k v m =
@@ -123,9 +123,9 @@ children node = do
 --
 --   Then, it does 'setRoot' on the new root.
 overwrite
-    :: forall     h k v m
-    .  Overwrites h k v m
-    => Map        h k v
+    :: forall h k v m
+    .  Erases h k v m
+    => Map    h k v
     -> m ()
 overwrite tree' = do
     removeTo (contour tree') =<< currentRoot
@@ -153,12 +153,12 @@ append tree = assignRoot =<< save tree
 
 -- | Initialises storage with a given set of kv-pairs,
 --   if root is not present there.
-initialiseStorageIfNotAlready
+genesis
     :: forall  h k v m
     .  Appends h k v m
     => [(k, v)]
     -> m ()
-initialiseStorageIfNotAlready kvs = do
-    void (currentRoot @h @k @v) `catch` \NoRootExists -> do
+genesis kvs = do
+    void currentRoot `catch` \NoRootExists -> do
         append (empty @h @k @v)
-        append =<< AVL.fromList @h @k @v kvs
+        append =<< AVL.fromList kvs

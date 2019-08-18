@@ -1,5 +1,5 @@
 
-module Data.Tree.AVL.Adapter
+module Data.Blockchain.Storage.AVL
     ( Proven
     , SandboxT
     , WrongOriginState (..)
@@ -17,6 +17,7 @@ module Data.Tree.AVL.Adapter
     , pair
     , LightNode
     , runOnLightNode
+    , AVL.genesis
     )
     where
 

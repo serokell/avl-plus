@@ -5,14 +5,14 @@ import Control.Monad.Catch
 
 import Common
 
-import qualified Data.Tree.AVL.Adapter as AVL
-import qualified Data.Tree.AVL         as Base
+import qualified Data.Blockchain.Storage.AVL as AVL
+import qualified Data.Tree.AVL               as Base
 
 tests :: Spec
 tests = describe "Adapter" do
     describe "transact" do
         uit'' "rolls back" \(list, k :: StringName, v) -> do
-            Base.initialiseStorageIfNotAlready list
+            AVL.genesis list
 
             _ <- AVL.record () \() -> AVL.insert k v
             _ <- AVL.transact @SomeException do
@@ -27,7 +27,7 @@ tests = describe "Adapter" do
 
         uit'' "doesn't roll back when nothing is failed"
             \(list, k :: StringName, v) -> do
-                Base.initialiseStorageIfNotAlready list
+                AVL.genesis list
 
                 _ <- AVL.record () \() -> AVL.insert k v
                 _ <- AVL.transact @SomeException do
@@ -41,7 +41,7 @@ tests = describe "Adapter" do
 
     describe "record/apply" do
         uit'' "is able to apply" \(list, k :: Bool, v) -> do
-            Base.initialiseStorageIfNotAlready list
+            AVL.genesis list
 
             save     <- Base.currentRoot
             ((), tx) <- AVL.record () \() -> AVL.insert k v
@@ -54,7 +54,7 @@ tests = describe "Adapter" do
 
         uit'' "isn't able to apply when incorrect"
             \(k :: StringName, v, list) -> do
-                Base.initialiseStorageIfNotAlready list
+                AVL.genesis list
 
                 save     <- Base.currentRoot
                 ((), tx) <- AVL.record () \() -> AVL.insert k v
@@ -70,7 +70,7 @@ tests = describe "Adapter" do
 
     describe "rollback" do
         uit'' "rolls transaction back" \(k :: Bool, v, list) -> do
-            Base.initialiseStorageIfNotAlready list
+            AVL.genesis list
 
             old      <- Base.currentRoot
             ((), tx) <- AVL.record () \() -> AVL.insert k v
@@ -82,7 +82,7 @@ tests = describe "Adapter" do
             return $ old == back
 
         uit'' "keeps state if failed" \(k :: StringName, v, list) -> do
-            Base.initialiseStorageIfNotAlready list
+            AVL.genesis list
 
             ((), tx)  <- AVL.record () \() -> AVL.insert k v
             new       <- Base.currentRoot

@@ -3,7 +3,6 @@ module Insertion (tests) where
 import Common
 
 import qualified Data.Tree.AVL as AVL
-import qualified Data.Tree.AVL.Internal as Internal
 
 tests :: Spec
 tests = describe "Insert" $ do
@@ -15,7 +14,7 @@ tests = describe "Insert" $ do
 
     it' "Tree is as balanced as possible" $ \list -> do
         tree <- AVL.fromList list
-        Internal.isBalancedToTheLeaves tree
+        AVL.isBalancedToTheLeaves tree
 
     describe "Proofs" $ do
         it' "Insert proof is verifiable" $ \(k, v, list) -> do

@@ -78,13 +78,13 @@
 module Data.Tree.AVL
     ( -- * Required interfaces
       KVRetrieve (..)
-    , KVAppend (..)
-    , KVOverwrite (..)
+    , KVAppend   (..)
+    , KVErase    (..)
 
       -- * Constraints for most AVL+-related actions
     , Retrieves
     , Appends
-    , Overwrites
+    , Erases
 
       -- * Some base constraints
     , Hash
@@ -126,7 +126,6 @@ module Data.Tree.AVL
     , overwrite
     , currentRoot
     , NoRootExists(..)
-    , initialiseStorageIfNotAlready
 
       -- * Proof type, ways to construct and eliminate
     , Proof (..)
@@ -135,6 +134,9 @@ module Data.Tree.AVL
 
       -- * Helpers
     , showMap
+    , isBalancedToTheLeaves
+    , WithBounds (..)
+    , genesis
     ) where
 
 import Prelude hiding (lookup)
