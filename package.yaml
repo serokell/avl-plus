@@ -67,7 +67,6 @@ library:
   exposed-modules:
   - Data.Tree.AVL
   - Data.Blockchain.Storage.AVL
-  - Data.Blockchain.Storage.AVL.Plug
   - Data.Tree.AVL.Deletion
   - Data.Tree.AVL.Insertion
   - Data.Tree.AVL.Iteration

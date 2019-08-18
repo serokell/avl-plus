@@ -2,12 +2,8 @@
 --   so it only keeps the last version.
 module Data.Tree.AVL.Persistence
     ( -- * Constraint to use
-      Erases
-    , Appends
-
-      -- * Constraint to implement
-    , KVErase  (..)
-    , KVAppend (..)
+      Erases  (..)
+    , Appends (..)
 
       -- * Wrappers
     , overwrite
@@ -38,17 +34,17 @@ import Data.Tree.AVL.Internal
 -- | Provides possibility to use impure storage that is rewritten on
 -- the each write.
 class
-    ( KVRetrieve h k v m
+    ( Retrieves h k v m
     )
   =>
-    KVAppend h k v m
+    Appends h k v m
       | m -> h k v
   where
     getRoot   :: m h        -- ^ Get current root of the tree
     setRoot   :: h -> m ()  -- ^ Set current root of the tree
     massStore :: [(h, Rep h k v)] -> m ()
 
-class KVAppend h k v m => KVErase h k v m | m -> h k v where
+class Appends h k v m => Erases h k v m | m -> h k v where
     erase :: h -> m ()  -- ^ Remove node with given hash
 
 -- | Exception to be thrown by storage, if 'getRoot' impl can't
@@ -86,18 +82,6 @@ assignRoot = setRoot . rootHash
 
 eraseTopNode :: forall h k v m . Erases h k v m => Map h k v -> m ()
 eraseTopNode = erase . rootHash
-
--- | Enriches 'massStore'/'retrive' capabilities with 'erase' and a
---   notion of single root.
-type Erases h k v m =
-    ( Retrieves   h k v m
-    , KVErase h k v m
-    )
-
-type Appends h k v m =
-    ( Retrieves h k v m
-    , KVAppend  h k v m
-    )
 
 -- | Retrieve hashes of nearest subtrees that weren't materialised.
 --

@@ -9,7 +9,7 @@ module Data.Tree.AVL.Store.Void
 
 import Control.Monad.Catch
 import Control.Monad.State
-import Data.Typeable (Typeable)
+import Data.Word
 
 import Data.Tree.AVL.Internal
 
@@ -32,9 +32,19 @@ newtype StoreT h k v m a = StoreT { runStoreT :: m a }
 --   So, if operations to be proven require you to read from storage,
 --   its an error (namely, 'NotFound').
 instance {-# OVERLAPPING #-}
-    (Show h, Typeable h, MonadCatch m, MonadIO m)
+    ( Show h, Ord h
+    , Show k, Ord k
+    , Show v
+    , ProvidesHash k h
+    , ProvidesHash v h
+    , ProvidesHash () h
+    , ProvidesHash Word8 h
+    , ProvidesHash [h] h
+    , MonadCatch m
+    , MonadIO m
+    )
   =>
-    KVRetrieve h k v (StoreT h k v m)
+    Retrieves h k v (StoreT h k v m)
   where
     retrieve = notFound
 

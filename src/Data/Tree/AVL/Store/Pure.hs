@@ -12,7 +12,7 @@ module Data.Tree.AVL.Store.Pure
     ) where
 
 import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
-import Control.Monad.Catch (MonadThrow, throwM)
+import Control.Monad.Catch (MonadThrow (throwM), MonadCatch)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Reader (ReaderT, ask, lift, runReaderT, MonadTrans (lift))
 import Control.Monad.State (StateT, put, runStateT)
@@ -45,24 +45,30 @@ asState action = do
     return b
 
 instance {-# OVERLAPPING #-}
-    ( Params h k v
-    , MonadThrow m
+    ( Ord h
+    , Show h
+    , Ord k
+    , Hash h k v
+    , MonadCatch m
     , MonadIO m
     )
   =>
-    KVRetrieve h k v (StoreT h k v m)
+    Retrieves h k v (StoreT h k v m)
   where
     retrieve k = asState $
         use psStorage <&> Map.lookup k
             >>= maybe (notFound k) pure
 
 instance
-    ( Params h k v
-    , MonadThrow m
+    ( Ord h
+    , Show h
+    , Ord k
+    , Hash h k v
+    , MonadCatch m
     , MonadIO m
     )
   =>
-    KVAppend h k v (StoreT h k v m)
+    Appends h k v (StoreT h k v m)
   where
     getRoot      = asState $ maybe (throwM NoRootExists) pure =<< use psRoot
     setRoot new  = asState $ psRoot    .= Just new
@@ -70,17 +76,20 @@ instance
         psStorage %= (<> Map.fromList pairs)
 
 instance
-    ( Params h k v
-    , MonadThrow m
+    ( Ord h
+    , Show h
+    , Ord k
+    , Hash h k v
+    , MonadCatch m
     , MonadIO m
     )
   =>
-    KVErase h k v (StoreT h k v m)
+    Erases h k v (StoreT h k v m)
   where
     erase hash = asState $ psStorage %= Map.delete hash
 
 -- | Unlifts 'StoreT' monad into 'Base' one.
-runStoreT :: forall h k v m a. (Params h k v, Monad m)
+runStoreT :: forall h k v m a. (Monad m)
     => TVar (State h k v)
     -> StoreT h k v m a
     -> m a
@@ -88,18 +97,18 @@ runStoreT var = (`runReaderT` var)
 
 -- | Creates new empty state.
 newState ::
-       forall h k v m. (Params h k v, MonadIO m)
+       forall h k v m. (Ord h, MonadIO m)
     => m (TVar (State h k v))
 newState = liftIO $ newTVarIO emptyState
 
-emptyState :: forall h k v . Params h k v => State h k v
+emptyState :: forall h k v . Ord h => State h k v
 emptyState = State
     { _psStorage = Map.empty -- singleton monoHash (MLEmpty 0 (Just monoHash))
     , _psRoot    = Nothing
     }
 
 -- | Dumps storage into console with given message.
-dump :: forall h k v m . (MonadIO m, Params h k v) => String -> StoreT h k v m ()
+dump :: forall h k v m . (MonadIO m, Debug h k v) => String -> StoreT h k v m ()
 dump msg = asState $ do
     State storage root <- use id
     liftIO $ do
@@ -109,5 +118,5 @@ dump msg = asState $ do
         putStrLn ""
 
 -- | Resets current state to empty.
-clean :: forall h k v m . (MonadIO m, Params h k v) => StoreT h k v m ()
+clean :: forall h k v m . (MonadIO m, Ord h) => StoreT h k v m ()
 clean = asState $ put emptyState

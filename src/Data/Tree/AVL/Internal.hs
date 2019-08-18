@@ -5,15 +5,12 @@
 
 module Data.Tree.AVL.Internal
     ( -- * Interfaces with database
-      KVRetrieve (..)
-
-      -- * Contexts for tree operations
-    , Retrieves
-    , Params
+      Retrieves (..)
 
       -- * Interface to plug in hash
     , ProvidesHash (..)
     , Hash
+    , Debug
     , hashOf
 
       -- * Exception to be thrown by DB operations
@@ -268,6 +265,8 @@ instance Eq h => Eq (MapLayer h k v h) where
 class ProvidesHash a h | a -> h where
     getHash :: a -> h
 
+type Debug h k v = (Show h, Show k, Show v)
+
 -- | Interface for calculating hash of the 'Map' node.
 type Hash h k v =
     ( ProvidesHash k h
@@ -285,7 +284,17 @@ hashOf = \case
     Right (Right (_))        -> getHash ()
 
 -- | DB monad capable of retrieving 'isolate'd nodes.
-class KVRetrieve h k v m | m -> h k v where
+class
+    ( Ord h
+    , Ord k
+    , Show h
+    , Hash h k v
+    , MonadCatch m
+    )
+  =>
+    Retrieves h k v m
+      | m -> h k v
+  where
     retrieve :: h -> m (Rep h k v)
 
 -- | Exception to be thrown when node with given hashkey is missing.
@@ -295,21 +304,6 @@ newtype NotFound = NotFound String
 
 notFound :: (MonadThrow m, Show k) => k -> m a
 notFound = throwM . NotFound . show
-
--- | Constraints on type parameters for AVL 'Map'.
-type Params h k v =
-    ( Ord h, Show h
-    , Ord k, Show k
-           , Show v
-    , Hash h k v
-    )
-
--- | Ability to read from the storage.
-type Retrieves h k v m =
-    ( Params h k v
-    , MonadCatch m
-    , KVRetrieve h k v m
-    )
 
 -------------------------------------------------------------------------------
 -- * Methods

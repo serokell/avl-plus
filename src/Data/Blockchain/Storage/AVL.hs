@@ -251,17 +251,23 @@ type LightNode h k v = StateT h
 
 instance
     ( Show h
-    , MonadThrow m
+    , Ord k
+    , Ord h
+    , AVL.Hash h k v
+    , MonadCatch m
     )
-    => AVL.KVRetrieve h k v (LightNode h k v m)
+    => AVL.Retrieves h k v (LightNode h k v m)
   where
     retrieve = AVL.notFound
 
 instance
     ( Show h
-    , MonadThrow m
+    , Ord k
+    , Ord h
+    , AVL.Hash h k v
+    , MonadCatch m
     )
-    => AVL.KVAppend h k v (LightNode h k v m)
+    => AVL.Appends h k v (LightNode h k v m)
   where
   getRoot = get
   setRoot = put
