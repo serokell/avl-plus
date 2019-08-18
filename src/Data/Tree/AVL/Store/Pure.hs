@@ -20,6 +20,7 @@ import Control.Lens (makeLenses, use, (%=), (.=), (<&>))
 
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
+import Data.Foldable (for_)
 
 import Data.Tree.AVL.Internal as AVL
 import Data.Tree.AVL.Persistence
@@ -114,7 +115,8 @@ dump msg = asState $ do
     liftIO $ do
         putStrLn msg
         print root
-        print storage
+        for_ (Map.toList storage) $ \(k, v) -> do
+          putStrLn $ show k ++ ": " ++ show v
         putStrLn ""
 
 -- | Resets current state to empty.

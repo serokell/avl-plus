@@ -127,6 +127,7 @@ module Data.Tree.AVL
     , checkProof
 
       -- * Helpers
+    , Debug
     , showMap
     , isBalancedToTheLeaves
     , WithBounds (..)

@@ -30,7 +30,6 @@ import qualified Data.Set as Set
 import Data.Tree.AVL.Insertion as AVL
 import Data.Tree.AVL.Internal
 
-
 -- | Provides possibility to use impure storage that is rewritten on
 -- the each write.
 class
@@ -57,21 +56,25 @@ instance Exception NoRootExists
 -- | Recursively store all the materialized nodes in the database.
 save :: forall h k v m . Appends h k v m => Map h k v -> m (Map h k v)
 save tree = do
-    massStore $ collect tree
+    nodes <- collect [] tree
+    massStore nodes
     return (ref (rootHash tree))
   where
     -- | Turns a 'Map' into relation of (hash, isolated-node),
     --   to use in 'save'.
-    collect :: Map h k v -> [(h, Rep h k v)]
-    collect it = case it of
-        Pure _     -> []
-        Free layer -> do
-            let hash  = rootHash it
-            let node  = toRep $ (layer :: MapLayer h k v (Map h k v))
-            let left  = layer^?mlLeft .to collect `orElse` []
-            let right = layer^?mlRight.to collect `orElse` []
+    collect :: [(h, Rep h k v)] -> Map h k v -> m [(h, Rep h k v)]
+    collect acc (Pure _) = do
+        return acc
 
-            [(hash, node)] ++ left ++ right
+    collect acc it@(Free layer) = do
+        _ <- retrieve (rootHash it)
+        return acc
+      `catch` \(NotFound _) -> do
+        let hash  = rootHash it
+        let node  = toRep layer
+        let acc'  = (hash, node) : acc
+        acc'' <- layer^?mlLeft .to (collect acc') `orElse` return acc'
+        layer^?mlRight.to (collect acc'') `orElse` return acc''
 
 -- | Returns current root from storage.
 currentRoot :: forall h k v m . Appends h k v m => m (Map h k v)
@@ -124,7 +127,6 @@ overwrite tree' = do
             when (rootHash tree `Set.notMember` border) $ do
                 eraseTopNode @h @k @v tree
                 for_ (children layer) go
-
 
 -- | Stores tree in the storage alongside whatever is there and
 --   sets the root pointer to its root.
