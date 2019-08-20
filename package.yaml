@@ -43,6 +43,7 @@ default-extensions:
 - FunctionalDependencies
 - GADTs
 - GeneralizedNewtypeDeriving
+- KindSignatures
 - LambdaCase
 - MultiParamTypeClasses
 - MultiWayIf

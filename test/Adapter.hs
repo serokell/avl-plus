@@ -1,8 +1,6 @@
 
 module Adapter (tests) where
 
-import Control.Monad.Catch
-
 import Common
 
 import qualified Data.Blockchain.Storage.AVL as AVL
@@ -14,14 +12,19 @@ tests = describe "Adapter" do
         uit'' "rolls back" \(list, k :: StringName, v) -> do
             AVL.genesis list
 
-            _ <- AVL.record () \() -> AVL.insert k v
-            _ <- AVL.transact @SomeException do
+            _ <- AVL.autoCommit do
+                AVL.record () \() -> do
+                    AVL.insert k v
+
+            _ <- AVL.tryAutoCommit do
                 _ <- AVL.record () \() -> do
                     AVL.insert k (v + 1)
                     Base.notFound k
                 return ()
 
-            (res, _) <- AVL.record () \() -> AVL.lookup k
+            (res, _) <- AVL.autoCommit $ do
+                AVL.record () \() -> do
+                    AVL.lookup k
 
             return $ res == Just v
 
@@ -29,13 +32,18 @@ tests = describe "Adapter" do
             \(list, k :: StringName, v) -> do
                 AVL.genesis list
 
-                _ <- AVL.record () \() -> AVL.insert k v
-                _ <- AVL.transact @SomeException do
+                _ <- AVL.autoCommit do
+                    AVL.record () \() -> do
+                        AVL.insert k v
+
+                _ <- AVL.autoCommit do
                     _ <- AVL.record () \() -> do
                         AVL.insert k (v + 1)
                     return ()
 
-                (res, _) <- AVL.record () \() -> AVL.lookup k
+                (res, _) <- AVL.autoCommit do
+                    AVL.record () \() -> do
+                        AVL.lookup k
 
                 return $ res == Just (v + 1)
 
@@ -44,11 +52,15 @@ tests = describe "Adapter" do
             AVL.genesis list
 
             save     <- Base.currentRoot
-            ((), tx) <- AVL.record () \() -> AVL.insert k v
+            ((), tx) <- AVL.autoCommit do
+                AVL.record () \() -> do
+                    AVL.insert k v
 
             Base.append save
 
-            AVL.apply tx \() -> AVL.insert k v
+            AVL.autoCommit do
+                AVL.apply tx \() -> do
+                    AVL.insert k v
 
             return True
 
@@ -57,12 +69,14 @@ tests = describe "Adapter" do
                 AVL.genesis list
 
                 save     <- Base.currentRoot
-                ((), tx) <- AVL.record () \() -> AVL.insert k v
+                ((), tx) <- AVL.autoCommit do
+                    AVL.record () \() -> do
+                        AVL.insert k v
 
                 Base.append save
 
-                ~(Left AVL.DivergedWithProof {}) <-
-                    AVL.transact @AVL.DivergedWithProof do
+                ~(Left _) <-
+                    AVL.tryAutoCommit do
                         AVL.apply tx \() -> do
                             AVL.insert k (v + 1)
 
@@ -73,9 +87,13 @@ tests = describe "Adapter" do
             AVL.genesis list
 
             old      <- Base.currentRoot
-            ((), tx) <- AVL.record () \() -> AVL.insert k v
+            ((), tx) <- AVL.autoCommit do
+                AVL.record () \() -> do
+                    AVL.insert k v
 
-            AVL.rollback tx \() -> AVL.insert k v
+            AVL.autoCommit do
+                AVL.rollback tx \() -> do
+                    AVL.insert k v
 
             back <- Base.currentRoot
 
@@ -84,10 +102,13 @@ tests = describe "Adapter" do
         uit'' "keeps state if failed" \(k :: StringName, v, list) -> do
             AVL.genesis list
 
-            ((), tx)  <- AVL.record () \() -> AVL.insert k v
-            new       <- Base.currentRoot
+            ((), tx)  <- AVL.autoCommit do
+                AVL.record () \() -> do
+                    AVL.insert k v
 
-            ~(Left _) <- AVL.transact @Base.NotFound do
+            new <- Base.currentRoot
+
+            ~(Left _) <- AVL.tryAutoCommit do
                 AVL.rollback tx \() -> do
                     AVL.insert k v
                     Base.notFound k

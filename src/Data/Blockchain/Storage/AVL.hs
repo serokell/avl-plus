@@ -24,8 +24,10 @@ module Data.Blockchain.Storage.AVL
     , DivergedWithProof (..)
 
       -- * Transactions
-    , transact
-    , transactOrRethrow
+    , manualCommit
+    , commit
+    , tryAutoCommit
+    , autoCommit
 
       -- * Light node
     , LightNode
@@ -59,7 +61,7 @@ import GHC.Generics (Generic)
 
 -- | Insert key/value into the blockchain state.
 insert
-    :: forall k v h ks vs m
+    :: forall k v h ks vs c m
     .  ( AVL.Retrieves h ks vs m
        , Member k ks
        , Member v vs
@@ -67,7 +69,7 @@ insert
        )
     => k
     -> v
-    -> CacheT h ks vs m ()
+    -> CacheT c h ks vs m ()
 insert k v = do
     tree <- get
     (set, tree') <- inCacheT $ AVL.insert (union # k) (union # v) tree
@@ -76,12 +78,12 @@ insert k v = do
 
 -- | Delete key from the blockchain state.
 delete
-    :: forall k h ks vs m
+    :: forall k h ks vs c m
     .  ( AVL.Retrieves h ks vs m
        , Member k ks
        )
     => k
-    -> CacheT h ks vs m ()
+    -> CacheT c h ks vs m ()
 delete k = do
     tree <- get
     (set, tree') <- inCacheT $ AVL.delete (union # k) tree
@@ -90,14 +92,14 @@ delete k = do
 
 -- | Lookup key in the blockchain state.
 lookup
-    :: forall k v h ks vs m
+    :: forall k v h ks vs c m
     .  ( AVL.Retrieves h ks vs m
        , Member k ks
        , Member v vs
        , Relates k v
     )
     => k
-    -> CacheT h ks vs m (Maybe v)
+    -> CacheT c h ks vs m (Maybe v)
 lookup k = do
     tree <- get
     ((res, set), tree') <- inCacheT $ AVL.lookup (union # k) tree
@@ -107,7 +109,7 @@ lookup k = do
 
 -- | Lookup key in the the blockchain state.
 require
-    :: forall k v h ks vs m
+    :: forall k v h ks vs c m
     .  ( AVL.Retrieves h ks vs m
        , Member k ks
        , Member v vs
@@ -115,7 +117,7 @@ require
        , Show k
        )
     => k
-    -> CacheT h ks vs m v
+    -> CacheT c h ks vs m v
 require k = do
     lookup k
         >>= maybe (AVL.notFound k) return
@@ -124,33 +126,25 @@ require k = do
 --   return the result of the transaction and the transaction, equipped with
 --   a proof.
 record
-    :: AVL.Appends h k v m
+    :: AVL.Retrieves h k v m
     => tx
-    -> (tx -> CacheT h k v m a)
-    -> m (a, Proven h k v tx)
+    -> (tx -> CacheT c h k v m a)
+    -> CacheT c h k v m (a, Proven h k v tx)
 record tx interp = do
-    tree              <- AVL.currentRoot
-    (res, tree', set) <- interp tx `runCacheT` tree
-    proof             <- AVL.prune set tree
+    old        <- get
+    (res, set) <- listen   $ interp tx
+    proof      <- inCacheT $ AVL.prune set old
+    new        <- get
 
-    AVL.append tree'
-
-    return (res, Proven tx proof (AVL.rootHash tree'))
+    return (res, Proven tx proof (AVL.rootHash new))
 
 -- | Same as the `record`, but the result of the transaction is @()@.
 record_
-    :: AVL.Appends h k v m
+    :: AVL.Retrieves h k v m
     => tx
-    -> (tx -> CacheT h k v m ())
-    -> m (Proven h k v tx)
-record_ tx interp = do
-    tree             <- AVL.currentRoot
-    ((), tree', set) <- interp tx `runCacheT` tree
-    proof            <- AVL.prune set tree
-
-    AVL.append tree'
-
-    return (Proven tx proof (AVL.rootHash tree'))
+    -> (tx -> CacheT c h k v m ())
+    -> CacheT c h k v m (Proven h k v tx)
+record_ = ((snd <$>) .) . record
 
 -- | Thrown if the state the proven transaction originates is not what
 --   it expects.
@@ -171,7 +165,7 @@ data DivergedWithProof = DivergedWithProof
     deriving anyclass Exception
 
 -- | The sandbox transformer to run `insert`, `delete` and `lookup` in.
-newtype CacheT h k v m a = CacheT { unCacheT :: StateT (AVL.Map h k v) (WriterT (Set.Set h) m) a }
+newtype CacheT (c :: Commit) h k v m a = CacheT { unCacheT :: StateT (AVL.Map h k v) (WriterT (Set.Set h) m) a }
   deriving newtype
     ( Functor
     , Applicative
@@ -183,17 +177,21 @@ newtype CacheT h k v m a = CacheT { unCacheT :: StateT (AVL.Map h k v) (WriterT 
     , MonadIO
     )
 
-inCacheT :: (Ord h, Monad m) => m a -> CacheT h k v m a
+data Commit
+  = Auto
+  | Manual
+
+inCacheT :: (Ord h, Monad m) => m a -> CacheT c h k v m a
 inCacheT = CacheT . lift . lift
 
 runCacheT
     :: AVL.Retrieves h k v m
-    => CacheT h k v m a
+    => CacheT c h k v m a
     -> AVL.Map h k v
-    -> m (a, AVL.Map h k v, Set.Set h)
+    -> m (a, AVL.Map h k v)
 runCacheT action seed = do
-    ((a, s), w) <- runWriterT $ unCacheT action `runStateT` seed
-    return (a, s, w)
+    ((a, s), _) <- runWriterT $ unCacheT action `runStateT` seed
+    return (a, s)
 
 -- | Transaction @tx@ with a proof.
 data Proven h k v tx = Proven
@@ -208,12 +206,12 @@ data Proven h k v tx = Proven
 --   Can be peformed on any node; it doesn't require that node to store
 --   the full network state.
 apply
-    :: AVL.Appends h k v m
+    :: AVL.Retrieves h k v m
     => Proven h k v tx
-    -> (tx -> CacheT h k v m a)
-    -> m a
+    -> (tx -> CacheT c h k v m a)
+    -> CacheT c h k v m a
 apply (Proven tx proof endHash) interp = do
-    tree <- AVL.currentRoot
+    tree <- get
 
     unless (AVL.rootHash tree `AVL.checkProof` proof) $ do
         throwM WrongOriginState
@@ -222,17 +220,16 @@ apply (Proven tx proof endHash) interp = do
             }
 
     let tree' = AVL.unProof proof
-    AVL.append tree'
+    put tree'
 
-    (res, tree'', _) <- interp tx `runCacheT` tree'
+    res    <- interp tx
+    tree'' <- get
 
     unless (AVL.rootHash tree'' == endHash) $ do
         throw DivergedWithProof
             { dwpExpected = show $ endHash
             , dwpGot      = show $ AVL.rootHash tree''
             }
-
-    AVL.append tree''
 
     return res
 
@@ -243,12 +240,12 @@ apply (Proven tx proof endHash) interp = do
 --
 --   Only the last applied transaction can be rolled back.
 rollback
-    :: AVL.Appends h k v m
+    :: AVL.Retrieves h k v m
     => Proven h k v tx
-    -> (tx -> CacheT h k v m a)
-    -> m a
+    -> (tx -> CacheT c h k v m a)
+    -> CacheT c h k v m a
 rollback (Proven tx proof endHash) interp = do
-    tree <- AVL.currentRoot
+    tree <- get
 
     unless (AVL.rootHash tree == endHash) $ do
         throw WrongOriginState
@@ -257,9 +254,10 @@ rollback (Proven tx proof endHash) interp = do
             }
 
     let tree' = AVL.unProof proof
-    AVL.append tree'
+    put tree'
 
-    (res, tree'', _) <- interp tx `runCacheT` tree'
+    res    <- interp tx
+    tree'' <- get
 
     unless (AVL.rootHash tree'' == AVL.rootHash tree) $ do
         throw DivergedWithProof
@@ -267,29 +265,55 @@ rollback (Proven tx proof endHash) interp = do
             , dwpGot      = show $ AVL.rootHash tree''
             }
 
-    AVL.append tree'
+    put tree'
+
     return res
 
+commit :: AVL.Appends h k v m => CacheT 'Manual h k v m ()
+commit = do
+    tree <- get
+    inCacheT $ AVL.append tree
+
 -- | Run action, restore the blockchain state if it fails.
-transact
+manualCommit
     :: forall e h k v m a
     .  (Exception e, AVL.Appends h k v m)
-    => m a
+    => CacheT 'Manual h k v m a
     -> m (Either e a)
-transact action = do
+manualCommit action = do
     saved <- AVL.currentRoot
-    (Right <$> action) `catch` \e -> do
+    do
+        (res, new) <- runCacheT action saved
+        AVL.append new
+        return (Right res)
+      `catch` \e -> do
+        AVL.append saved
+        return (Left e)
+
+-- | Run action, restore the blockchain state if it fails.
+tryAutoCommit
+    :: forall h k v m a
+    .  (AVL.Appends h k v m)
+    => CacheT 'Auto h k v m a
+    -> m (Either SomeException a)
+tryAutoCommit action = do
+    saved <- AVL.currentRoot
+    do
+        (res, new) <- runCacheT action saved
+        AVL.append new
+        return (Right res)
+      `catch` \e -> do
         AVL.append saved
         return (Left e)
 
 -- | As `transact`, rethrows the exception.
-transactOrRethrow
-    :: forall e h k v m a
-    .  (Exception e, AVL.Appends h k v m)
-    => m a
+autoCommit
+    :: forall h k v m a
+    .  (AVL.Appends h k v m)
+    => CacheT 'Auto h k v m a
     -> m a
-transactOrRethrow action = do
-    transact @e action >>= either throwM return
+autoCommit action = do
+    tryAutoCommit action >>= either throwM return
 
 -- | Helper to generate a list for `genesis`.
 pair
