@@ -26,7 +26,6 @@ module Data.Blockchain.Storage.AVL
       -- * Transactions
     , manualCommit
     , commit
-    , tryAutoCommit
     , autoCommit
 
       -- * Light node
@@ -276,44 +275,33 @@ commit = do
 
 -- | Run action, restore the blockchain state if it fails.
 manualCommit
-    :: forall e h k v m a
-    .  (Exception e, AVL.Appends h k v m)
+    :: forall h k v m a
+    .  AVL.Appends h k v m
     => CacheT 'Manual h k v m a
-    -> m (Either e a)
+    -> m a
 manualCommit action = do
     saved <- AVL.currentRoot
     do
-        (res, new) <- runCacheT action saved
-        AVL.append new
-        return (Right res)
+        (res, _) <- runCacheT action saved
+        return res
       `catch` \e -> do
         AVL.append saved
-        return (Left e)
-
+        throwM (e :: SomeException)
 -- | Run action, restore the blockchain state if it fails.
-tryAutoCommit
+autoCommit
     :: forall h k v m a
-    .  (AVL.Appends h k v m)
+    .  AVL.Appends h k v m
     => CacheT 'Auto h k v m a
-    -> m (Either SomeException a)
-tryAutoCommit action = do
+    -> m a
+autoCommit action = do
     saved <- AVL.currentRoot
     do
         (res, new) <- runCacheT action saved
         AVL.append new
-        return (Right res)
+        return res
       `catch` \e -> do
         AVL.append saved
-        return (Left e)
-
--- | As `transact`, rethrows the exception.
-autoCommit
-    :: forall h k v m a
-    .  (AVL.Appends h k v m)
-    => CacheT 'Auto h k v m a
-    -> m a
-autoCommit action = do
-    tryAutoCommit action >>= either throwM return
+        throwM (e :: SomeException)
 
 -- | Helper to generate a list for `genesis`.
 pair
