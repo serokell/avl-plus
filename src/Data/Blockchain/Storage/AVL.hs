@@ -24,9 +24,11 @@ module Data.Blockchain.Storage.AVL
     , DivergedWithProof (..)
 
       -- * Transactions
+    , Commit (..)
     , manualCommit
     , commit
     , autoCommit
+    , Data.Blockchain.Storage.AVL.try
 
       -- * Light node
     , LightNode
@@ -302,6 +304,13 @@ autoCommit action = do
       `catch` \e -> do
         AVL.append saved
         throwM (e :: SomeException)
+
+try :: MonadCatch m => m a -> m (Either SomeException a)
+try action = do
+    res <- action
+    return (Right res)
+  `catch` \e -> do
+    return (Left e)
 
 -- | Helper to generate a list for `genesis`.
 pair

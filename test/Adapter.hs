@@ -16,7 +16,7 @@ tests = describe "Adapter" do
                 AVL.record () \() -> do
                     AVL.insert k v
 
-            _ <- AVL.tryAutoCommit do
+            _ <- AVL.try $ AVL.autoCommit do
                 _ <- AVL.record () \() -> do
                     AVL.insert k (v + 1)
                     Base.notFound k
@@ -76,7 +76,7 @@ tests = describe "Adapter" do
                 Base.append save
 
                 ~(Left _) <-
-                    AVL.tryAutoCommit do
+                    AVL.try $ AVL.autoCommit do
                         AVL.apply tx \() -> do
                             AVL.insert k (v + 1)
 
@@ -108,7 +108,7 @@ tests = describe "Adapter" do
 
             new <- Base.currentRoot
 
-            ~(Left _) <- AVL.tryAutoCommit do
+            ~(Left _) <- AVL.try $ AVL.autoCommit do
                 AVL.rollback tx \() -> do
                     AVL.insert k v
                     Base.notFound k
