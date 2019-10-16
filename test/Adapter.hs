@@ -13,17 +13,17 @@ tests = describe "Adapter" do
             AVL.genesis list
 
             _ <- AVL.autoCommit do
-                AVL.record () \() -> do
+                AVL.recordProof () \() -> do
                     AVL.insert k v
 
             _ <- AVL.try $ AVL.autoCommit do
-                _ <- AVL.record () \() -> do
+                _ <- AVL.recordProof () \() -> do
                     AVL.insert k (v + 1)
                     Base.notFound k
                 return ()
 
             (res, _) <- AVL.autoCommit $ do
-                AVL.record () \() -> do
+                AVL.recordProof () \() -> do
                     AVL.lookup k
 
             return $ res == Just v
@@ -33,16 +33,16 @@ tests = describe "Adapter" do
                 AVL.genesis list
 
                 _ <- AVL.autoCommit do
-                    AVL.record () \() -> do
+                    AVL.recordProof () \() -> do
                         AVL.insert k v
 
                 _ <- AVL.autoCommit do
-                    _ <- AVL.record () \() -> do
+                    _ <- AVL.recordProof () \() -> do
                         AVL.insert k (v + 1)
                     return ()
 
                 (res, _) <- AVL.autoCommit do
-                    AVL.record () \() -> do
+                    AVL.recordProof () \() -> do
                         AVL.lookup k
 
                 return $ res == Just (v + 1)
@@ -53,7 +53,7 @@ tests = describe "Adapter" do
 
             save     <- Base.currentRoot
             ((), tx) <- AVL.autoCommit do
-                AVL.record () \() -> do
+                AVL.recordProof () \() -> do
                     AVL.insert k v
 
             Base.append save
@@ -70,7 +70,7 @@ tests = describe "Adapter" do
 
                 save     <- Base.currentRoot
                 ((), tx) <- AVL.autoCommit do
-                    AVL.record () \() -> do
+                    AVL.recordProof () \() -> do
                         AVL.insert k v
 
                 Base.append save
@@ -88,7 +88,7 @@ tests = describe "Adapter" do
 
             old      <- Base.currentRoot
             ((), tx) <- AVL.autoCommit do
-                AVL.record () \() -> do
+                AVL.recordProof () \() -> do
                     AVL.insert k v
 
             AVL.autoCommit do
@@ -103,7 +103,7 @@ tests = describe "Adapter" do
             AVL.genesis list
 
             ((), tx)  <- AVL.autoCommit do
-                AVL.record () \() -> do
+                AVL.recordProof () \() -> do
                     AVL.insert k v
 
             new <- Base.currentRoot

@@ -6,9 +6,9 @@
 
 module Data.Blockchain.Storage.AVL
     ( -- * Transaction wrapper
-      Proven
-    , record
-    , record_
+      Proven (..)
+    , recordProof
+    , recordProof_
     , apply
     , rollback
 
@@ -126,12 +126,12 @@ require k = do
 -- | Perform a transaction with an interpreter, commit changes into the storage,
 --   return the result of the transaction and the transaction, equipped with
 --   a proof.
-record
+recordProof
     :: AVL.Retrieves h k v m
     => tx
     -> (tx -> CacheT c h k v m a)
     -> CacheT c h k v m (a, Proven h k v tx)
-record tx interp = do
+recordProof tx interp = do
     old        <- get
     (res, set) <- listen   $ interp tx
     proof      <- inCacheT $ AVL.prune set old
@@ -140,12 +140,12 @@ record tx interp = do
     return (res, Proven tx proof (AVL.rootHash new))
 
 -- | Same as the `record`, but the result of the transaction is @()@.
-record_
+recordProof_
     :: AVL.Retrieves h k v m
     => tx
     -> (tx -> CacheT c h k v m ())
     -> CacheT c h k v m (Proven h k v tx)
-record_ = ((snd <$>) .) . record
+recordProof_ = ((snd <$>) .) . recordProof
 
 -- | Thrown if the state the proven transaction originates is not what
 --   it expects.
@@ -289,6 +289,7 @@ manualCommit action = do
       `catch` \e -> do
         AVL.append saved
         throwM (e :: SomeException)
+
 -- | Run action, restore the blockchain state if it fails.
 autoCommit
     :: forall h k v m a
