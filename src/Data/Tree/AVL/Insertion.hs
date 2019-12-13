@@ -49,6 +49,7 @@ insert k v tree = execZipped UpdateMode tree $ do
         if k == key0  -- update case, replace with new value
         then do
             here  <- locus
+            markHere
             here' <- lift $ lift $ setValue v here
             setLocus here'
         else do
