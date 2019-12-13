@@ -123,6 +123,7 @@ execZipped' mode0 tree action = do
 --
 withLocus :: Retrieves h k v m => (MapLayer h k v (Map h k v) -> Zipped h k v m a) -> Zipped h k v m a
 withLocus action = do
+    markHere
     loc   <- peek lHere
     layer <- lift $ lift $ load loc
     action layer
