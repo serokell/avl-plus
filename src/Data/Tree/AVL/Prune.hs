@@ -17,6 +17,8 @@ import Control.Lens ((&), (.~), (<&>), (^.))
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 
+import Debug.Trace
+
 
 -- | Proof baking: Cut off subtrees that haven't been touched.
 prune ::
@@ -24,7 +26,8 @@ prune ::
     => Set h
     -> Map h k v
     -> m (Proof h k v)
-prune hashes tree =
+prune hashes tree = do
+    traceShowM hashes
     Proof <$> go tree
   where
     go :: Map h k v -> m (Map h k v)
