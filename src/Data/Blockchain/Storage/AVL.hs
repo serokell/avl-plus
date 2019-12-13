@@ -18,6 +18,7 @@ module Data.Blockchain.Storage.AVL
     , delete
     , lookup
     , require
+    , inCacheT
 
       -- * Exceptions
     , WrongOriginState (..)
