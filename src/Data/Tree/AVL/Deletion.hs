@@ -19,7 +19,11 @@ deleteWithNoProof k tree = snd <$> delete k tree
 --
 --   It is idempotent.
 delete :: forall h k v m . Retrieves h k v m => k -> Map h k v -> m (Set h, Map h k v)
-delete k tree = execZipped DeleteMode tree $ withLocus $ \case
+delete k tree
+  = execZipped DeleteMode tree
+  $ while ("lookup " ++ show k)
+  $ withLocus
+  $ \case
     MLLeaf { _mlKey } ->
         if _mlKey == k
         then True  <$ replaceWith (empty :: Map h k v)

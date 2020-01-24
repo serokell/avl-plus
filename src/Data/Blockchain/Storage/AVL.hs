@@ -154,8 +154,10 @@ data WrongOriginState = WrongOriginState
     { wosExpected :: String
     , wosGot      :: String
     }
-    deriving stock    Show
     deriving anyclass Exception
+
+instance Show WrongOriginState where
+    show (WrongOriginState e g) = "WrongOriginState " ++ e ++ " " ++ g
 
 -- | Thrown if the state the proven transaction ends with is not the one
 --   captured in the proof.
@@ -163,8 +165,10 @@ data DivergedWithProof = DivergedWithProof
     { dwpExpected :: String
     , dwpGot      :: String
     }
-    deriving stock    Show
     deriving anyclass Exception
+
+instance Show DivergedWithProof where
+    show (DivergedWithProof e g) = "DivergedWithProof " ++ e ++ " " ++ g
 
 -- | The sandbox transformer to run `insert`, `delete` and `lookup` in.
 newtype CacheT (c :: Commit) h k v m a = CacheT { unCacheT :: StateT (AVL.Map h k v) (WriterT (Set.Set h) m) a }
@@ -340,6 +344,7 @@ newtype LightNode h k v m a = LightNode { runLightNode :: StateT h m a }
 
 instance
     ( Show h
+    , Show k
     , Ord k
     , Ord h
     , AVL.Hash h k v
@@ -351,6 +356,7 @@ instance
 
 instance
     ( Show h
+    , Show k
     , Ord k
     , Ord h
     , AVL.Hash h k v

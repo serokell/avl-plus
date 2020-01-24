@@ -88,7 +88,7 @@ module Data.Tree.AVL.Internal
 
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch, MonadThrow (throwM))
-import Control.Monad.Free (Free (Free, Pure))
+import Control.Monad.Free (Free (Free, Pure), iter)
 import Control.Lens (makeLenses, to, (&), (.~), (^.), (^?))
 
 import Data.Function (on)
@@ -211,7 +211,7 @@ data MapLayer h k v self
   | MLEmpty
     { _mlHash     :: ~h
     }
-    deriving (Show, Functor, Foldable, Traversable)
+    deriving (Functor, Foldable, Traversable)
 
 type Rep h k v
   = Either (h, k, k, Tilt, h, h)
@@ -288,6 +288,7 @@ class
     ( Ord h
     , Ord k
     , Show h
+    , Show k
     , Hash h k v
     , MonadCatch m
     )
@@ -299,11 +300,16 @@ class
 
 -- | Exception to be thrown when node with given hashkey is missing.
 newtype NotFound = NotFound String
-    deriving stock    Show
     deriving anyclass Exception
+
+instance Show NotFound where
+  show (NotFound s) = "NotFound: " ++ s
 
 notFound :: (MonadThrow m, Show k) => k -> m a
 notFound = throwM . NotFound . show
+
+instance {-# OVERLAPS #-} (Show h, Show k, Show v) => Show (Map h k v) where
+  show = showMap
 
 -------------------------------------------------------------------------------
 -- * Methods
@@ -315,9 +321,9 @@ showMap = Tree.drawTree . asTree
   where
     asTree = \case
       Free (MLBranch h m c t l r) -> Tree.Node ("Branch " ++ show (h, m, c, t)) [asTree r, asTree l]
-      Free (MLLeaf   h k v)       -> Tree.Node ("Leaf   " ++ show (h, k, v))    []
-      Free (MLEmpty  h)           -> Tree.Node ("Empty  " ++ show (h))          []
-      Pure  h                     -> Tree.Node ("Ref    " ++ show h)            []
+      Free (MLLeaf   h k v)       -> Tree.Node ("Leaf " ++ show (h, k, v))    []
+      Free (MLEmpty  h)           -> Tree.Node ("Empty " ++ show (h))          []
+      Pure  h                     -> Tree.Node ("Ref  " ++ show h)            []
 
 -- | Get hash of the root node for the tree.
 rootHash :: Map h k v -> h

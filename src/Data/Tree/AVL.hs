@@ -132,6 +132,7 @@ module Data.Tree.AVL
     , isBalancedToTheLeaves
     , WithBounds (..)
     , genesis
+    , while
     ) where
 
 import Prelude hiding (lookup)
@@ -144,3 +145,4 @@ import Data.Tree.AVL.Lookup
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
 import Data.Tree.AVL.Persistence
+import Data.Tree.AVL.Zipper (while)

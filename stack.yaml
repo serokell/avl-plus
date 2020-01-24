@@ -5,4 +5,4 @@ packages:
 
 extra-deps:
 - git: git@github.com:serokell/zipp.git
-  commit: ec15b334355784b4b6a052ab21108c3d6eaceff0
+  commit: 77e4778312996969bb7c046475638a61343567fb

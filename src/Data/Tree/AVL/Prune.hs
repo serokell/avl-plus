@@ -9,7 +9,7 @@ module Data.Tree.AVL.Prune
       prune
     ) where
 
-import Control.Monad.Free (Free (Free))
+import Control.Monad.Free (Free (Free, Pure))
 import Data.Set (Set)
 import qualified Data.Set as Set (notMember)
 import Control.Lens ((&), (.~), (<&>), (^.))
@@ -34,7 +34,7 @@ prune hashes tree = do
     go bush = do
         layer <- load bush
         if (layer^.mlHash) `Set.notMember` hashes
-        then return $ Free (layer <&> ref . rootHash)
+        then return (Pure (rootHash bush))
         else case layer of
             MLBranch {_mlLeft = l, _mlRight = r} -> do
                 l' <- go l

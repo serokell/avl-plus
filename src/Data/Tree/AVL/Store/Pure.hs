@@ -9,6 +9,7 @@ module Data.Tree.AVL.Store.Pure
     , dump
     , newState
     , clean
+    , asState
     ) where
 
 import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
@@ -48,6 +49,7 @@ asState action = do
 instance {-# OVERLAPPING #-}
     ( Ord h
     , Show h
+    , Show k
     , Ord k
     , Hash h k v
     , MonadCatch m
@@ -63,6 +65,7 @@ instance {-# OVERLAPPING #-}
 instance
     ( Ord h
     , Show h
+    , Show k
     , Ord k
     , Hash h k v
     , MonadCatch m
@@ -79,6 +82,7 @@ instance
 instance
     ( Ord h
     , Show h
+    , Show k
     , Ord k
     , Hash h k v
     , MonadCatch m

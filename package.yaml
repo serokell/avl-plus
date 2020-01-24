@@ -62,7 +62,7 @@ default-extensions:
 - ViewPatterns
 
 ghc-options:
-  -Wall -fno-warn-orphans -Werror
+  -Wall -fno-warn-orphans -freverse-errors
 
 library:
   exposed-modules:
@@ -75,6 +75,7 @@ library:
   - Data.Tree.AVL.Lookup
   - Data.Tree.AVL.Proof
   - Data.Tree.AVL.Prune
+  - Data.Tree.AVL.Store.Pure.Sharded
   - Data.Tree.AVL.Store.Pure
   - Data.Tree.AVL.Store.Void
   - Data.Tree.AVL.Persistence
@@ -96,6 +97,7 @@ tests:
     - Algorithm
     - Adapter
     - Persistence
+    - NotLoosingHashes
 
     dependencies:
     - AVL

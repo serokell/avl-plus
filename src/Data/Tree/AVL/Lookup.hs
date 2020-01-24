@@ -16,6 +16,8 @@ import qualified Data.Map as BinTree (Map, empty, singleton, unions)
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Zipper
 
+import Debug.Trace
+
 -- | Retrieves value for given key. Also collects raw proof.
 lookup :: Retrieves h k v m => k -> Map h k v -> m ((Maybe v, Set h), Map h k v)
 lookup k tree0 = assoc <$> runZipped UpdateMode tree0 (lookupZ k)
@@ -30,8 +32,11 @@ lookupMany ks tree0 = (assoc <$>) $ runZipped UpdateMode tree0 $ do
     return $ BinTree.unions pairs
 
 lookupZ :: Retrieves h k v m => k -> Zipped h k v m (Maybe v)
-lookupZ k = do
+lookupZ k = while ("lookup " ++ show k) do
     goto (Plain k)
+    markHere
+    h <- hashHere
+    traceShowM h
     withLocus $ \case
         MLLeaf {_mlKey, _mlValue} -> do
             if   _mlKey == k
@@ -46,11 +51,11 @@ lookupZ k = do
                 else gotoNextKey k
 
                 return Nothing
-        
+
         MLEmpty {} -> do
             return Nothing
-        
-        _ -> do 
+
+        _ -> do
             error $ "lookup: `goto ended in non-terminal node"
 
 assoc :: (a, b, c) -> ((a, c), b)

@@ -6,42 +6,48 @@
 --   or its sibling.
 
 module Data.Tree.AVL.Zipper
-    ( -- * Iterator monad and two ways of launching it
-      Zipped
-    , runZipped
-    , runZipped'
-    , execZipped
-    , execZipped'
+  ( module Data.Tree.AVL.Zipper
+  , module Zipp
+  )
+  {-
+    -- * Iterator monad and two ways of launching it
+    --   Zipped
+    -- , runZipped
+    -- , runZipped'
+    -- , execZipped
+    -- , execZipped'
 
-      -- * Mode of operation
-    , Mode (..)
+    --   -- * Mode of operation
+    -- , Mode (..)
 
-      -- * Navigation
-    , goto
-    , gotoPrevKey
-    , gotoNextKey
-    , up
-    , descent
+    --   -- * Navigation
+    -- , goto
+    -- , gotoPrevKey
+    -- , gotoNextKey
+    -- , up
+    -- , descent
 
-      -- * Actions over iterator
-    , withLocus
-    , change
-    , replaceWith
-    , markHere
+    --   -- * Actions over iterator
+    -- , withLocus
+    -- , change
+    -- , replaceWith
+    -- , markHere
 
-      -- * Current point iterator is standing on
-    , locus
-    , setLocus
-    )
+    --   -- * Current point iterator is standing on
+    -- , locus
+    -- , setLocus
+    -- , while
+    -- , mark
+    -- ) -}
   where
 
 import Control.Monad (unless, void)
-import Control.Monad.Catch (catch, throwM)
+import Control.Monad.Catch (catch, throwM, Exception, SomeException, MonadCatch)
 import Control.Monad.State.Strict (StateT (runStateT), lift)
 
 import Data.Monoid ((<>))
 import Data.Set (Set)
-import qualified Data.Set as Set (empty, fromList, insert)
+import qualified Data.Set as Set
 import Data.Tree.AVL.Internal
 import Data.Tree.AVL.Proof
 import Data.Tree.AVL.Prune
@@ -49,6 +55,8 @@ import Data.Tree.AVL.Prune
 import Control.Lens (makeLenses, use, to, (%=), (.~), (^?))
 
 import Control.Zipp as Zipp
+
+import Debug.Trace
 
 -- | Representation of zipper.
 type Zipped h k v m = Zipp.Action Side (Locus h k v) (WithTracking k h m)
@@ -74,6 +82,20 @@ data Locus h k v = Locus
 data Mode
     = UpdateMode  -- ^ Tree can only grow
     | DeleteMode  -- ^ Tree can only shrink
+
+data While a = While String a
+  deriving stock    (Show)
+  deriving anyclass (Exception)
+
+while :: MonadCatch m => String -> m a -> m a
+while msg ma = do
+  traceM ("START " ++ msg)
+  do a <- ma
+     traceM ("DONE  " ++ msg)
+     return a
+   `catch` \(e :: SomeException) -> do
+     traceM ("FAIL  " ++ msg)
+     throwM (While msg e)
 
 makeLenses ''Context
 makeLenses ''Locus
@@ -129,17 +151,23 @@ withLocus action = do
     action layer
 
 -- | Mark current point as visited.
-markHere :: (Monad m, Ord h) => Zipped h k v m ()
+markHere :: (Monad m, Ord h, Show h) => Zipped h k v m ()
 markHere = do
-    h <- peek (lHere.to rootHash)
-    lift $ cTouched %= Set.insert h
+    h <- hashHere
+    lift $ mark h
+
+hashHere :: (Monad m, Ord h, Show h) => Zipped h k v m h
+hashHere = peek (lHere.to rootHash)
 
 -- | Mark given point as visited.
-mark :: (Monad m, Ord h) => h -> WithTracking k h m ()
-mark h = cTouched %= Set.insert h
+mark :: (Monad m, Ord h, Show h) => h -> WithTracking k h m ()
+mark h = do
+  ct <- use cTouched
+  cTouched %= Set.insert h
+  traceShowM (h, Set.toList ct)
 
 -- | Mark given points as visited.
-markAll :: (Monad m, Ord h) => [h] -> WithTracking k h m ()
+markAll :: (Monad m, Ord h, Show h) => [h] -> WithTracking k h m ()
 markAll hs = cTouched %= (<> Set.fromList hs)
 
 -- | Descent into the given direction.
@@ -185,6 +213,10 @@ descent = \case
 
                 _ -> do
                     throwM CantGoUp
+
+        , leave = \(Locus s _) (Locus a _) -> do
+            mark (rootHash s)
+            mark (rootHash a)
         }
 
     rightDir :: Direction Side (Locus h k v) (WithTracking k h m)
@@ -214,6 +246,10 @@ descent = \case
 
                 _ -> do
                     throwM CantGoUp
+
+        , leave = \(Locus s _) (Locus a _) -> do
+            mark (rootHash s)
+            mark (rootHash a)
         }
 
 -- | Given mode of operation ans change in a subtree at given side, correct the tilt.
@@ -271,7 +307,7 @@ replaceWith newTree = do
 
 -- | Fix imbalances around current locus of editation.
 rebalance :: forall h k v m . Retrieves h k v m => Map h k v -> WithTracking k h m (Map h k v)
-rebalance tree = do
+rebalance tree = while "rebalance" do
     let hashes |- nodeGen = nodeGen <* markAll hashes
 
     let combine fork left right = lift $ do
@@ -310,7 +346,7 @@ rebalance tree = do
 
 -- | Teleport to previous key.
 gotoPrevKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
-gotoPrevKey k = do
+gotoPrevKey k = while ("going to prev of " ++ show k) do
     goto (Plain k)
     raiseUntilFrom R `catch` \CantGoUp    -> return ()
     descent L        `catch` \CantGoThere -> return ()
@@ -318,7 +354,7 @@ gotoPrevKey k = do
 
 -- | Teleport to next key.
 gotoNextKey :: forall h k v m . Retrieves h k v m => k -> Zipped h k v m ()
-gotoNextKey k = do
+gotoNextKey k = while ("going to next of " ++ show k) do
     goto (Plain k)
     raiseUntilFrom L `catch` \CantGoUp    -> return ()
     descent R        `catch` \CantGoThere -> return ()
@@ -326,7 +362,7 @@ gotoNextKey k = do
 
 -- | Teleport to a 'Leaf' with given key from anywhere.
 goto :: Retrieves h k v m => WithBounds k -> Zipped h k v m ()
-goto k = do
+goto k = while ("going to " ++ show k) do
     raiseUntilHaveInRange k
     descentOnto k
 

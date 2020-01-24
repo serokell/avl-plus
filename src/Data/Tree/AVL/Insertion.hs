@@ -39,7 +39,7 @@ insertWithNoProof k v tree = do
 --   It is idempotent in terms of 'Map' content, however, without 'Eq' @k@
 --   constraint 'Map's will be different.
 insert :: forall h k v m. Retrieves h k v m => k -> v -> Map h k v -> m (Set h, Map h k v)
-insert k v tree = execZipped UpdateMode tree $ do
+insert k v tree = execZipped UpdateMode tree $ while ("insert to " ++ show k) do
     goto (Plain k)  -- teleport to a key (or near it if absent)
     withLocus $ \case
       MLEmpty {} -> do
@@ -67,6 +67,7 @@ insert k v tree = execZipped UpdateMode tree $ do
     splitInsertBefore :: Map h k v -> Zipped h k v m ()
     splitInsertBefore leaf0 = do
         here <- locus
+        lift $ mark (rootHash here)
         replaceWith =<< lift (lift $ branch M leaf0 here)
         descent R
         void up
@@ -74,6 +75,7 @@ insert k v tree = execZipped UpdateMode tree $ do
     splitInsertAfter :: Map h k v -> Zipped h k v m ()
     splitInsertAfter leaf0 = do
         here <- locus
+        lift $ mark (rootHash here)
         replaceWith =<< lift (lift $ branch M here leaf0)
         descent L
         void up
