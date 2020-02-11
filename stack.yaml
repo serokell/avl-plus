@@ -1,8 +1,10 @@
+# `haskell.nix` version used by CI must be updated when the resolver
+# is updated to make sure it contains the latest snapshots
 resolver: lts-14.0
 
 packages:
 - '.'
 
 extra-deps:
-- git: git@github.com:serokell/zipp.git
+- git: https://github.com/serokell/zipp.git
   commit: ec15b334355784b4b6a052ab21108c3d6eaceff0
