@@ -1,7 +1,7 @@
 steps:
 - label: build
   commands:
-  - nix-build -A components
+  - nix-build ci.nix -A components
 - label: test
   commands:
-  - nix-build -A run-tests
+  - nix-build ci.nix -A run-tests
