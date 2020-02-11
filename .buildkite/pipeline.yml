@@ -1,0 +1,4 @@
+steps:
+- label: nix-build
+  commands:
+  - nix-build
