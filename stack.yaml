@@ -4,5 +4,5 @@ packages:
 - '.'
 
 extra-deps:
-- git: git@github.com:serokell/zipp.git
+- git: https://github.com/serokell/zipp.git
   commit: ec15b334355784b4b6a052ab21108c3d6eaceff0
